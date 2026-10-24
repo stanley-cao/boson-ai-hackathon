@@ -89,4 +89,5 @@ Most of the code is adapted from [boson-ai/higgs-realtime-tutorial](https://gith
 
 ## Git
 
-Ask before committing or pushing.
+- Ask before committing or pushing.
+- Before you edit anything for a GitHub issue, create a branch for it from an up-to-date `main`, and never edit on `main` directly. Name it as the roadmap says, `phase<N>/<track>-<topic>`, using the issue's `phase-N` and `track:*` labels (for example `phase1/a-language-profiles`).
