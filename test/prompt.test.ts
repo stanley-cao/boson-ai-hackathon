@@ -33,12 +33,12 @@ describe("tutor prompt", () => {
     expect(prompt).not.toContain("tone marks");
   });
 
-  it("speaks each correction target clearly exactly once after its tool returns", () => {
+  it("leaves per-tool guidance to the tool descriptions", () => {
+    // The "say it clearly exactly once" rule (#22) moved into note_correction's
+    // and pronunciation_feedback's descriptions (#80); tools.test.ts checks it.
     const prompt = buildTutorPrompt();
-    expect(prompt).toContain("After note_correction returns, say its correct text clearly exactly once.");
-    expect(prompt).toContain(
-      "After pronunciation_feedback returns, say its target clearly exactly once.",
-    );
+    expect(prompt).not.toContain("note_correction");
+    expect(prompt).not.toContain("pronunciation_feedback");
   });
 
   it("gives beginners slower speech and more English support than intermediates", () => {
@@ -74,8 +74,11 @@ describe("tutor prompt", () => {
 
   it("stays short, because extra rules stop the model calling tools", () => {
     // A tripwire rather than a target: a prompt that grows past this is a sign
-    // the model may stop calling tools.
-    expect(buildTutorPrompt().length).toBeLessThanOrEqual(1200);
+    // the model may stop calling tools. Checked per level because the
+    // intermediate note is the longer one, and the default is beginner.
+    for (const level of Object.values(LEARNER_LEVELS)) {
+      expect(buildTutorPrompt(PROFILES.zh, PROFILES.en, level).length, level.code).toBeLessThanOrEqual(1200);
+    }
   });
 
   it("is what the session sends as instructions", () => {
