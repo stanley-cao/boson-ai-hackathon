@@ -47,6 +47,7 @@ Keep testing light. These are the only checks an issue or PR needs:
 | `src/tools/handlers.ts` | Tool implementations |
 | `src/tools/registry.ts` | `dispatch(name, args)`, shared by the browser and the probe; `runTool` never throws, for transports |
 | `src/livekit/toolRpc.ts` | LiveKit mode: answers the agent's `polyglot.run_tool` RPC through the registry and feeds the transcript |
+| `src/livekit/AvatarSession.ts`, `transcription.ts` | Avatar mode: joins the LiveKit room, adds and releases the avatar, maps `lk.transcription` streams onto reducer events |
 | `src/state/transcriptStore.ts` | Pure reducer: event stream → ordered transcript |
 | `src/audio/` | Mic capture/resample → PCM16, and AudioWorklet playback |
 | `src/App.tsx`, `src/ui/` | React UI (no state library) |
