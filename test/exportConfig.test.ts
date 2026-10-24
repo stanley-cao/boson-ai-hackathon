@@ -18,8 +18,8 @@ describe("shared/session.json", () => {
     expect(exported.tools.map((tool) => tool.name)).toContain("note_correction");
   });
 
-  it("keeps transcription language unset for code-switched speech", () => {
-    expect(exported.audio.input.transcription).not.toHaveProperty("language");
+  it("explicitly requests automatic transcription-language detection", () => {
+    expect(exported.audio.input.transcription).toMatchObject({ language: null });
   });
 });
 

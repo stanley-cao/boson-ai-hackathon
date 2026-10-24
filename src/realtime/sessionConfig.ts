@@ -124,6 +124,7 @@ export function buildTutorPrompts(): Record<TargetLanguageCode, Record<LearnerLe
  * choice while learning: no decoder, nothing to go wrong.
  */
 export const AUDIO_RATE = 24000;
+export const INPUT_TRANSCRIPTION_MODEL = "higgs-stt-3.1";
 // Boson's preset library describes Eleanor as calm, articulate and suited to
 // educational explanations. Keep this named so the probe and tests can report
 // the exact voice whose Mandarin delivery needs live acceptance testing.
@@ -168,10 +169,11 @@ export function buildSessionConfig(
           // endpoint does not serve fails the update with an error naming it.
           // As of this writing, "higgs-stt-3.1" is the one to use.
           //
-          // POLYGLOT: no `language`. Pinning one (the tutorial used "en") would
-          // force every turn through a single-language transcriber and mangle
-          // code-switched speech. Leaving it out lets the server detect it.
-          transcription: { model: "higgs-stt-3.1" },
+          // `null` explicitly requests automatic language detection. The
+          // direct client sends this same setting again as each utterance
+          // starts: Boson otherwise lets transcription follow the language of
+          // the preceding conversation, which can misread a later switch.
+          transcription: { model: INPUT_TRANSCRIPTION_MODEL, language: null },
         },
         output: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
@@ -182,6 +184,26 @@ export function buildSessionConfig(
       // "executor" field, because running them is entirely the client's job.
       tools: TOOL_DEFINITIONS,
       tool_choice: "auto",
+    },
+  };
+}
+
+/**
+ * Reset STT to auto-detection for the utterance that is just beginning.
+ *
+ * This changes captions only. The target-language profile and tutor prompt
+ * stay untouched, so switching spoken language does not silently switch the
+ * learner's selected course.
+ */
+export function buildTranscriptionDetectionReset(): ClientEvent {
+  return {
+    type: "session.update",
+    session: {
+      audio: {
+        input: {
+          transcription: { model: INPUT_TRANSCRIPTION_MODEL, language: null },
+        },
+      },
     },
   };
 }

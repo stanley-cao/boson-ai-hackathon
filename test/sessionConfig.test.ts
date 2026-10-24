@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_RATE, buildSessionConfig, OUTPUT_VOICE } from "../src/realtime/sessionConfig";
+import {
+  AUDIO_RATE,
+  buildSessionConfig,
+  buildTranscriptionDetectionReset,
+  OUTPUT_VOICE,
+} from "../src/realtime/sessionConfig";
 
 interface AudioConfig {
   input: {
     format: { type: string; rate: number };
     turn_detection: { type: string; silence_duration_ms?: number };
-    transcription: { model: string; language?: string };
+    transcription: { model: string; language: string | null };
   };
   output: { format: { type: string; rate: number }; voice: string };
 }
@@ -26,9 +31,24 @@ describe("buildSessionConfig", () => {
     });
   });
 
-  it("keeps transcription language unset for code-switched speech", () => {
-    expect(audioConfig().input.transcription).toEqual({ model: "higgs-stt-3.1" });
-    expect(audioConfig().input.transcription).not.toHaveProperty("language");
+  it("explicitly auto-detects the transcription language", () => {
+    expect(audioConfig().input.transcription).toEqual({
+      model: "higgs-stt-3.1",
+      language: null,
+    });
+  });
+
+  it("can reset language detection without changing the tutor configuration", () => {
+    expect(buildTranscriptionDetectionReset()).toEqual({
+      type: "session.update",
+      session: {
+        audio: {
+          input: {
+            transcription: { model: "higgs-stt-3.1", language: null },
+          },
+        },
+      },
+    });
   });
 
   it("keeps PCM16 audio at 24 kHz in both directions", () => {

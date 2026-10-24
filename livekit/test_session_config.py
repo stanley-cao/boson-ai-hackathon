@@ -26,7 +26,7 @@ def test_model_kwargs_match_the_exported_session(session: dict[str, Any]) -> Non
 
 
 def test_transcription_language_stays_unset(session: dict[str, Any]) -> None:
-    # Pinning a language would mangle code-switched speech (CLAUDE.md invariant).
+    # None is the plugin's representation of Boson's explicit JSON null: auto-detect.
     assert model_kwargs(session)["input_audio_transcription_language"] is None
 
 
