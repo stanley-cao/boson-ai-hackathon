@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
-import { noteCorrection, normalizeLanguage } from "../src/tools/handlers";
+import { noteCorrection, normalizeLanguage, setPracticeLanguage } from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
 import {
@@ -134,6 +134,59 @@ describe("note_correction", () => {
 
   it("replaces the tutorial's dummy web_search", () => {
     expect(TOOL_DEFINITIONS.map((d) => d.name)).not.toContain("web_search");
+  });
+});
+
+describe("set_practice_language", () => {
+  it("switches language and level, normalising both", () => {
+    const r = setPracticeLanguage({ language: "Chinese", level: "Intermediate" });
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("Mandarin Chinese at intermediate level");
+    expect(r.detail).toEqual({ type: "practice_language", language: "zh", level: "intermediate" });
+  });
+
+  it("falls back to beginner for a level it does not recognise, and says so", () => {
+    const cases: [unknown, PracticeLanguage["level"]][] = [
+      ["advanced", "advanced"],
+      ["Fluent", "advanced"],
+      ["Beginners", "beginner"],
+      ["novice", "beginner"],
+      ["expert-ish", "beginner"],
+      ["constructor", "beginner"],
+      [2, "beginner"],
+      [undefined, "beginner"],
+    ];
+    for (const [sent, level] of cases) {
+      const r = setPracticeLanguage({ language: "zh", level: sent });
+      expect((r.detail as PracticeLanguage).level, String(sent)).toBe(level);
+      expect(r.summary).toContain(`${level} level`);
+    }
+  });
+
+  it("answers with an error, never a throw, for a language without a profile", () => {
+    for (const language of ["Korean", "ko", "fr-FR", "", undefined, { code: "zh" }]) {
+      const r = setPracticeLanguage({ language, level: "beginner" });
+      expect(r.error, String(language)).toBe("unknown_language");
+      for (const p of Object.values(PROFILES)) expect(r.summary).toContain(p.name);
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("set_practice_language", { language: "en", level: "advanced" });
+    expect(r.detail).toEqual({ type: "practice_language", language: "en", level: "advanced" });
+  });
+
+  it("is offered all three levels, and a free-text language it can refuse", () => {
+    const def = TOOL_DEFINITIONS.find((d) => d.name === "set_practice_language");
+    expect(def).toMatchObject({
+      parameters: {
+        properties: { level: { enum: ["beginner", "intermediate", "advanced"] } },
+        required: ["language", "level"],
+      },
+    });
+    // An enum here pulled a request for Korean onto "en"; see definitions.ts.
+    expect(def?.parameters.properties.language).not.toHaveProperty("enum");
   });
 });
 

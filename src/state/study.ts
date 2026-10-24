@@ -24,7 +24,7 @@ const PRONUNCIATION_ISSUES = new Set<PronunciationNote["issue"]>([
   "final",
   "other",
 ]);
-const LEVELS = new Set<PracticeLanguage["level"]>(["beginner", "intermediate"]);
+const LEVELS = new Set<PracticeLanguage["level"]>(["beginner", "intermediate", "advanced"]);
 
 const DETAIL_TYPE_BY_TOOL: Record<string, ToolDetail["type"]> = {
   note_correction: "correction",
