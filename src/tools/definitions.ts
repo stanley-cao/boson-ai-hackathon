@@ -61,4 +61,126 @@ export const TOOL_DEFINITIONS = [
       required: ["language", "said", "correct", "explanation", "kind"],
     },
   },
+  {
+    type: "function",
+    name: "set_practice_language",
+    description:
+      "Switch the language or level the learner is practising. Only when they " +
+      "ask to practise a different language or change their level, call this " +
+      "FIRST, before you say anything else; it updates the badge on their " +
+      "screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          // Deliberately no enum, unlike the other tools. Asked for Korean with
+          // only en/zh on offer, the model sent "en" and told the learner
+          // they'd switched to Korean. Free text lets the handler refuse it.
+          description:
+            "The language they asked for, as a code or a name, e.g. 'zh' or " +
+            "'Korean'. Pass what they asked for even if you can't teach it; " +
+            "the result says which languages are available.",
+        },
+        level: {
+          type: "string",
+          enum: ["beginner", "intermediate", "advanced"],
+          description:
+            "Their level in it. If they didn't say, keep the level they had, " +
+            "or use beginner.",
+        },
+      },
+      required: ["language", "level"],
+    },
+  },
+  {
+    type: "function",
+    name: "pronunciation_feedback",
+    description:
+      "Give the learner feedback on a sound they got wrong. Whenever you hear " +
+      "them mispronounce something (for Mandarin, above all a wrong tone, or a " +
+      "wrong initial or final), or they ask how to pronounce something, call " +
+      "this FIRST, before you say anything else; it shows the note on their " +
+      "screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          enum: Object.keys(PROFILES),
+          description: "The language being spoken.",
+        },
+        target: {
+          type: "string",
+          description:
+            "The word or syllable, in its own script (Chinese characters for " +
+            "Mandarin, not pinyin), e.g. '妈'.",
+        },
+        romanization: {
+          type: "string",
+          description:
+            "How it should sound. For Mandarin, pinyin with tone marks, not tone " +
+            "numbers, e.g. 'mā' rather than 'ma1'.",
+        },
+        issue: {
+          type: "string",
+          enum: ["tone", "initial", "final", "other"],
+          description:
+            "What was wrong: the tone, the initial (the consonant it starts " +
+            "with), the final (the vowel part after it), or something else.",
+        },
+        tip: {
+          type: "string",
+          // No example here: the model copied one verbatim into its tips for
+          // other tones in live probes.
+          description: "One short, practical tip for making this sound correctly.",
+        },
+      },
+      required: ["language", "target", "issue", "tip"],
+    },
+  },
+  {
+    type: "function",
+    name: "save_phrase",
+    // Leads with when to call it. Probed live, "how do you say 谢谢 in English?"
+    // after a greeting was answered without a call (0 of 8) until the
+    // description opened with the trigger (5 of 5).
+    description:
+      "Call this FIRST, before you say anything else, whenever the learner " +
+      "asks what a word or phrase means or how to say something, even after a " +
+      "greeting or in the middle of a sentence. Also call it when you teach " +
+      "them a new word or they ask you to remember one. It saves the phrase to " +
+      "the phrase list on their screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          enum: Object.keys(PROFILES),
+          description: "The language the phrase is in.",
+        },
+        phrase: {
+          type: "string",
+          description:
+            "The word or phrase in its own script (Chinese characters for " +
+            "Mandarin, not pinyin), e.g. '加油'.",
+        },
+        meaning: {
+          type: "string",
+          description: "What it means, in the learner's native language.",
+        },
+        romanization: {
+          type: "string",
+          description:
+            "How to say it, for a language not written in Latin letters. For " +
+            "Mandarin, pinyin with tone marks, e.g. 'jiā yóu'.",
+        },
+        note: {
+          type: "string",
+          description: "Optional: a short usage note, e.g. 'said to cheer someone on'.",
+        },
+      },
+      required: ["language", "phrase", "meaning"],
+    },
+  },
 ] as const;

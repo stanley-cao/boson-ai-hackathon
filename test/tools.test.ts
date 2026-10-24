@@ -1,6 +1,12 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
-import { noteCorrection, normalizeLanguage } from "../src/tools/handlers";
+import {
+  noteCorrection,
+  normalizeLanguage,
+  setPracticeLanguage,
+  pronunciationFeedback,
+  savePhrase,
+} from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
 import {
@@ -134,6 +140,205 @@ describe("note_correction", () => {
 
   it("replaces the tutorial's dummy web_search", () => {
     expect(TOOL_DEFINITIONS.map((d) => d.name)).not.toContain("web_search");
+  });
+});
+
+describe("set_practice_language", () => {
+  it("switches language and level, normalising both", () => {
+    const r = setPracticeLanguage({ language: "Chinese", level: "Intermediate" });
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("Mandarin Chinese at intermediate level");
+    expect(r.detail).toEqual({ type: "practice_language", language: "zh", level: "intermediate" });
+  });
+
+  it("falls back to beginner for a level it does not recognise, and says so", () => {
+    const cases: [unknown, PracticeLanguage["level"]][] = [
+      ["advanced", "advanced"],
+      ["Fluent", "advanced"],
+      ["Beginners", "beginner"],
+      ["novice", "beginner"],
+      ["expert-ish", "beginner"],
+      ["constructor", "beginner"],
+      [2, "beginner"],
+      [undefined, "beginner"],
+    ];
+    for (const [sent, level] of cases) {
+      const r = setPracticeLanguage({ language: "zh", level: sent });
+      expect((r.detail as PracticeLanguage).level, String(sent)).toBe(level);
+      expect(r.summary).toContain(`${level} level`);
+    }
+  });
+
+  it("answers with an error, never a throw, for a language without a profile", () => {
+    for (const language of ["Korean", "ko", "fr-FR", "", undefined, { code: "zh" }]) {
+      const r = setPracticeLanguage({ language, level: "beginner" });
+      expect(r.error, String(language)).toBe("unknown_language");
+      for (const p of Object.values(PROFILES)) expect(r.summary).toContain(p.name);
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("set_practice_language", { language: "en", level: "advanced" });
+    expect(r.detail).toEqual({ type: "practice_language", language: "en", level: "advanced" });
+  });
+
+  it("is offered all three levels, and a free-text language it can refuse", () => {
+    const def = TOOL_DEFINITIONS.find((d) => d.name === "set_practice_language");
+    expect(def).toMatchObject({
+      parameters: {
+        properties: { level: { enum: ["beginner", "intermediate", "advanced"] } },
+        required: ["language", "level"],
+      },
+    });
+    // An enum here pulled a request for Korean onto "en"; see definitions.ts.
+    expect(def?.parameters.properties.language).not.toHaveProperty("enum");
+  });
+});
+
+describe("pronunciation_feedback", () => {
+  const args = {
+    language: "Mandarin",
+    target: " 妈 ",
+    romanization: "mā",
+    issue: "Tones",
+    tip: "Keep your voice high and level, as if singing one note.",
+  };
+
+  it("saves a note with the language and issue normalised", () => {
+    const r = pronunciationFeedback(args);
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("妈");
+    expect(r.detail).toEqual({
+      type: "pronunciation",
+      language: "zh",
+      target: "妈",
+      romanization: "mā",
+      issue: "tone",
+      tip: "Keep your voice high and level, as if singing one note.",
+    });
+  });
+
+  it("files an issue it does not recognise as other, rather than losing the note", () => {
+    const cases: [unknown, PronunciationNote["issue"]][] = [
+      ["tone", "tone"],
+      ["wrong tone", "tone"],
+      ["tone_error", "tone"],
+      ["Initials", "initial"],
+      ["initial consonant", "initial"],
+      ["final", "final"],
+      ["vowels", "final"],
+      ["rhythm", "other"],
+      ["constructor", "other"],
+      [3, "other"],
+      [undefined, "other"],
+    ];
+    for (const [sent, issue] of cases) {
+      const d = pronunciationFeedback({ ...args, issue: sent }).detail as PronunciationNote;
+      expect(d.issue, String(sent)).toBe(issue);
+    }
+  });
+
+  it("keeps pinyin tone marks exactly as sent, and leaves out a blank romanization", () => {
+    expect((pronunciationFeedback({ ...args, romanization: "nǐ hǎo" }).detail as PronunciationNote).romanization).toBe(
+      "nǐ hǎo",
+    );
+    expect(pronunciationFeedback({ ...args, romanization: "" }).detail).not.toHaveProperty("romanization");
+  });
+
+  it("answers with an error, never a throw, when the language is unknown", () => {
+    for (const language of ["Klingon", undefined, null]) {
+      const r = pronunciationFeedback({ ...args, language });
+      expect(r.error, String(language)).toBe("unknown_language");
+      expect(r.summary).toContain(Object.keys(PROFILES).join(", "));
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("answers with an error when the target or the tip is missing", () => {
+    for (const missing of ["target", "tip"]) {
+      const r = pronunciationFeedback({ ...args, [missing]: "   " });
+      expect(r.error, missing).toBe("missing_fields");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("pronunciation_feedback", args);
+    expect((r.detail as PronunciationNote).type).toBe("pronunciation");
+  });
+
+  it("is offered with every profile language and the fields a card needs", () => {
+    expect(TOOL_DEFINITIONS.find((d) => d.name === "pronunciation_feedback")).toMatchObject({
+      parameters: {
+        properties: {
+          language: { enum: Object.keys(PROFILES) },
+          issue: { enum: ["tone", "initial", "final", "other"] },
+        },
+        required: ["language", "target", "issue", "tip"],
+      },
+    });
+  });
+});
+
+describe("save_phrase", () => {
+  const args = {
+    language: "zh-CN",
+    phrase: " 加油 ",
+    meaning: "Keep going! / You can do it!",
+    romanization: "jiā yóu",
+    note: "Said to cheer someone on.",
+  };
+
+  it("saves a phrase with the language normalised and the text trimmed", () => {
+    const r = savePhrase(args);
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("加油");
+    expect(r.detail).toEqual({
+      type: "phrase",
+      language: "zh",
+      phrase: "加油",
+      meaning: "Keep going! / You can do it!",
+      romanization: "jiā yóu",
+      note: "Said to cheer someone on.",
+    });
+  });
+
+  it("leaves out a blank or missing romanization and note", () => {
+    const d = savePhrase({ ...args, romanization: " ", note: undefined }).detail as Phrase;
+    expect(d).not.toHaveProperty("romanization");
+    expect(d).not.toHaveProperty("note");
+  });
+
+  it("answers with an error, never a throw, when the language is unknown", () => {
+    for (const language of ["Klingon", undefined, ["zh"]]) {
+      const r = savePhrase({ ...args, language });
+      expect(r.error, String(language)).toBe("unknown_language");
+      expect(r.summary).toContain(Object.keys(PROFILES).join(", "));
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("answers with an error when the phrase or its meaning is missing", () => {
+    for (const missing of ["phrase", "meaning"]) {
+      const r = savePhrase({ ...args, [missing]: 42 });
+      expect(r.error, missing).toBe("missing_fields");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("save_phrase", args);
+    expect((r.detail as Phrase).type).toBe("phrase");
+  });
+
+  it("is offered with every profile language and the fields a card needs", () => {
+    expect(TOOL_DEFINITIONS.find((d) => d.name === "save_phrase")).toMatchObject({
+      parameters: {
+        properties: { language: { enum: Object.keys(PROFILES) } },
+        required: ["language", "phrase", "meaning"],
+      },
+    });
   });
 });
 

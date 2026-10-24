@@ -1,5 +1,5 @@
 import { PROFILES } from "../lang/profiles";
-import type { Correction, ToolDetail } from "./types";
+import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -126,6 +126,159 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
   };
 }
 
+// What a model may call each level besides the enum value itself.
+const LEVELS: Record<string, PracticeLanguage["level"]> = {
+  beginner: "beginner",
+  novice: "beginner",
+  basic: "beginner",
+  intermediate: "intermediate",
+  advanced: "advanced",
+  fluent: "advanced",
+};
+
+/**
+ * The level, or "beginner" when the model sent none we recognise. The summary
+ * says the level aloud, so a wrong default is heard and can be corrected.
+ */
+function normalizeLevel(raw: unknown): PracticeLanguage["level"] {
+  if (typeof raw !== "string") return "beginner";
+  const t = raw.trim().toLowerCase().replace(/s$/, ""); // "Beginners" -> "beginner"
+  return Object.hasOwn(LEVELS, t) ? LEVELS[t] : "beginner";
+}
+
+/**
+ * Switch the language or level being practised, for the "practising" badge.
+ *
+ * A language without a profile is an error rather than a silent switch: the
+ * tutor has no teaching notes for it yet, and the summary names the languages
+ * it does have, so the model can offer those instead.
+ */
+export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    const names = Object.values(PROFILES)
+      .map((p) => p.name)
+      .join(" or ");
+    return {
+      summary: `That language isn't available yet. The learner can practise ${names}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const level = normalizeLevel(args.level);
+  const detail: PracticeLanguage = { type: "practice_language", language, level };
+  return {
+    summary: `Now practising ${PROFILES[language].name} at ${level} level. Confirm that to the learner in a few words, then carry on the conversation.`,
+    detail,
+  };
+}
+
+// Words that name each pronunciation issue. Anything else files as "other":
+// a mislabelled issue should still save the note, not lose it.
+const PRONUNCIATION_ISSUES: Record<string, PronunciationNote["issue"]> = {
+  tone: "tone",
+  tonal: "tone",
+  initial: "initial",
+  consonant: "initial",
+  final: "final",
+  vowel: "final",
+};
+
+function normalizePronunciationIssue(raw: unknown): PronunciationNote["issue"] {
+  if (typeof raw !== "string") return "other";
+  // Word by word, so "Tones", "wrong tone" and "tone_error" all file as tone.
+  for (const word of raw.toLowerCase().split(/[\s_-]+/)) {
+    const w = word.replace(/s$/, "");
+    if (Object.hasOwn(PRONUNCIATION_ISSUES, w)) return PRONUNCIATION_ISSUES[w];
+  }
+  return "other";
+}
+
+/**
+ * Save a pronunciation note: the Mandarin showcase, since the model hears the
+ * learner's tones directly rather than through a transcript.
+ *
+ * The schema tells the model to call this BEFORE it speaks, so the summary is
+ * its cue for what to say next rather than a line to read out: a "same turn"
+ * description was called far less reliably in live probes.
+ */
+export function pronunciationFeedback(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    return {
+      summary: `Note not saved: language must be one of ${Object.keys(PROFILES).join(", ")}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const target = normalizeText(args.target);
+  const tip = normalizeText(args.tip);
+  if (!target || !tip) {
+    return {
+      summary: "Note not saved: it needs the word or syllable and a tip.",
+      error: "missing_fields",
+    };
+  }
+
+  const romanization = normalizeText(args.romanization);
+  const detail: PronunciationNote = {
+    type: "pronunciation",
+    language,
+    target,
+    issue: normalizePronunciationIssue(args.issue),
+    tip,
+    ...(romanization ? { romanization } : {}),
+  };
+  return {
+    summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
+    detail,
+  };
+}
+
+/**
+ * Save a word or phrase to the learner's phrase list.
+ *
+ * The schema tells the model to call this BEFORE it speaks, so the summary is
+ * its cue for what to say next rather than a line to read out: a "same turn"
+ * description was called far less reliably in live probes.
+ */
+export function savePhrase(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    return {
+      summary: `Phrase not saved: language must be one of ${Object.keys(PROFILES).join(", ")}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const phrase = normalizeText(args.phrase);
+  const meaning = normalizeText(args.meaning);
+  if (!phrase || !meaning) {
+    return {
+      summary: "Phrase not saved: it needs the phrase and what it means.",
+      error: "missing_fields",
+    };
+  }
+
+  const romanization = normalizeText(args.romanization);
+  const note = normalizeText(args.note);
+  const detail: Phrase = {
+    type: "phrase",
+    language,
+    phrase,
+    meaning,
+    ...(romanization ? { romanization } : {}),
+    ...(note ? { note } : {}),
+  };
+  return {
+    summary: `Saved ${phrase} to the phrase list. Now briefly tell the learner what it means, then carry on the conversation.`,
+    detail,
+  };
+}
+
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
   note_correction: noteCorrection,
+  set_practice_language: setPracticeLanguage,
+  pronunciation_feedback: pronunciationFeedback,
+  save_phrase: savePhrase,
 };
