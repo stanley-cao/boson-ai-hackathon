@@ -122,12 +122,14 @@ function normalizeText(raw: unknown): string | null {
 }
 
 /**
- * A romanization only for a language written in another script. Live, a
+ * A romanization only for a language not written in Latin script. Live, a
  * French correction came back with made-up pinyin in `romanization`, which
- * the study panel would show under the French.
+ * the study panel would show under the French. Keyed on the script, not the
+ * profile's `romanization` system: Russian or Arabic have no named system,
+ * but a romanization still helps there.
  */
 function romanizationFor(language: ProfileCode, raw: unknown): string | null {
-  return "romanization" in PROFILES[language] ? normalizeText(raw) : null;
+  return PROFILES[language].script === "Latn" ? null : normalizeText(raw);
 }
 
 // What a model may call each correction kind besides the enum value itself.

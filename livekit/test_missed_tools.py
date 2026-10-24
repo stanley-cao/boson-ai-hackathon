@@ -38,6 +38,20 @@ from missed_tools import correction_in, phrase_question, phrase_to_save, saved_k
         ),
         ("How do I say hello?", "You can say: Zdravo!", "sr", {"language": "sr", "phrase": "Zdravo!", "meaning": "hello"}),
         ("How do you say thanks?", "감사합니다. It means thank you.", "ko", {"language": "ko", "phrase": "감사합니다", "meaning": "thanks"}),
+        # Languages added later, in scripts with no table of their own.
+        (
+            "How do you say thank you in Russian?",
+            "Спасибо means thank you.",
+            "fr",
+            {"language": "ru", "phrase": "Спасибо", "meaning": "thank you"},
+        ),
+        (
+            "How do you say thank you very much?",
+            "In Arabic you say شكرا جزيلا. It means thank you very much.",
+            "ar",
+            {"language": "ar", "phrase": "شكرا جزيلا", "meaning": "thank you very much"},
+        ),
+        ("How do you say hello?", "नमस्ते! That's the usual greeting.", "hi", {"language": "hi", "phrase": "नमस्ते", "meaning": "hello"}),
     ],
 )
 def test_a_taught_phrase_is_read_from_the_reply(turn: str, reply: str, current: str, saved: dict[str, str]) -> None:

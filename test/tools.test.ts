@@ -596,6 +596,11 @@ describe("save_phrase", () => {
     expect(d.correct).toBe("Je suis allé à la plage avec mon ami.");
     expect(d).not.toHaveProperty("romanization");
     expect(savePhrase({ ...args, language: "sr", phrase: "Hvala" }).detail).not.toHaveProperty("romanization");
+    // Kept for a non-Latin script without a named romanization system.
+    expect(savePhrase({ ...args, language: "ru", phrase: "Спасибо", romanization: "spasibo" }).detail).toHaveProperty(
+      "romanization",
+      "spasibo",
+    );
   });
 
   it("leaves out a blank or missing romanization and note", () => {
