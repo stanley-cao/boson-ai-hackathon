@@ -9,7 +9,7 @@ Update this table in the same PR that finishes a task or a phase.
 | Phase | Goal | Status | Lead | PRs |
 | --- | --- | --- | --- | --- |
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
-| 1 | English + Mandarin MVP for live testing | ⬜ not started | | |
+| 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
 | 2 | Depth and polish (levels, TTS replay, recap) | ⬜ not started | | |
 | 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
@@ -84,7 +84,7 @@ Agree on these first. Changing them requires a decision-log entry.
 
 ## Phase 1: English + Mandarin MVP
 
-- [ ] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`. (#5)
+- [x] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`. (#5) (@KyleDong03)
 - [ ] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`). (#6)
 - [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
 - [ ] **B:** `src/tools/types.ts` with the `detail` types. (#8)
