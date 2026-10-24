@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from session_config import activity_for, instructions_for, load_prompts, load_quiz_prompts, load_session, model_kwargs, opening_instruction
+from session_config import activity_for, instructions_for, load_prompts, load_quiz_prompts, load_session, model_kwargs, opening_instruction, tool_choice_for_activity
 from tools import STAND_IN_SUMMARY, build_tools
 
 
@@ -104,5 +104,13 @@ def test_invalid_activity_falls_back_to_conversation(metadata: str) -> None:
 
 
 def test_quiz_starts_with_question_one_instead_of_a_greeting() -> None:
-    assert "question 1 only" in opening_instruction("quiz")
+    assert "question 1 of 5" in opening_instruction("quiz")
     assert "Greet" in opening_instruction("conversation")
+
+
+def test_quiz_learner_turns_force_the_named_grade_tool() -> None:
+    assert tool_choice_for_activity("quiz") == {
+        "type": "function", "function": {"name": "grade_quiz_answer"}
+    }
+    assert tool_choice_for_activity("conversation") == "auto"
+    assert tool_choice_for_activity("invalid") == "auto"

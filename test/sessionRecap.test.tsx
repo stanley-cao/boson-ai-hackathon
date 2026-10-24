@@ -46,6 +46,17 @@ function phraseResult(phrase: string) {
   };
 }
 
+function quizResult(questionNumber: number, points: number, category = "translation") {
+  return {
+    summary: "Recorded.",
+    detail: {
+      type: "quiz_answer", language: "zh", questionNumber, category, source: "general",
+      question: `Question ${questionNumber}`, learnerAnswer: `Answer ${questionNumber}`,
+      referenceAnswer: `Reference ${questionNumber}`, points, feedback: `Feedback ${questionNumber}`,
+    },
+  };
+}
+
 describe("SessionRecap", () => {
   it("opens only when a session that reached open disconnects", () => {
     const failed = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "closed", 5);
@@ -211,5 +222,30 @@ describe("SessionRecap", () => {
     expect(html).toContain("No study notes were saved.");
     expect(html).toContain("No phrases were saved this session.");
     expect(html.match(/<strong>0<\/strong>/g)).toHaveLength(3);
+  });
+
+  it("shows the completed quiz total and answer breakdown only in the recap", () => {
+    let state = emptyTranscript;
+    for (let question = 1; question <= 5; question++) {
+      state = addTool(state, `q${question}`, `quiz-${question}`, "grade_quiz_answer", quizResult(question, question % 3));
+    }
+    const html = renderToStaticMarkup(
+      <SessionRecap state={state} openedAt={0} activity="quiz" onContinue={() => undefined} />,
+    );
+    expect(html).toContain("Quiz complete");
+    expect(html).toContain("6 out of 10");
+    expect(html).toContain("Your answer");
+    expect(html).toContain("Reference 5");
+    expect(html).toContain("Recommended focus");
+  });
+
+  it("shows earned attempted points for an early quiz disconnect", () => {
+    let state = addTool(emptyTranscript, "q1", "quiz-1", "grade_quiz_answer", quizResult(1, 2));
+    state = addTool(state, "q2", "quiz-2", "grade_quiz_answer", quizResult(2, 1, "vocabulary"));
+    const html = renderToStaticMarkup(
+      <SessionRecap state={state} openedAt={0} activity="quiz" onContinue={() => undefined} />,
+    );
+    expect(html).toContain("Quiz incomplete");
+    expect(html).toContain("3 out of 4 attempted points");
   });
 });

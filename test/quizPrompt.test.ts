@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LEARNER_LEVELS, PROFILES, TARGET_LANGUAGE_CODES } from "../src/lang/profiles";
-import { buildQuizPrompt, buildQuizPrompts, buildSessionConfig } from "../src/realtime/sessionConfig";
+import { buildQuizPrompt, buildQuizPrompts, buildQuizToolChoiceUpdate, buildSessionConfig } from "../src/realtime/sessionConfig";
+import { responseCreate } from "../src/realtime/events";
 import { quizReviewPrompt, sanitizeQuizReviewItems } from "../src/quiz/session";
 
 describe("quiz prompts", () => {
@@ -19,6 +20,17 @@ describe("quiz prompts", () => {
   it("uses the quiz prompt in session config", () => {
     const event = buildSessionConfig(LEARNER_LEVELS.beginner, PROFILES.fr, { activity: "quiz", reviewItems: [] });
     expect((event.session as { instructions: string }).instructions).toContain("French quiz");
+    expect((event.session as { tool_choice: string }).tool_choice).toBe("none");
+  });
+
+  it("alternates direct quiz turns between forced grading and tool-free questions", () => {
+    expect(buildQuizToolChoiceUpdate(true).session).toEqual({
+      tool_choice: { type: "function", name: "grade_quiz_answer" },
+    });
+    expect(buildQuizToolChoiceUpdate(false).session).toEqual({ tool_choice: "none" });
+    expect(responseCreate("Ask question 2")).toEqual({
+      type: "response.create", response: { instructions: "Ask question 2" },
+    });
   });
 
   it("caps and labels review material as untrusted reference data", () => {

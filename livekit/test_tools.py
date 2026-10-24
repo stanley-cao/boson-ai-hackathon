@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from livekit import rtc
+from livekit.agents import StopResponse
 
 from tools import (
     RPC_TIMEOUT_S,
@@ -93,3 +94,27 @@ def test_handler_without_a_linked_participant_gets_the_stand_in() -> None:
         function_call=SimpleNamespace(call_id="c"),
     )
     assert asyncio.run(forwarding_handler("save_phrase")(ARGS, context)) == {"summary": STAND_IN_SUMMARY}  # type: ignore[arg-type]
+
+
+def test_malformed_quiz_grade_gets_one_silent_forced_retry() -> None:
+    local = FakeLocal(json.dumps({"summary": "bad grade", "error": "missing_fields"}))
+    generated: list[dict[str, Any]] = []
+    session = SimpleNamespace(
+        room_io=SimpleNamespace(
+            linked_participant=SimpleNamespace(identity="learner"),
+            room=SimpleNamespace(local_participant=local),
+        ),
+        generate_reply=lambda **kwargs: generated.append(kwargs),
+    )
+    context = SimpleNamespace(session=session, function_call=SimpleNamespace(call_id="quiz-call"))
+    handler = forwarding_handler("grade_quiz_answer")
+
+    first = asyncio.run(handler({}, context))  # type: ignore[arg-type]
+    second = asyncio.run(handler({}, context))  # type: ignore[arg-type]
+
+    assert isinstance(first, StopResponse)
+    assert generated == [{
+        "instructions": "Silently retry grade_quiz_answer for the same learner answer with every required field. Do not speak or ask another question.",
+        "tool_choice": {"type": "function", "function": {"name": "grade_quiz_answer"}},
+    }]
+    assert second == {"summary": "bad grade", "error": "missing_fields"}

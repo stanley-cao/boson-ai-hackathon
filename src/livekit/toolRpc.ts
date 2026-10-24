@@ -2,6 +2,7 @@ import { SERVER, type ServerEvent } from "../realtime/events";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
 import { runTool } from "../tools/registry";
 import type { ToolResult } from "../tools/handlers";
+import { QuizController } from "../quiz/controller";
 
 /**
  * Tool calls in LiveKit mode (#32).
@@ -57,13 +58,17 @@ function parseRequest(payload: string): ToolRpcRequest | null {
 export async function answerToolRpc(
   payload: string,
   onServerEvent: (evt: ServerEvent) => void,
+  quizController?: QuizController,
 ): Promise<string> {
   const request = parseRequest(payload);
   if (!request) {
     const result: ToolResult = { summary: "The tool call could not be read.", error: "bad_request" };
     return JSON.stringify(result);
   }
-  const { call_id, name, arguments: args } = request;
+  const { call_id, name } = request;
+  const args = name === "grade_quiz_answer" && quizController
+    ? quizController.prepareGradeArgs(request.arguments)
+    : request.arguments;
   onServerEvent({
     type: SERVER.functionCallArgsDone,
     call_id,
@@ -72,7 +77,10 @@ export async function answerToolRpc(
     arguments: JSON.stringify(args),
   });
   const startedAt = Date.now();
-  const result = await runTool(name, args);
+  let result = await runTool(name, args);
+  if (name === "grade_quiz_answer" && quizController) {
+    result = quizController.accept(result).result;
+  }
   onServerEvent({ type: CLIENT_TOOL_RESULT, call_id, result, ms: Date.now() - startedAt });
   return JSON.stringify(result);
 }
@@ -85,7 +93,9 @@ export async function answerToolRpc(
 export function registerToolRpc(
   participant: ToolRpcParticipant,
   onServerEvent: (evt: ServerEvent) => void,
+  quizController?: QuizController,
 ): () => void {
-  participant.registerRpcMethod(TOOL_RPC_METHOD, ({ payload }) => answerToolRpc(payload, onServerEvent));
+  participant.registerRpcMethod(TOOL_RPC_METHOD, ({ payload }) =>
+    answerToolRpc(payload, onServerEvent, quizController));
   return () => participant.unregisterRpcMethod(TOOL_RPC_METHOD);
 }

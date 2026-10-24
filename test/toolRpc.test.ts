@@ -16,6 +16,8 @@ import {
 } from "../src/state/transcriptStore";
 import { handlers } from "../src/tools/handlers";
 import { runTool } from "../src/tools/registry";
+import { QuizController } from "../src/quiz/controller";
+import { quizFromTranscript } from "../src/state/quiz";
 
 const phraseCall = {
   call_id: "call_1",
@@ -85,6 +87,26 @@ describe("tool calls over LiveKit RPC", () => {
     // livekit/tools.py is Python, so the shared name is checked by reading it.
     const agent = readFileSync(new URL("../livekit/tools.py", import.meta.url), "utf8");
     expect(agent).toContain(`TOOL_RPC_METHOD = "${TOOL_RPC_METHOD}"`);
+  });
+
+  it("corrects repeated model numbering across all five avatar grades", async () => {
+    const controller = new QuizController("zh");
+    let state = emptyTranscript;
+    for (let question = 1; question <= 5; question++) {
+      const events: ServerEvent[] = [];
+      await answerToolRpc(JSON.stringify({
+        call_id: `quiz-${question}`,
+        name: "grade_quiz_answer",
+        arguments: {
+          language: "French", question_number: 1, category: "translation", source: "general",
+          question: `Unique question ${question}`, learner_answer: "answer", reference_answer: "reference",
+          points: question % 3, feedback: "feedback",
+        },
+      }), (event) => events.push(event), controller);
+      state = events.reduce((current, event) => transcriptReducer(current, event, question), state);
+    }
+    expect(quizFromTranscript(state)).toMatchObject({ attempted: 5, complete: true });
+    expect(quizFromTranscript(state).answers.map((answer) => answer.questionNumber)).toEqual([1, 2, 3, 4, 5]);
   });
 });
 

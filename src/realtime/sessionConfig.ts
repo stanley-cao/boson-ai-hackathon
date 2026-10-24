@@ -7,6 +7,7 @@ import {
   type QuizReviewItem,
   type SessionIntent,
 } from "../quiz/session";
+import { QUIZ_GRADE_TOOL_CHOICE } from "../quiz/controller";
 import {
   ACTIVE_LEVEL,
   ACTIVE_PAIR,
@@ -108,9 +109,10 @@ export function buildQuizPrompt(
 ): string {
   return [
     `You are giving a ${level.code} ${target.name} quiz to a learner who speaks ${native.name}.`,
-    "Ask exactly five numbered questions, one at a time, beginning with question 1.",
+    "Ask exactly five numbered questions, one at a time, beginning with question 1. Never repeat or rephrase an earlier question.",
     "Use translation, vocabulary, grammar, or comprehension only; never test or grade pronunciation.",
     "Use saved review data first when suitable, then level-appropriate general questions.",
+    "Question 1 is translation, question 2 vocabulary, question 3 grammar, question 4 comprehension, and question 5 revisits the learner's weakest category from the first four.",
     quizReviewPrompt(reviewItems),
     "After each learner answer, call grade_quiz_answer FIRST. Award 2 for correct and meaningfully complete, 1 for substantially correct with a minor error or missing detail, and 0 for incorrect, unrelated, or no meaningful answer.",
     "After the tool returns, give one brief explanation and ask only the next numbered question.",
@@ -219,8 +221,15 @@ export function buildSessionConfig(
       // PART 4: the tools the model may call. Plain JSON Schema — there is no
       // "executor" field, because running them is entirely the client's job.
       tools: TOOL_DEFINITIONS,
-      tool_choice: "auto",
+      tool_choice: intent.activity === "quiz" ? "none" : "auto",
     },
+  };
+}
+
+export function buildQuizToolChoiceUpdate(grading: boolean): ClientEvent {
+  return {
+    type: "session.update",
+    session: { tool_choice: grading ? QUIZ_GRADE_TOOL_CHOICE : "none" },
   };
 }
 

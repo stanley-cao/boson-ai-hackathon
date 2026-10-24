@@ -41,8 +41,14 @@ def activity_for(metadata: str) -> str:
 
 def opening_instruction(activity: str) -> str:
     if activity == "quiz":
-        return "Start the five-question quiz now. Ask numbered question 1 only."
+        return "Start the five-question quiz now. Ask one new numbered translation question, question 1 of 5, only."
     return "Greet the learner in one short sentence."
+
+
+def tool_choice_for_activity(activity: str) -> str | dict[str, Any]:
+    if activity == "quiz":
+        return {"type": "function", "function": {"name": "grade_quiz_answer"}}
+    return "auto"
 
 
 def _review_items(choice: dict[str, Any]) -> list[dict[str, str]]:

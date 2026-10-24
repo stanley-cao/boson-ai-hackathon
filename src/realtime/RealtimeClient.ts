@@ -12,6 +12,7 @@ import {
 } from "./events";
 import {
   buildInstructionsUpdate,
+  buildQuizToolChoiceUpdate,
   buildSessionConfig,
   levelChangeFromTool,
   planPaceChange,
@@ -30,6 +31,7 @@ import { MicCapture } from "../audio/capture";
 import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
 import { CONVERSATION_INTENT, type SessionIntent } from "../quiz/session";
+import { QUIZ_OPENING_INSTRUCTION, QuizController, type QuizGradeOutcome } from "../quiz/controller";
 
 // The model can also be set in session.update; passing it in the URL means the
 // server knows which model you want before the first byte of config arrives.
@@ -112,6 +114,7 @@ export class RealtimeClient {
     revertPaceAfterReply?: boolean;
     /** A slow repeat is playing through TTS, so no reply is asked for. */
     silent?: boolean;
+    quizOutcome?: QuizGradeOutcome;
   } | null = null;
 
   /**
@@ -138,6 +141,8 @@ export class RealtimeClient {
   private target: TargetLanguageCode = ACTIVE_PAIR.target;
   private intent: SessionIntent = CONVERSATION_INTENT;
   private quizOpeningPending = false;
+  private quizController: QuizController | null = null;
+  private quizPhase: "inactive" | "asking" | "grading" | "complete" = "inactive";
 
   /**
    * ⚠ The single most important line in this file.
@@ -239,6 +244,8 @@ export class RealtimeClient {
       this.target = target;
       this.intent = intent;
       this.quizOpeningPending = intent.activity === "quiz";
+      this.quizController = intent.activity === "quiz" ? new QuizController(target) : null;
+      this.quizPhase = intent.activity === "quiz" ? "asking" : "inactive";
       this.sessionPace = "normal";
       this.revertPace = null;
       this.send(buildSessionConfig(LEARNER_LEVELS[level], PROFILES[target], intent));
@@ -310,7 +317,7 @@ export class RealtimeClient {
       case SERVER.sessionCreated:
         if (this.quizOpeningPending) {
           this.quizOpeningPending = false;
-          this.send(responseCreate());
+          this.send(responseCreate(QUIZ_OPENING_INSTRUCTION));
           this.setActivity("thinking");
         }
         break;
@@ -416,9 +423,12 @@ export class RealtimeClient {
     const startedAt = Date.now();
 
     const p = (async () => {
+      const effectiveArgs = name === "grade_quiz_answer" && this.quizController
+        ? this.quizController.prepareGradeArgs(args)
+        : args;
       // runTool answers even when a handler throws, or the model would wait
       // forever for a call_id that never comes back.
-      let result: unknown = await runTool(name, args, (e) =>
+      let result = await runTool(name, effectiveArgs, (e) =>
         this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`),
       );
       // The badge alone isn't enough: the prompt carries the level's pace and
@@ -448,6 +458,11 @@ export class RealtimeClient {
           batch.revertPaceAfterReply = plan.revertAfterReply;
           this.info(`Speaking pace: ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}.`);
         }
+      }
+      if (name === "grade_quiz_answer" && this.quizController) {
+        const outcome = this.quizController.accept(result);
+        result = outcome.result;
+        batch.quizOutcome = outcome;
       }
       // Feed the result into the transcript through the same reducer path as
       // everything else, using a synthetic event type of our own.
@@ -495,6 +510,12 @@ export class RealtimeClient {
     if (this.toolBatch && this.toolBatch.promises.length > 0) {
       void this.flushToolBatch();
     } else {
+      if (this.quizController && this.quizPhase === "asking" && !this.quizController.complete) {
+        this.send(buildQuizToolChoiceUpdate(true));
+        this.quizPhase = "grading";
+      } else if (this.quizController?.complete) {
+        this.quizPhase = "complete";
+      }
       this.setActivity(this.capture.active ? "listening" : "idle");
     }
   }
@@ -525,12 +546,18 @@ export class RealtimeClient {
     // under the new level's or pace's instructions.
     if (batch.sessionUpdate) this.send(batch.sessionUpdate);
     if (batch.revertPaceAfterReply) this.revertPace = "armed";
+    if (batch.quizOutcome && batch.quizOutcome.kind !== "retry") {
+      this.send(buildQuizToolChoiceUpdate(false));
+      this.quizPhase = batch.quizOutcome.kind === "recorded" && batch.quizOutcome.complete
+        ? "complete"
+        : "asking";
+    }
     for (const out of batch.outputs) this.send(out);
 
     // Mandatory, except while a slow repeat plays: without it the model has
     // every result and says nothing, which is exactly what we want then.
     if (batch.silent) this.setActivity(this.capture.active ? "listening" : "idle");
-    else this.send(responseCreate());
+    else this.send(responseCreate(batch.quizOutcome?.instructions));
   }
 
   /**

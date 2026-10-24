@@ -150,8 +150,10 @@ export function userTextItem(text: string): ClientEvent {
  * start a response — this is what does. (In Part 2, when the server is
  * detecting turns for you, you stop sending this entirely.)
  */
-export function responseCreate(): ClientEvent {
-  return { type: "response.create" };
+export function responseCreate(instructions?: string): ClientEvent {
+  return instructions
+    ? { type: "response.create", response: { instructions } }
+    : { type: "response.create" };
 }
 
 /**

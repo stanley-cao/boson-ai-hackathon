@@ -12,6 +12,7 @@ import {
 } from "livekit-client";
 import type { LearnerLevel, TargetLanguageCode } from "../lang/profiles";
 import { CONVERSATION_INTENT, type SessionIntent } from "../quiz/session";
+import { QuizController } from "../quiz/controller";
 import type { ServerEvent } from "../realtime/events";
 import type { Activity, ConnectionState, LogEntry } from "../realtime/RealtimeClient";
 import { registerToolRpc } from "./toolRpc";
@@ -163,7 +164,10 @@ export class AvatarSession {
       const emit = (evt: ServerEvent) => this.cb.onServerEvent?.(evt);
       // Both handlers go on before connecting: the agent greets, and may call
       // a tool, as soon as the learner joins (toolRpc.ts).
-      this.stopRpc = registerToolRpc(room, emit);
+      const quizController = intent.activity === "quiz" && language
+        ? new QuizController(language)
+        : undefined;
+      this.stopRpc = registerToolRpc(room, emit, quizController);
       room.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader, { identity }) => {
         void readTranscription(reader, identity === lk.identity, emit);
       });

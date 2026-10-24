@@ -16,7 +16,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from livekit import rtc
-from livekit.agents import RunContext
+from livekit.agents import RunContext, StopResponse
 from livekit.agents.llm import RawFunctionTool, function_tool
 
 logger = logging.getLogger("polyglot.tools")
@@ -33,7 +33,7 @@ RPC_TIMEOUT_S = 5.0
 STAND_IN_SUMMARY = "Done. Continue as the tool's description says."
 UNAVAILABLE_SUMMARY = "The study panel did not answer, so nothing was saved. Carry on the conversation."
 
-ToolHandler = Callable[[dict[str, Any], RunContext], Awaitable[dict[str, Any]]]
+ToolHandler = Callable[[dict[str, Any], RunContext], Awaitable[dict[str, Any] | StopResponse]]
 
 
 def _as_tool_result(response: str) -> dict[str, Any] | None:
@@ -88,7 +88,10 @@ async def forward_tool_call(
 def forwarding_handler(name: str) -> ToolHandler:
     """A handler that forwards the call to the learner's browser."""
 
-    async def handle(raw_arguments: dict[str, Any], context: RunContext) -> dict[str, Any]:
+    retrying_grade = False
+
+    async def handle(raw_arguments: dict[str, Any], context: RunContext) -> dict[str, Any] | StopResponse:
+        nonlocal retrying_grade
         logger.info("%s(%s)", name, json.dumps(raw_arguments, ensure_ascii=False))
         local: rtc.LocalParticipant | None = None
         identity: str | None = None
@@ -107,6 +110,20 @@ def forwarding_handler(name: str) -> ToolHandler:
             pass
         result = await forward_tool_call(local, identity, call_id, name, raw_arguments)
         logger.info("%s -> %s", name, result.get("summary"))
+        if name == "grade_quiz_answer" and result.get("error") and result.get("error") != "tool_unavailable":
+            if not retrying_grade:
+                retrying_grade = True
+                context.session.generate_reply(
+                    instructions=(
+                        "Silently retry grade_quiz_answer for the same learner answer with every required field. "
+                        "Do not speak or ask another question."
+                    ),
+                    tool_choice={"type": "function", "function": {"name": "grade_quiz_answer"}},
+                )
+                return StopResponse()
+            retrying_grade = False
+        elif name == "grade_quiz_answer":
+            retrying_grade = False
         return result
 
     return handle

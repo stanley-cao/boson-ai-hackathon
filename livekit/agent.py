@@ -21,7 +21,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequ
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
-from session_config import activity_for, instructions_for, load_prompts, load_quiz_prompts, load_session, model_kwargs, opening_instruction
+from session_config import activity_for, instructions_for, load_prompts, load_quiz_prompts, load_session, model_kwargs, opening_instruction, tool_choice_for_activity
 from tools import build_tools
 
 logger = logging.getLogger("polyglot")
@@ -46,7 +46,17 @@ class Tutor(Agent):
     async def on_enter(self) -> None:
         # The model answers when the learner stops speaking. Speak first instead,
         # which is also what probe.py waits for.
-        self.session.generate_reply(instructions=opening_instruction(self.activity))
+        self.session.generate_reply(
+            instructions=opening_instruction(self.activity),
+            tool_choice="none" if self.activity == "quiz" else "auto",
+        )
+        if self.activity == "quiz":
+            # Keep LiveKit's own default in sync with the model. Its response
+            # scoping restores this choice after the tool-free opening and
+            # feedback turns, covering spoken and typed learner input.
+            self._get_activity_or_raise().update_options(
+                tool_choice=tool_choice_for_activity(self.activity)
+            )
 
 
 server = AgentServer()
@@ -68,6 +78,10 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info("tutoring %s with metadata %r", learner.identity, learner.metadata)
     options = model_kwargs(SESSION)
     options["instructions"] = instructions
+    # Session-level because Boson ignores per-response tool choice. Opening and
+    # tool-result replies temporarily scope this to none/auto, then LiveKit
+    # restores the named default for both spoken and typed learner answers.
+    options["tool_choice"] = tool_choice_for_activity(activity)
     # Environment overrides, as upstream has, for trying another model or voice.
     options["model"] = os.getenv("BOSON_REALTIME_MODEL", options["model"])
     options["voice"] = os.getenv("BOSON_VOICE", options["voice"])
