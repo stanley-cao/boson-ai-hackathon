@@ -29,7 +29,7 @@ export const TOOL_DEFINITIONS = [
       "conversation, including when they ask you to check a sentence or mix " +
       "languages in one turn. It saves the correction to their study panel and " +
       "then tells you what to say. Not for pronunciation, and not when nothing " +
-      "needs changing.",
+      "needs changing. After it returns, say the `correct` text clearly exactly once.",
     parameters: {
       type: "object",
       properties: {

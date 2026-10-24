@@ -109,7 +109,7 @@ Agree on these first. Changing them requires a decision-log entry.
 ## Phase 2: Depth and polish
 
 - [x] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly". (#21) (@dorsa-molaverdikhani)
-- [ ] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22)
+- [x] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22) (@lanazgonjanin)
 - [ ] **B:** explain-phrase flow: the learner asks "what does 加油 mean?", and the tutor explains and saves it. (#23)
 - [x] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24) (@dorsa-molaverdikhani)
 - [x] **D:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side. (#25) (@lanazgonjanin)
