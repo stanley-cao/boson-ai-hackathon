@@ -23,7 +23,7 @@ Status values: ⬜ not started · 🟨 in progress · ✅ done · ⛔ blocked (s
 2. Find the earliest phase that isn't ✅, and pick an unclaimed `[ ]` task **in your track**. Tasks in later phases are fair game only if they're marked *parallel*.
 3. Feature tasks have a GitHub issue (`#N`): claim one by **assigning yourself on the issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/boson-ai-hackathon/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first. Tasks with no issue number (research, testing, submission) are claimed in the team chat.
 4. Branch as `phase<N>/<track>-<topic>`, for example `phase1/b-correction-tool`.
-5. Before opening a PR, run that phase's **Verification** steps. Paste the results into the PR description.
+5. Before opening a PR, run the checks in `CLAUDE.md` ("Before calling a change done") and list them in the PR description. A phase's **Verification** steps are for its exit, not for every PR.
 6. Put `Closes #N` in the PR description. In the same PR, tick the box (`[x]`) and update the status table. Get one review from someone on a different track.
 7. If you change a **shared contract**, tag every track on the PR and add a line to the decision log.
 
@@ -104,7 +104,7 @@ Agree on these first. Changing them requires a decision-log entry.
 
 **Exit criteria:** a live conversation of about 3 minutes, mixing English and Mandarin, in which the tutor (1) corrects at least one mistake, (2) gives tone feedback, (3) saves a phrase, and (4) is never derailed by a mid-sentence switch.
 
-**Verification:** `npm test && npm run typecheck && npm run build`, then a live session with a Mandarin speaker.
+**Verification:** `npm test && npm run build`, then a live session with a Mandarin speaker.
 
 ## Phase 2: Depth and polish
 
@@ -198,3 +198,4 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-24 | Turn detection is `server_vad` with `silence_duration_ms: 1500`. Supersedes the provisional 2026-10-23 `semantic_vad` entry; closes #7. | Probed live (`--turn-detection` and `[pause N]` in `tools/probe.ts`) with TTS turns paused mid-sentence: English, Mandarin and code-switched turns with 1.4 to 1.85 s of real silence, and one with 2.4 to 2.6 s. A turn counts as whole when it was committed once with no reply mid-sentence. `semantic_vad` at its default (100 ms) and `server_vad` at 500 and 1000 ms: 0 of 8 whole. At 1500 ms `semantic_vad` kept 4 of 8 whole and `server_vad` 10 of 19, so the semantic judgement added nothing: at its default it committed "I went to the…" every time, and any `eagerness` other than `"auto"` is rejected. `server_vad` held every pause shorter than its window and split every longer one. 1500 ms (10 of 15 short-pause turns whole, reply about 1.3 s after speech ends) was chosen over 2000 ms (6 of 6, reply about 1.8 s) to keep the conversation responsive. Pauses over 1.5 s still split a turn. |
 | 2026-10-24 | Don't run `scripts/smoke.sh` for issues or PRs; it stays in `scripts/` for when someone asks for a run. A change is verified with `npm test && npm run typecheck && npm run build`, plus one `npm run probe` run when it touches a tool, the prompt, session config or the protocol. | A smoke run makes four live probe sessions and takes minutes, which cost more time per ticket than it saved. |
 | 2026-10-24 | Persist a versioned, runtime-validated `StudyState` snapshot in `localStorage`, then rehydrate it as restored tool items that are hidden from the conversation view. | Saved learning data survives reloads without creating a parallel UI store: the study panel and practice badge remain derived from transcript state, and blocked or corrupt storage safely behaves as empty. |
+| 2026-10-24 | An issue's PR needs only `npm test && npm run build`, plus unit tests for new logic. Live runs (`npm run probe`, `scripts/smoke.sh`) happen only when the issue asks, and a phase's **Verification** steps are for its exit. Agents commit, push and open PRs without asking; `.claude/settings.json` allows those commands, while pushes to `main` and force-pushes still prompt. Supersedes the earlier 2026-10-24 entry on smoke runs. | Tests and confirmation prompts were costing more time per ticket than they saved. The build already runs `tsc -b`, so a separate typecheck repeated it. |

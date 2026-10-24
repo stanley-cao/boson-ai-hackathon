@@ -27,16 +27,13 @@ Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `
 
 ## Before calling a change done
 
-Test a reasonable amount, not exhaustively. These checks are enough for an issue and its PR:
+Keep testing light. These are the only checks an issue or PR needs:
 
-- Always run `npm test && npm run typecheck && npm run build`.
-- Don't run `bash scripts/smoke.sh` for issues or PRs; it makes minutes of live API calls. Run it only when someone asks for it.
-- If you changed a tool, the prompt, session config or the protocol, do one `npm run probe -- --say "…"` run that exercises the change, when a key is available. Unit tests don't cover server behaviour.
-- A pure rebase or conflict resolution with no behaviour change needs only the first check.
+- Run `npm test && npm run build`. The build runs `tsc -b`, so it includes the typecheck.
+- No live runs: don't run `scripts/smoke.sh` or `npm run probe` unless the issue or someone asks for one.
+- Add unit tests only for new logic, covering the normal case and the error path. Docs, styling, copy and config changes need none.
 - If you touched audio (`src/audio/`), it needs a listening test in the browser. Say so if you couldn't do one.
-- Unit tests cover the new behaviour: the normal case, an edge case or two, and the error path. They don't need to be exhaustive.
-- Don't repeat live runs to measure a rate, or rehearse multi-branch merges, unless someone asks.
-- In the PR description, give one line per check you ran. In an issue, write acceptance criteria as behaviour plus "unit tests"; the live check is "one probe run", not a rate such as "8 of 10".
+- In the PR description, give one line per check you ran. Don't add live-run requirements to issues.
 
 ## Map
 
@@ -74,8 +71,8 @@ The project is built in phases (0–5) across four tracks (A: conversation and m
 
 1. Add the schema to `TOOL_DEFINITIONS` in `src/tools/definitions.ts`.
 2. Add a handler to `src/tools/handlers.ts` and register it in the `handlers` map.
-3. Add tests in `test/tools.test.ts`.
-4. Check with `npm run probe -- --say "…"` that the model actually calls it.
+3. Add tests in `test/tools.test.ts` for the handler's normal case and error path.
+4. If the issue asks for a live check, run `npm run probe -- --say "…"` once to see that the model calls it.
 
 ## Style
 
@@ -96,5 +93,6 @@ Most of the code is adapted from [boson-ai/higgs-realtime-tutorial](https://gith
 
 ## Git
 
-- Ask before committing or pushing.
+- Commit, push your feature branch and open its PR without asking first. `.claude/settings.json` lets those commands run without a prompt.
+- Never commit or push to `main`. Pushes to `main` and force-pushes still ask for confirmation.
 - Before you edit anything for a GitHub issue, create a branch for it from an up-to-date `main`, and never edit on `main` directly. Name it as the roadmap says, `phase<N>/<track>-<topic>`, using the issue's `phase-N` and `track:*` labels (for example `phase1/a-language-profiles`).
