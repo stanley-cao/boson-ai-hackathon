@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type Response as ExpressResponse } from "express";
 import { AccessToken, TrackSource, type VideoGrant } from "livekit-server-sdk";
+import { ACTIVE_PAIR, TARGET_LANGUAGE_CODES, learnerLevelFor, type TargetLanguageCode } from "../src/lang/profiles";
 
 /**
  * LiveKit rooms and Higgs Avatar realtime sessions (#33).
@@ -84,6 +85,11 @@ function upstreamErrorCode(text: string): string | undefined {
   return undefined;
 }
 
+/** A target language code from the browser, or the default pair's. */
+function targetLanguageFor(value: unknown): TargetLanguageCode {
+  return TARGET_LANGUAGE_CODES.find((code) => code === value) ?? ACTIVE_PAIR.target;
+}
+
 /** What the browser needs from a session; the rest stays here. */
 function sessionView(session: Record<string, unknown>) {
   return {
@@ -107,8 +113,8 @@ export function avatarRouter({
   // Only sessions this server created can be read or released through it.
   const sessions = new Set<string>();
 
-  async function token(lk: LiveKitConfig, identity: string, ttlSeconds: number, grant: VideoGrant) {
-    const at = new AccessToken(lk.apiKey, lk.apiSecret, { identity, ttl: ttlSeconds });
+  async function token(lk: LiveKitConfig, identity: string, ttlSeconds: number, grant: VideoGrant, metadata?: string) {
+    const at = new AccessToken(lk.apiKey, lk.apiSecret, { identity, ttl: ttlSeconds, metadata });
     at.addGrant(grant);
     return at.toJwt();
   }
@@ -148,23 +154,37 @@ export function avatarRouter({
   }
 
   /**
-   * POST /api/livekit/token
+   * POST /api/livekit/token  { language?, level? }
    *
    * A fresh room and a short-lived token for the learner. Joining dispatches
    * the agent. The learner publishes only a microphone, and may publish data
    * because answering the agent's tool calls (#32) is an RPC reply.
+   *
+   * The picked language and level go in the token's participant metadata,
+   * which the agent reads to choose its prompt from shared/prompts.json.
+   * Anything unknown falls back to the default pair rather than failing.
    */
-  router.post("/livekit/token", async (_req, res) => {
+  router.post("/livekit/token", async (req, res) => {
     if (!livekit) return res.status(500).json({ error: "livekit_not_configured" });
     const room = `${ROOM_PREFIX}${randomId()}`;
     const identity = `learner-${randomId()}`;
-    const jwt = await token(livekit, identity, LEARNER_TOKEN_TTL_SECONDS, {
-      roomJoin: true,
-      room,
-      canPublishSources: [TrackSource.MICROPHONE],
-      canSubscribe: true,
-      canPublishData: true,
+    const metadata = JSON.stringify({
+      language: targetLanguageFor(req.body?.language),
+      level: learnerLevelFor(typeof req.body?.level === "string" ? req.body.level : null),
     });
+    const jwt = await token(
+      livekit,
+      identity,
+      LEARNER_TOKEN_TTL_SECONDS,
+      {
+        roomJoin: true,
+        room,
+        canPublishSources: [TrackSource.MICROPHONE],
+        canSubscribe: true,
+        canPublishData: true,
+      },
+      metadata,
+    );
     return res.json({ url: livekit.url, room, identity, token: jwt });
   });
 

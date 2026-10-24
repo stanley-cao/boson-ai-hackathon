@@ -36,9 +36,12 @@ cd livekit
 cp .env.example .env      # BOSON_API_KEY plus the LiveKit Cloud URL, key and secret
 uv sync
 uv run agent.py dev       # join rooms; talk to it in the LiveKit Agents Playground
+                          # (or from the repo root: npm run dev:agent)
 uv run probe.py --say "What does 加油 mean?"   # headless: joins a room, types a turn, prints replies
 uv run pytest             # unit tests, no keys needed
 ```
+
+Avatar mode in the app needs this agent running too: `npm run dev:avatar` starts the token server, Vite and the agent together. Without the agent, avatar mode reports `agent_not_running` and switches to voice only. The agent tutors in the language and level picked in the app, using the prompts exported to `shared/prompts.json`.
 
 ## Layout
 
@@ -53,7 +56,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 | `src/state/` | Transcript reducer (event stream → ordered turns) |
 | `src/ui/` | React components |
 | `tools/probe.ts` | Headless debugging client (uses Higgs TTS to "speak" test turns) |
-| `shared/session.json` | The session config exported for the LiveKit agent (`npm run export-config`) |
+| `shared/session.json`, `shared/prompts.json` | The session config, and the prompt per language and level, exported for the LiveKit agent (`npm run export-config`) |
 | `livekit/` | Python LiveKit voice agent and its probe |
 
 ## Credits

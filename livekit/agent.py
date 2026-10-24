@@ -21,7 +21,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequ
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
-from session_config import load_session, model_kwargs
+from session_config import instructions_for, load_prompts, load_session, model_kwargs
 from tools import build_tools
 
 logger = logging.getLogger("polyglot")
@@ -29,6 +29,7 @@ logger = logging.getLogger("polyglot")
 load_dotenv(override=True)
 
 SESSION = load_session()
+PROMPTS = load_prompts()
 
 # The identity this agent joins every room as. server/avatar.ts names it as the
 # avatar session's publisher_identity, and the avatar only plays audio from
@@ -37,8 +38,8 @@ AGENT_IDENTITY = "polyglot-tutor"
 
 
 class Tutor(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=SESSION["instructions"], tools=build_tools(SESSION))
+    def __init__(self, instructions: str) -> None:
+        super().__init__(instructions=instructions, tools=build_tools(SESSION))
 
     async def on_enter(self) -> None:
         # The model answers when the learner stops speaking. Speak first instead,
@@ -55,7 +56,15 @@ async def accept_as_tutor(request: JobRequest) -> None:
 
 @server.rtc_session(on_request=accept_as_tutor)
 async def entrypoint(ctx: JobContext) -> None:
+    # The learner's token carries the language and level picked in the
+    # browser (server/avatar.ts), so wait for them before choosing a prompt.
+    # They are always first in the room: the avatar is only added after.
+    await ctx.connect()
+    learner = await ctx.wait_for_participant()
+    instructions = instructions_for(learner.metadata, PROMPTS, SESSION["instructions"])
+    logger.info("tutoring %s with metadata %r", learner.identity, learner.metadata)
     options = model_kwargs(SESSION)
+    options["instructions"] = instructions
     # Environment overrides, as upstream has, for trying another model or voice.
     options["model"] = os.getenv("BOSON_REALTIME_MODEL", options["model"])
     options["voice"] = os.getenv("BOSON_VOICE", options["voice"])
@@ -72,7 +81,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # avatar, whose synchronized audio/video tracks are what the learner
         # subscribes to. AgentSession clears this sink automatically on barge-in.
         route_audio_to_avatar(session, ctx.room)
-    await session.start(agent=Tutor(), room=ctx.room)
+    await session.start(agent=Tutor(instructions), room=ctx.room)
 
 
 if __name__ == "__main__":

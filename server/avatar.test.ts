@@ -70,8 +70,12 @@ interface LearnerToken {
   token: string;
 }
 
-async function learnerToken(base: string): Promise<{ status: number; body: LearnerToken }> {
-  const response = await fetch(`${base}/api/livekit/token`, { method: "POST" });
+async function learnerToken(base: string, choice?: unknown): Promise<{ status: number; body: LearnerToken }> {
+  const response = await fetch(`${base}/api/livekit/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(choice ?? {}),
+  });
   return { status: response.status, body: (await response.json()) as LearnerToken };
 }
 
@@ -94,6 +98,22 @@ describe("POST /api/livekit/token", () => {
       canSubscribe: true,
       canPublishData: true,
     });
+  });
+
+  it("tells the agent the learner's language and level", async () => {
+    const base = await start({ fetchImpl: vi.fn<typeof fetch>() });
+    const { body } = await learnerToken(base, { language: "ko", level: "advanced" });
+    const claims = await verifier.verify(body.token);
+    // "advanced" shares the intermediate prompt (learnerLevelFor).
+    expect(JSON.parse(claims.metadata!)).toEqual({ language: "ko", level: "intermediate" });
+  });
+
+  it("falls back to the default pair for an unknown or missing choice", async () => {
+    const base = await start({ fetchImpl: vi.fn<typeof fetch>() });
+    for (const choice of [{ language: "xx", level: 3 }, {}]) {
+      const claims = await verifier.verify((await learnerToken(base, choice)).body.token);
+      expect(JSON.parse(claims.metadata!)).toEqual({ language: "zh", level: "beginner" });
+    }
   });
 
   it("gives every request its own room", async () => {
