@@ -1,6 +1,11 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
-import { noteCorrection, normalizeLanguage, setPracticeLanguage } from "../src/tools/handlers";
+import {
+  noteCorrection,
+  normalizeLanguage,
+  setPracticeLanguage,
+  pronunciationFeedback,
+} from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
 import {
@@ -187,6 +192,91 @@ describe("set_practice_language", () => {
     });
     // An enum here pulled a request for Korean onto "en"; see definitions.ts.
     expect(def?.parameters.properties.language).not.toHaveProperty("enum");
+  });
+});
+
+describe("pronunciation_feedback", () => {
+  const args = {
+    language: "Mandarin",
+    target: " 妈 ",
+    romanization: "mā",
+    issue: "Tones",
+    tip: "Keep your voice high and level, as if singing one note.",
+  };
+
+  it("saves a note with the language and issue normalised", () => {
+    const r = pronunciationFeedback(args);
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("妈");
+    expect(r.detail).toEqual({
+      type: "pronunciation",
+      language: "zh",
+      target: "妈",
+      romanization: "mā",
+      issue: "tone",
+      tip: "Keep your voice high and level, as if singing one note.",
+    });
+  });
+
+  it("files an issue it does not recognise as other, rather than losing the note", () => {
+    const cases: [unknown, PronunciationNote["issue"]][] = [
+      ["tone", "tone"],
+      ["wrong tone", "tone"],
+      ["tone_error", "tone"],
+      ["Initials", "initial"],
+      ["initial consonant", "initial"],
+      ["final", "final"],
+      ["vowels", "final"],
+      ["rhythm", "other"],
+      ["constructor", "other"],
+      [3, "other"],
+      [undefined, "other"],
+    ];
+    for (const [sent, issue] of cases) {
+      const d = pronunciationFeedback({ ...args, issue: sent }).detail as PronunciationNote;
+      expect(d.issue, String(sent)).toBe(issue);
+    }
+  });
+
+  it("keeps pinyin tone marks exactly as sent, and leaves out a blank romanization", () => {
+    expect((pronunciationFeedback({ ...args, romanization: "nǐ hǎo" }).detail as PronunciationNote).romanization).toBe(
+      "nǐ hǎo",
+    );
+    expect(pronunciationFeedback({ ...args, romanization: "" }).detail).not.toHaveProperty("romanization");
+  });
+
+  it("answers with an error, never a throw, when the language is unknown", () => {
+    for (const language of ["Klingon", undefined, null]) {
+      const r = pronunciationFeedback({ ...args, language });
+      expect(r.error, String(language)).toBe("unknown_language");
+      expect(r.summary).toContain(Object.keys(PROFILES).join(", "));
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("answers with an error when the target or the tip is missing", () => {
+    for (const missing of ["target", "tip"]) {
+      const r = pronunciationFeedback({ ...args, [missing]: "   " });
+      expect(r.error, missing).toBe("missing_fields");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("pronunciation_feedback", args);
+    expect((r.detail as PronunciationNote).type).toBe("pronunciation");
+  });
+
+  it("is offered with every profile language and the fields a card needs", () => {
+    expect(TOOL_DEFINITIONS.find((d) => d.name === "pronunciation_feedback")).toMatchObject({
+      parameters: {
+        properties: {
+          language: { enum: Object.keys(PROFILES) },
+          issue: { enum: ["tone", "initial", "final", "other"] },
+        },
+        required: ["language", "target", "issue", "tip"],
+      },
+    });
   });
 });
 

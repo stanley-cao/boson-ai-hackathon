@@ -93,4 +93,50 @@ export const TOOL_DEFINITIONS = [
       required: ["language", "level"],
     },
   },
+  {
+    type: "function",
+    name: "pronunciation_feedback",
+    description:
+      "Give the learner feedback on a sound they got wrong. Whenever you hear " +
+      "them mispronounce something (for Mandarin, above all a wrong tone, or a " +
+      "wrong initial or final), or they ask how to pronounce something, call " +
+      "this FIRST, before you say anything else; it shows the note on their " +
+      "screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          enum: Object.keys(PROFILES),
+          description: "The language being spoken.",
+        },
+        target: {
+          type: "string",
+          description:
+            "The word or syllable, in its own script (Chinese characters for " +
+            "Mandarin, not pinyin), e.g. '妈'.",
+        },
+        romanization: {
+          type: "string",
+          description:
+            "How it should sound. For Mandarin, pinyin with tone marks, not tone " +
+            "numbers, e.g. 'mā' rather than 'ma1'.",
+        },
+        issue: {
+          type: "string",
+          enum: ["tone", "initial", "final", "other"],
+          description:
+            "What was wrong: the tone, the initial (the consonant it starts " +
+            "with), the final (the vowel part after it), or something else.",
+        },
+        tip: {
+          type: "string",
+          // No example here: the model copied one verbatim into its tips for
+          // other tones in live probes.
+          description: "One short, practical tip for making this sound correctly.",
+        },
+      },
+      required: ["language", "target", "issue", "tip"],
+    },
+  },
 ] as const;
