@@ -9,7 +9,7 @@ Update this table in the same PR that finishes a task or a phase.
 | Phase | Goal | Status | Lead | PRs |
 | --- | --- | --- | --- | --- |
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
-| 1 | English + Mandarin MVP for live testing | ⬜ not started | | |
+| 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
 | 2 | Depth and polish (levels, TTS replay, recap) | ⬜ not started | | |
 | 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
@@ -87,7 +87,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`. (#5)
 - [ ] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`). (#6)
 - [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
-- [ ] **B:** `src/tools/types.ts` with the `detail` types. (#8)
+- [x] **B:** `src/tools/types.ts` with the `detail` types. (#8)
 - [ ] **B:** replace `web_search` with (#10, #11, #12, #13):
   - `note_correction {language, said, correct, explanation, kind, romanization}`
   - `save_phrase {language, phrase, meaning, romanization, note}`
@@ -184,3 +184,4 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-23 | Mandarin is the first target language, paired with English. | The team chose it. Tone feedback makes a strong showcase, and Han vs. Latin text makes code-switches visible. |
 | 2026-10-23 | Realtime avatar requires LiveKit Cloud, so the prompt and tools stay portable (`shared/session.json`), and a LiveKit spike starts during Phase 1–2. | Higgs Avatar realtime sessions only join LiveKit Cloud rooms, so the browser-direct WebSocket can't drive the avatar. |
 | 2026-10-23 | Transcription uses no fixed language. | A fixed language breaks transcription of code-switched speech. |
+| 2026-10-23 | Tool `detail` types live in `src/tools/types.ts`, each with a `type` discriminant; `LanguageCode` is defined there for `src/lang/profiles.ts` to import. Correction `kind`: grammar / vocabulary / other. Practice `level`: beginner / intermediate. | Lets `study.ts` and the UI narrow details safely, and keeps one language-code union. |

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
 import { webSearch, allPages } from "../src/tools/handlers";
 import {
@@ -8,6 +8,14 @@ import {
   transcriptReducer,
 } from "../src/state/transcriptStore";
 import type { ServerEvent } from "../src/realtime/events";
+import type {
+  Correction,
+  PracticeLanguage,
+  Phrase,
+  PronunciationNote,
+  ToolDetail,
+  ToolDetailByName,
+} from "../src/tools/types";
 
 describe("web_search", () => {
   it("finds a page by a spoken description", () => {
@@ -156,5 +164,21 @@ describe("tool calls in the transcript", () => {
     );
     const item = toList(s)[0];
     expect(item.kind === "tool" && item.args).toBe("{not json");
+  });
+});
+
+// Type-level only: these fail `tsc`/vitest typecheck if the detail contract drifts.
+describe("tool detail types", () => {
+  it("maps each tool name to its detail type", () => {
+    expectTypeOf<ToolDetailByName["note_correction"]>().toEqualTypeOf<Correction>();
+    expectTypeOf<ToolDetailByName["save_phrase"]>().toEqualTypeOf<Phrase>();
+    expectTypeOf<ToolDetailByName["pronunciation_feedback"]>().toEqualTypeOf<PronunciationNote>();
+    expectTypeOf<ToolDetailByName["set_practice_language"]>().toEqualTypeOf<PracticeLanguage>();
+  });
+
+  it("narrows the union on `type`", () => {
+    const d: ToolDetail = { type: "phrase", language: "zh", phrase: "加油", meaning: "keep going" };
+    if (d.type === "phrase") expectTypeOf(d).toEqualTypeOf<Phrase>();
+    expect(d.type).toBe("phrase");
   });
 });
