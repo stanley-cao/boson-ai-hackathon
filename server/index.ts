@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import dotenv from "dotenv";
 import { OUTPUT_VOICE } from "../src/realtime/sessionConfig";
+import { avatarRouter, loadLiveKitConfig, type LiveKitConfig } from "./avatar";
 
 dotenv.config();
 
@@ -14,6 +15,10 @@ const BOSON_BASE_URL = process.env.BOSON_BASE_URL ?? "https://api.boson.ai";
 // fresh one is minted for every connection anyway.
 const EPHEMERAL_TTL_SECONDS = 600;
 export const TTS_MAX_INPUT_CHARS = 500;
+// Each session holds a capacity slot for its whole duration, so keep this
+// near the expected conversation length (the account default is 3600).
+const AVATAR_MAX_DURATION_SECONDS = Number(process.env.AVATAR_MAX_DURATION_SECONDS ?? 900);
+const AVATAR_ID = process.env.AVATAR_ID ?? "builtin_claire_v1";
 
 /**
  * The API key comes from BOSON_API_KEY, or from a file whose path is in
@@ -43,12 +48,21 @@ interface AppOptions {
   apiKey?: string;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** `null` for no LiveKit; left out, it is read from the environment. */
+  livekit?: LiveKitConfig | null;
+  avatarId?: string;
+  avatarMaxDurationSeconds?: number;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export function createApp({
   apiKey = loadApiKey(),
   baseUrl = BOSON_BASE_URL,
   fetchImpl = fetch,
+  livekit = loadLiveKitConfig(),
+  avatarId = AVATAR_ID,
+  avatarMaxDurationSeconds = AVATAR_MAX_DURATION_SECONDS,
+  sleep,
 }: AppOptions = {}) {
   const app = express();
   app.use(express.json({ limit: "4kb" }));
@@ -167,6 +181,19 @@ export function createApp({
     }
   });
 
+  app.use(
+    "/api",
+    avatarRouter({
+      apiKey,
+      baseUrl,
+      fetchImpl,
+      livekit,
+      avatarId,
+      maxDurationSeconds: avatarMaxDurationSeconds,
+      sleep,
+    }),
+  );
+
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   // Express otherwise returns an HTML error page for malformed or oversized
@@ -193,6 +220,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.warn(
         "  ⚠ No API key found (set BOSON_API_KEY or BOSON_API_KEY_FILE in .env) — /api/token and /api/tts will return 500.",
       );
+    }
+    if (!loadLiveKitConfig()) {
+      console.warn("  ⚠ No LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET in .env — LiveKit and avatar routes will return 500.");
     }
   });
 }

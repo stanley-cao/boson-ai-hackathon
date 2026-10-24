@@ -51,6 +51,7 @@ Keep testing light. These are the only checks an issue or PR needs:
 | `src/audio/` | Mic capture/resample → PCM16, and AudioWorklet playback |
 | `src/App.tsx`, `src/ui/` | React UI (no state library) |
 | `server/index.ts` | Express token server: `/api/token` mints ephemeral keys |
+| `server/avatar.ts` | LiveKit room tokens and Higgs Avatar sessions: `/api/livekit/token`, `/api/avatar/sessions` |
 | `tools/probe.ts` | Headless CLI client for debugging the protocol |
 
 ## Roadmap and workflow
