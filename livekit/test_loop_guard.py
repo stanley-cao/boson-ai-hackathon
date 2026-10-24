@@ -1,5 +1,7 @@
 """Unit tests for the loop guard. No network, no keys."""
 
+import pytest
+
 from loop_guard import strip_repeats
 
 # The turns that started the loop in the live Serbian session.
@@ -57,3 +59,35 @@ def test_the_same_short_reply_twice_in_a_row_is_stripped() -> None:
     assert strip_repeats("Comment, ça, va?", ["Bonjour!", "Comment, ça, va?"], "No, no. I heard French.") == ""
     # Not when it isn't the reply just before.
     assert strip_repeats("Great job!", ["Great job!", "Hai."], "Hai.") is None
+
+
+@pytest.mark.parametrize(
+    "turn",
+    [
+        "Sorry, what?",
+        "Pardon?",
+        "Huh?",
+        "I didn't catch that",
+        "What did you say?",
+        "Could you say it once more?",
+        "Come again?",
+        "Again, please",
+        "Tu peux répéter ?",
+        "Répète, s'il te plaît",
+        "Comment ?",
+        "Encore une fois",
+        "다시 말해 주세요",
+        "再说一遍",
+        "Bạn có thể nói lại không?",
+        "Nhắc lại đi",
+    ],
+)
+def test_ways_of_asking_for_a_repeat_keep_it(turn: str) -> None:
+    reply = "Of course! Let's start with one word."
+    assert strip_repeats(reply, [reply], turn) is None
+
+
+@pytest.mark.parametrize("turn", ["I went there again yesterday and it was great.", "Encore du café ?"])
+def test_again_in_passing_is_no_repeat_request(turn: str) -> None:
+    reply = "Of course! Let's start with one word."
+    assert strip_repeats(reply, [reply], turn) == ""
