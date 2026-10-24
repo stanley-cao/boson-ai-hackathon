@@ -58,6 +58,17 @@ describe("language profiles", () => {
     ]);
   });
 
+  it("teaches Vietnamese in Latin script with its tone marks", () => {
+    expect(PROFILES.vi).toMatchObject({ name: "Vietnamese", script: "Latn" });
+    expect(PROFILES.vi).not.toHaveProperty("romanization");
+    expect(PROFILES.vi.promptNotes).toContain("six tones");
+    expect(PROFILES.vi.promptNotes).toContain("classifiers");
+    expect(PROFILES.vi.sampleOpeners).toEqual([
+      "Xin chào! Hôm nay bạn muốn luyện tập gì?",
+      "Hôm nay của bạn thế nào?",
+    ]);
+  });
+
   it("keeps promptNotes short and gives every language openers", () => {
     // promptNotes go into the system prompt, and a long prompt stops the
     // model calling tools (see CLAUDE.md). The cap is a tripwire, not a target.

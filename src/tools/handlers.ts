@@ -38,6 +38,10 @@ const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
   sr: "sr",
   serbian: "sr",
   srpski: "sr",
+  vi: "vi",
+  vietnamese: "vi",
+  "tiếng việt": "vi",
+  "tieng viet": "vi",
 };
 
 /**
