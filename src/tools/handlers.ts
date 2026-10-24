@@ -437,9 +437,66 @@ export function savePhrase(args: Record<string, unknown>): ToolResult {
   };
 }
 
+export type SpeakingPace = "slow" | "normal";
+
+/** A pace change: just the next reply ("once"), or the rest of the session. */
+export interface PaceRequest {
+  pace: SpeakingPace;
+  scope: "once" | "session";
+}
+
+/**
+ * Normalise `set_speaking_pace` arguments. The model is only told to call it
+ * when the learner asks for a change, so anything unrecognised is read as a
+ * one-off slow repeat, the cheapest wrong guess. "normal" always applies to
+ * the session: a single normal-speed reply means nothing.
+ */
+export function paceRequestFrom(args: Record<string, unknown>): PaceRequest {
+  const pace = /normal|fast|quick|natural|regular/i.test(String(args.pace ?? "")) ? "normal" : "slow";
+  const scope = pace === "normal" || /session|always|rest/i.test(String(args.scope ?? ""))
+    ? "session"
+    : "once";
+  return { pace, scope };
+}
+
+/**
+ * The result sent instead of the handler's when the client is already playing
+ * a slow repeat through TTS. No reply is requested after it, so the tutor
+ * doesn't talk over the repeat; the summary only keeps the model's context
+ * straight.
+ */
+export const SLOW_REPEAT_PLAYING: ToolResult = {
+  summary: "A slow recording of your previous reply is playing for the learner now. Say nothing.",
+};
+
+/**
+ * Change how fast the tutor speaks. The handler only words the reply; the
+ * pace itself is set by the client. A one-off slow repeat is re-spoken
+ * through TTS (`SLOW_REPEAT_PLAYING`), and this summary is the fallback when
+ * that isn't possible. A lasting change re-sends the session instructions
+ * with a slow-pace sentence (`planPaceChange`): Higgs Realtime has no speed
+ * field, and its docs say to set pace through instructions.
+ *
+ * No `detail`: pace isn't study data, so nothing is added to the panel.
+ */
+export function setSpeakingPace(args: Record<string, unknown>): ToolResult {
+  const { pace, scope } = paceRequestFrom(args);
+  if (pace === "normal") {
+    return { summary: "Back to your normal pace. Say so in a few words, then carry on." };
+  }
+  if (scope === "once") {
+    return {
+      summary:
+        "Now repeat the content of your previous reply exactly, slowly, with a short pause between words. Add nothing new.",
+    };
+  }
+  return { summary: "You'll speak slowly from now on. Say so in a few words, then carry on." };
+}
+
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
   note_correction: noteCorrection,
   set_practice_language: setPracticeLanguage,
   pronunciation_feedback: pronunciationFeedback,
   save_phrase: savePhrase,
+  set_speaking_pace: setSpeakingPace,
 };

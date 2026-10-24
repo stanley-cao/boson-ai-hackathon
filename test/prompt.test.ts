@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSessionConfig, buildTutorPrompt, SYSTEM_PROMPT } from "../src/realtime/sessionConfig";
 import { LEARNER_LEVELS, PROFILES } from "../src/lang/profiles";
+import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 
 describe("tutor prompt", () => {
   it("names the learner's language and the target language from the active pair", () => {
@@ -52,13 +53,12 @@ describe("tutor prompt", () => {
     expect(intermediate).not.toContain("English scaffolding");
   });
 
-  it("honours requests to repeat the same content slowly", () => {
-    for (const level of Object.values(LEARNER_LEVELS)) {
-      const prompt = buildTutorPrompt(PROFILES.zh, PROFILES.en, level);
-      expect(prompt).toContain('says "say that again slowly"');
-      expect(prompt).toContain("repeat the same content at a noticeably slower pace");
-      expect(prompt).toContain("do not add new material");
-    }
+  it("leaves slow requests to set_speaking_pace rather than a prompt rule", () => {
+    // #76: the rule didn't change the pace; re-instructing the session does.
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === "set_speaking_pace");
+    expect(tool?.description).toContain("say that again slowly");
+    expect(tool?.description).toContain("please speak more slowly");
+    expect(buildTutorPrompt()).not.toContain("say that again slowly");
   });
 
   it("can build a session for either learner level", () => {

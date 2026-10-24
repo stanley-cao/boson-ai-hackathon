@@ -37,7 +37,14 @@
  */
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import dotenv from "dotenv";
-import { buildSessionConfig, AUDIO_RATE } from "../src/realtime/sessionConfig";
+import {
+  AUDIO_RATE,
+  buildPaceUpdate,
+  buildSessionConfig,
+  OUTPUT_VOICE,
+  planPaceChange,
+} from "../src/realtime/sessionConfig";
+import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../src/tools/handlers";
 import {
   describeClose,
   functionCallOutput,
@@ -46,6 +53,7 @@ import {
   userTextItem,
 } from "../src/realtime/events";
 import { dispatch as dispatchTool } from "../src/tools/registry";
+import { paceMsPerSyllable, slowSpeechInput } from "../src/realtime/pace";
 
 dotenv.config();
 
@@ -165,14 +173,14 @@ function decodeWav(buf: Buffer): { samples: Int16Array; rate: number } {
   throw new Error("no data chunk in WAV");
 }
 
-async function synthesize(apiKey: string, text: string): Promise<Int16Array> {
+async function synthesize(apiKey: string, text: string, voice = "default"): Promise<Int16Array> {
   const res = await fetch(`${BOSON_BASE_URL}/v1/audio/speech`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "higgs-tts-3",
       input: text,
-      voice: "default",
+      voice,
       response_format: "wav",
     }),
   });
@@ -271,6 +279,14 @@ async function main() {
   const startedAt = Date.now();
   let audioChunks = 0;
   let audioSamples = 0;
+  // Per response, for the pace line printed at its response.done.
+  const replyAudio = new Map<string, { samples: number; transcript: string }>();
+  const reply = (id: unknown) => {
+    const key = String(id ?? "");
+    let r = replyAudio.get(key);
+    if (!r) replyAudio.set(key, (r = { samples: 0, transcript: "" }));
+    return r;
+  };
   let sessionReady!: () => void;
   const ready = new Promise<void>((r) => (sessionReady = r));
   let responseDone: (() => void) | null = null;
@@ -291,6 +307,13 @@ async function main() {
    */
   let extraResponsesExpected = 0;
   let lastResponseCreatedAt = 0;
+  // Pace changes, as RealtimeClient makes them, so a slow repeat is measured.
+  let sessionPace: SpeakingPace = "normal";
+  let revertPace: "armed" | string | null = null;
+  // The tutor's last line, as it stood when the current response began; see
+  // RealtimeClient.replyTextBeforeResponse.
+  let lastReplyText: string | null = null;
+  let replyTextBeforeResponse: string | null = null;
 
   const ws = new WebSocket(WS_URL, ["realtime", `bai-client-secret.${key}`]);
   const send = (evt: unknown) => ws.send(JSON.stringify(evt));
@@ -311,7 +334,9 @@ async function main() {
     if (evt.type === "response.output_audio.delta") {
       const b64 = typeof evt.delta === "string" ? evt.delta : "";
       audioChunks++;
-      audioSamples += Math.round((b64.length * 0.75) / 2);
+      const samples = Math.round((b64.length * 0.75) / 2);
+      audioSamples += samples;
+      reply(evt.response_id).samples += samples;
       if (audioChunks > 1) return; // print the first, then count quietly
     }
 
@@ -327,6 +352,8 @@ async function main() {
     }
     if (evt.type === "response.created") {
       responsesCreated++;
+      if (revertPace === "armed") revertPace = String((evt.response as { id?: unknown })?.id);
+      replyTextBeforeResponse = lastReplyText;
       lastResponseCreatedAt = Date.now();
     }
 
@@ -346,16 +373,61 @@ async function main() {
           /* run it empty and let the handler complain */
         }
         void (async () => {
-          const result = await dispatchTool(name, args);
+          let result = await dispatchTool(name, args);
           console.log(`        ↳ ${name} -> ${result.summary}`);
+          // The browser plays a one-off slow repeat through /api/tts and asks
+          // for no reply; synthesise the same input here to measure its pace.
+          const input =
+            name === "set_speaking_pace" && paceRequestFrom(args).scope === "once" && replyTextBeforeResponse
+              ? slowSpeechInput(replyTextBeforeResponse)
+              : null;
+          if (input && replyTextBeforeResponse) {
+            const samples = await synthesize(apiKey, input, OUTPUT_VOICE);
+            const pace = paceMsPerSyllable(samples.length, replyTextBeforeResponse);
+            console.log(
+              `        pace: ${pace?.toFixed(0)} ms/syllable (slow repeat, ${((samples.length / AUDIO_RATE) * 1000).toFixed(0)} ms over ${JSON.stringify(replyTextBeforeResponse)})`,
+            );
+            result = SLOW_REPEAT_PLAYING;
+            send(functionCallOutput(callId, JSON.stringify(result)));
+            // No reply follows, so stop waiting for one.
+            extraResponsesExpected = Math.max(0, extraResponsesExpected - 1);
+            responseDone?.();
+            responseDone = null;
+            return;
+          }
+          if (name === "set_speaking_pace") {
+            const plan = planPaceChange(paceRequestFrom(args), sessionPace);
+            sessionPace = plan.sessionPace;
+            if (plan.send) send(buildPaceUpdate(plan.send));
+            if (plan.revertAfterReply) revertPace = "armed";
+            console.log(`        ↳ pace ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}`);
+          }
           send(functionCallOutput(callId, JSON.stringify(result)));
           send(responseCreate());
         })();
       }
     }
 
+    if (evt.type === "response.output_audio_transcript.done") {
+      reply(evt.response_id).transcript = String(evt.transcript ?? "");
+      if (String(evt.transcript ?? "").trim()) lastReplyText = String(evt.transcript);
+    }
+
     if (evt.type === "response.done") {
       responsesDone++;
+      // The pace line smoke.sh reads; see src/realtime/pace.ts.
+      const id = (evt.response as { id?: unknown } | undefined)?.id;
+      if (revertPace !== null && revertPace === String(id)) {
+        revertPace = null;
+        send(buildPaceUpdate(sessionPace));
+      }
+      const r = replyAudio.get(String(id ?? ""));
+      const pace = r ? paceMsPerSyllable(r.samples, r.transcript) : null;
+      if (r && pace !== null) {
+        console.log(
+          `        pace: ${pace.toFixed(0)} ms/syllable (${((r.samples / AUDIO_RATE) * 1000).toFixed(0)} ms over ${JSON.stringify(r.transcript)})`,
+        );
+      }
       // A turn that only asked for a tool is not the turn we are waiting for —
       // the real answer comes in the response that follows the tool result.
       //

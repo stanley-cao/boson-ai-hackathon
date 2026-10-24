@@ -1,5 +1,6 @@
 import type { ClientEvent } from "./events";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
+import type { PaceRequest, SpeakingPace } from "../tools/handlers";
 import {
   ACTIVE_LEVEL,
   ACTIVE_PAIR,
@@ -45,6 +46,7 @@ export function buildTutorPrompt(
   target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
   native: LanguageProfile = PROFILES[ACTIVE_PAIR.native],
   level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
+  pace: SpeakingPace = "normal",
 ): string {
   return [
     // Role and capabilities.
@@ -63,20 +65,24 @@ export function buildTutorPrompt(
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
       : "",
-    // Repeat requests should change delivery, not silently paraphrase or add a
-    // second explanation the learner did not request.
-    'If the learner says "say that again slowly" or asks for a slower repeat, repeat the same content at a noticeably slower pace with short pauses; do not add new material.',
-    // Speaking style.
-    "Keep every reply to one or two short sentences, matching the learner's energy.",
+    // Speaking style. Slow requests go through set_speaking_pace, not a rule
+    // here: a rule to repeat slowly didn't change the pace (#76), and
+    // "matching the learner's energy" worked against slowing down.
+    "Keep every reply to one or two short sentences.",
     "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
     // Turn-taking.
     "A short follow-up is fine; do not interrogate or add unasked detail.",
     // Tool use: nothing here on purpose. When to call each tool lives in its
     // description (src/tools/definitions.ts), which keeps this prompt short.
+    // Last, where it was probed: it doubled ms per syllable (#76).
+    pace === "slow" ? SLOW_PACE_NOTE : "",
   ]
     .filter(Boolean)
     .join(" ");
 }
+
+export const SLOW_PACE_NOTE =
+  "Speak very slowly now, at about half your normal speed, with a short pause between words.";
 
 export const SYSTEM_PROMPT = buildTutorPrompt();
 
@@ -154,4 +160,53 @@ export function buildSessionConfig(
       tool_choice: "auto",
     },
   };
+}
+
+/**
+ * Re-instructs a live session at a new speaking pace.
+ *
+ * Only `instructions` changes, so the audio, turn-detection and tool settings
+ * from the first update stay as they were. Probed 2026-10-24 (#76): this
+ * doubled the ms per syllable of a slow repeat, while the same sentence sent
+ * as `response.instructions` lost the conversation ("你好. Hello.").
+ */
+export function buildPaceUpdate(pace: SpeakingPace): ClientEvent {
+  return {
+    type: "session.update",
+    session: {
+      instructions: buildTutorPrompt(
+        PROFILES[ACTIVE_PAIR.target],
+        PROFILES[ACTIVE_PAIR.native],
+        LEARNER_LEVELS[ACTIVE_LEVEL],
+        pace,
+      ),
+    },
+  };
+}
+
+/** What the client does about a `set_speaking_pace` call. */
+export interface PacePlan {
+  /** The pace to re-instruct the session with before the reply, if any. */
+  send: SpeakingPace | null;
+  /** Restore `sessionPace` once the reply is done (a one-off slow repeat). */
+  revertAfterReply: boolean;
+  /** The lasting pace afterwards. */
+  sessionPace: SpeakingPace;
+}
+
+/**
+ * Plan a pace change against the session's lasting pace. A one-off slow
+ * repeat is sent and then reverted; a session change is kept. Nothing is sent
+ * when the pace is already right.
+ */
+export function planPaceChange(request: PaceRequest, sessionPace: SpeakingPace): PacePlan {
+  if (request.scope === "session") {
+    return {
+      send: request.pace === sessionPace ? null : request.pace,
+      revertAfterReply: false,
+      sessionPace: request.pace,
+    };
+  }
+  const already = request.pace === sessionPace;
+  return { send: already ? null : request.pace, revertAfterReply: !already, sessionPace };
 }

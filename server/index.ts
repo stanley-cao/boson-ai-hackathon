@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import dotenv from "dotenv";
+import { OUTPUT_VOICE } from "../src/realtime/sessionConfig";
 
 dotenv.config();
 
@@ -137,7 +138,9 @@ export function createApp({
         body: JSON.stringify({
           model: "higgs-tts-3",
           input,
-          voice: "default",
+          // The tutor's own voice: a slow repeat (#76) or a card replay in a
+          // different voice sounds like a second speaker.
+          voice: OUTPUT_VOICE,
           response_format: "wav",
         }),
       });

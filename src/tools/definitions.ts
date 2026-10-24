@@ -105,6 +105,31 @@ export const TOOL_DEFINITIONS = [
   },
   {
     type: "function",
+    name: "set_speaking_pace",
+    // #76: a prompt rule to repeat slowly left the pace unchanged (probed at
+    // ~190 ms per syllable either way), while re-sending the instructions
+    // with a slow-pace sentence doubled it. This tool is how the client knows
+    // when to do that.
+    description:
+      "Call this FIRST, before you say anything else, whenever the learner asks " +
+      "you to slow down or speed up: 'say that again slowly' or 'repeat that " +
+      "slower' is scope once; 'please speak more slowly' or 'slow down' is " +
+      "scope session. It sets your speaking pace and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        pace: { type: "string", enum: ["slow", "normal"] },
+        scope: {
+          type: "string",
+          enum: ["once", "session"],
+          description: "once: only a slow repeat of your last reply. session: from now on.",
+        },
+      },
+      required: ["pace", "scope"],
+    },
+  },
+  {
+    type: "function",
     name: "pronunciation_feedback",
     description:
       "Give the learner feedback on a sound they got wrong. Whenever you hear " +

@@ -19,6 +19,7 @@ import {
   loadStoredStudy,
   saveStoredStudy,
 } from "./state/studyStorage";
+import { slowSpeechInput } from "./realtime/pace";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { PracticeBadge } from "./ui/PracticeBadge";
@@ -30,6 +31,24 @@ import {
 import { StatusBar } from "./ui/StatusBar";
 import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
+import { playReplay, stopReplay } from "./ui/ttsReplay";
+
+/**
+ * "Say that again slowly": the tutor's line through /api/tts, slowed with
+ * prosody tags. True once it is audible; false if it can't be built or
+ * played, and the client then asks the model for the repeat instead.
+ */
+function playSlowRepeat(text: string): Promise<boolean> {
+  const input = slowSpeechInput(text);
+  if (!input) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    // The first call wins: onStart means it played, settling first means not.
+    playReplay(input, () => resolve(true)).then(
+      () => resolve(false),
+      () => resolve(false),
+    );
+  });
+}
 
 /** Ask our own server for a fresh ephemeral key. One per connection. */
 async function fetchToken(): Promise<string> {
@@ -71,6 +90,7 @@ export default function App() {
       onClose: (info) => setCloseMessage(info.message),
       onMicChange: setMicActive,
       onMicLevel: setMicLevel,
+      slowRepeat: { play: playSlowRepeat, stop: stopReplay },
       // Every server event goes through the reducer. That is the whole wiring:
       // the client knows nothing about the transcript, and the transcript knows
       // nothing about sockets.

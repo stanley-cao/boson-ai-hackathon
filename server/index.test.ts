@@ -54,7 +54,7 @@ describe("POST /api/tts", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       model: "higgs-tts-3",
       input: "你好",
-      voice: "default",
+      voice: "eleanor",
       response_format: "wav",
     });
   });

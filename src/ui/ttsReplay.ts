@@ -85,6 +85,11 @@ export function speechUrl(
 // Only one replay plays at a time; overlapping clips are unintelligible.
 let stopCurrent: (() => void) | null = null;
 
+/** Stops whatever replay is playing, e.g. when the learner starts talking. */
+export function stopReplay(): void {
+  stopCurrent?.();
+}
+
 /**
  * Plays `text`, calling `onStart` once audio is audible. Resolves when the clip
  * ends or is cut off by a newer replay; rejects with `ReplayError`.
