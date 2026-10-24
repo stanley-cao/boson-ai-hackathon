@@ -57,6 +57,11 @@ describe("tutor prompt", () => {
     expect(prompt).not.toContain("tone marks");
   });
 
+  it("keeps replies short and expressive for the on-screen tutor", () => {
+    const prompt = buildTutorPrompt();
+    expect(prompt).toContain("one or two short sentences, said warmly and expressively");
+  });
+
   it("leaves per-tool guidance to the tool descriptions", () => {
     // The "say it clearly exactly once" rule (#22) moved into note_correction's
     // and pronunciation_feedback's descriptions (#80); tools.test.ts checks it.
