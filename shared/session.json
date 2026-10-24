@@ -1,0 +1,232 @@
+{
+  "model": "higgs-realtime",
+  "instructions": "You are a friendly language tutor. The learner speaks English and is learning Mandarin Chinese. Learner level: beginner. Speak slowly, use short simple target-language phrases, and add brief English scaffolding after them. They switch mid-sentence; never ask which language they want. When they speak Mandarin Chinese, answer in Mandarin Chinese; when they speak English, answer in English. Give at most one correction per turn, and explain it in English. Speak in Simplified characters. Listen closely for tone errors and missing or wrong measure words. In tool arguments, use pinyin romanization with tone marks. Keep every reply to one or two short sentences. You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs. A short follow-up is fine; do not interrogate or add unasked detail.",
+  "output_modalities": [
+    "audio"
+  ],
+  "audio": {
+    "input": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "turn_detection": {
+        "type": "server_vad",
+        "silence_duration_ms": 1500
+      },
+      "transcription": {
+        "model": "higgs-stt-3.1"
+      }
+    },
+    "output": {
+      "format": {
+        "type": "audio/pcm",
+        "rate": 24000
+      },
+      "voice": "eleanor"
+    }
+  },
+  "tools": [
+    {
+      "type": "function",
+      "name": "note_correction",
+      "description": "Call this FIRST, before you say anything else, whenever something the learner says has a grammar or word mistake, at any point in the conversation, including when they ask you to check a sentence or mix languages in one turn. It saves the correction to their study panel and then tells you what to say. Not for pronunciation, and not when nothing needs changing. After it returns, say the `correct` text clearly exactly once.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "zh",
+              "ko",
+              "fr",
+              "ja"
+            ],
+            "description": "The language the mistake was in."
+          },
+          "said": {
+            "type": "string",
+            "description": "What the learner said, as you heard it, in its own script (Chinese characters for Mandarin, not pinyin)."
+          },
+          "correct": {
+            "type": "string",
+            "description": "The corrected version, in the same script as `said`."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One short sentence on why, in the learner's native language."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "grammar",
+              "vocabulary",
+              "other"
+            ],
+            "description": "What sort of mistake it was."
+          },
+          "romanization": {
+            "type": "string",
+            "description": "The corrected version romanized, for a language not written in Latin letters. For Mandarin, pinyin with tone marks, e.g. 'wǒ yǒu sān zhī gǒu'."
+          }
+        },
+        "required": [
+          "language",
+          "said",
+          "correct",
+          "explanation",
+          "kind"
+        ]
+      }
+    },
+    {
+      "type": "function",
+      "name": "set_practice_language",
+      "description": "Switch the language or level only when the learner explicitly asks for a different language than the one they are already practising, or explicitly states a new level. Do NOT call this merely because they name or ask to practise their current language, or ask for pronunciation feedback. Never infer a new level. For a real switch, call this FIRST, before you say anything else; it updates their badge and then tells you what to say.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "The language they asked for, as a code or a name, e.g. 'zh' or 'Korean'. Pass what they asked for even if you can't teach it; the result says which languages are available."
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "beginner",
+              "intermediate",
+              "advanced"
+            ],
+            "description": "Their level in it. If they didn't say, keep the level they had, or use beginner."
+          }
+        },
+        "required": [
+          "language",
+          "level"
+        ]
+      }
+    },
+    {
+      "type": "function",
+      "name": "set_speaking_pace",
+      "description": "Call this FIRST, before you say anything else, whenever the learner asks you to slow down or speed up: 'say that again slowly', 'repeat that slower' or 'say it syllable by syllable' is scope once; 'please speak more slowly' or 'slow down' is scope session. It sets your speaking pace and then tells you what to say.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pace": {
+            "type": "string",
+            "enum": [
+              "slow",
+              "normal"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "once",
+              "session"
+            ],
+            "description": "once: only a slow repeat of your last reply. session: from now on."
+          }
+        },
+        "required": [
+          "pace",
+          "scope"
+        ]
+      }
+    },
+    {
+      "type": "function",
+      "name": "pronunciation_feedback",
+      "description": "Give the learner feedback on a sound they got wrong. Whenever you hear them mispronounce something (for Mandarin, above all a wrong tone, or a wrong initial or final), or they ask how to pronounce something, call this FIRST, before you say anything else; it shows the note on their screen and then tells you what to say. After it returns, say the `target` clearly exactly once.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "zh",
+              "ko",
+              "fr",
+              "ja"
+            ],
+            "description": "The language being spoken."
+          },
+          "target": {
+            "type": "string",
+            "description": "The word or syllable, in its own script (Chinese characters for Mandarin, not pinyin), e.g. '妈'."
+          },
+          "romanization": {
+            "type": "string",
+            "description": "How it should sound. For Mandarin, pinyin with tone marks, not tone numbers, e.g. 'mā' rather than 'ma1'."
+          },
+          "issue": {
+            "type": "string",
+            "enum": [
+              "tone",
+              "initial",
+              "final",
+              "other"
+            ],
+            "description": "What was wrong: the tone, the initial (the consonant it starts with), the final (the vowel part after it), or something else."
+          },
+          "tip": {
+            "type": "string",
+            "description": "One short, practical tip for making this sound correctly. For a Mandarin tone, describe the tone written in `romanization`: first (ā) high and level, second (á) rising, third (ǎ) low and dipping, fourth (à) sharply falling, neutral short and light."
+          }
+        },
+        "required": [
+          "language",
+          "target",
+          "issue",
+          "tip"
+        ]
+      }
+    },
+    {
+      "type": "function",
+      "name": "save_phrase",
+      "description": "Call this FIRST, before you say anything else, whenever the learner asks what a word or phrase means or how to say something, even after a greeting or in the middle of a sentence. Also call it when you teach them a new word or they ask you to remember one. It saves the phrase to the phrase list on their screen and then tells you what to say.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "zh",
+              "ko",
+              "fr",
+              "ja"
+            ],
+            "description": "The language the phrase is in."
+          },
+          "phrase": {
+            "type": "string",
+            "description": "The word or phrase in its own script (Chinese characters for Mandarin, not pinyin), e.g. '加油'."
+          },
+          "meaning": {
+            "type": "string",
+            "description": "What it means, in the learner's native language."
+          },
+          "romanization": {
+            "type": "string",
+            "description": "How to say it, for a language not written in Latin letters. For Mandarin, pinyin with tone marks, e.g. 'jiā yóu'."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional: a short usage note, e.g. 'said to cheer someone on'."
+          }
+        },
+        "required": [
+          "language",
+          "phrase",
+          "meaning"
+        ]
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}

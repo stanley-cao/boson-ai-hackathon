@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "probe": "tsx tools/probe.ts"
+    "probe": "tsx tools/probe.ts",
+    "export-config": "tsx scripts/export-config.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
