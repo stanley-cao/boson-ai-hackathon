@@ -181,7 +181,7 @@ describe("studyFromTranscript", () => {
     expect(state).toEqual(before);
   });
 
-  it("rehydrates stored data as transcript items while preserving repeated events", () => {
+  it("rehydrates stored data as transcript items, collapsing identical entries", () => {
     const stored = emptyStudyState();
     stored.phrases.push({
       type: "phrase",
@@ -208,7 +208,8 @@ describe("studyFromTranscript", () => {
     });
     const restored = studyFromTranscript(hydrated);
 
-    expect(restored.phrases.map((item) => item.phrase)).toEqual(["加油", "加油", "谢谢"]);
+    // 加油 was saved in both sessions; the panel shows it once, first place kept.
+    expect(restored.phrases.map((item) => item.phrase)).toEqual(["加油", "谢谢"]);
     expect(restored.practiceLanguage?.level).toBe("intermediate");
     expect(hydrated.order.every((id) => hydrated.items[id].kind === "tool")).toBe(true);
     expect(toDisplayList(hydrated)).toEqual([]);
@@ -259,5 +260,43 @@ describe("studyFromTranscript", () => {
       1,
     );
     expect(freshSessionTranscript(state)).toEqual(emptyTranscript);
+  });
+});
+
+describe("studyFromTranscript duplicates", () => {
+  const correction = {
+    type: "correction",
+    language: "ja",
+    said: "Watashi Sam desu",
+    correct: "Watashi wa Sam desu",
+    explanation: "The particle wa marks the subject.",
+    kind: "grammar",
+  };
+
+  it("keeps one of identical entries from a doubled tool call", () => {
+    let state = emptyTranscript;
+    state = addTool(state, "i1", "c1", "note_correction", { summary: "Saved.", detail: correction });
+    state = addTool(state, "i2", "c2", "note_correction", { summary: "Saved.", detail: correction });
+    state = addTool(state, "i3", "c3", "save_phrase", {
+      summary: "Saved.",
+      detail: { type: "phrase", language: "fr", phrase: "Bonjour", meaning: "Hello" },
+    });
+    state = addTool(state, "i4", "c4", "save_phrase", {
+      summary: "Saved.",
+      detail: { type: "phrase", language: "fr", phrase: "bonjour ", meaning: "Hi" },
+    });
+    const study = studyFromTranscript(state);
+    expect(study.corrections).toHaveLength(1);
+    expect(study.phrases.map((p) => p.meaning)).toEqual(["Hello"]);
+  });
+
+  it("keeps different corrections of the same sentence", () => {
+    let state = emptyTranscript;
+    state = addTool(state, "i1", "c1", "note_correction", { summary: "Saved.", detail: correction });
+    state = addTool(state, "i2", "c2", "note_correction", {
+      summary: "Saved.",
+      detail: { ...correction, correct: "Watashi no namae wa Sam desu" },
+    });
+    expect(studyFromTranscript(state).corrections).toHaveLength(2);
   });
 });

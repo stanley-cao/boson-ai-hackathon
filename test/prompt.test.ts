@@ -75,10 +75,10 @@ describe("tutor prompt", () => {
     const intermediate = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.intermediate);
 
     expect(beginner).toContain("Speak slowly");
-    expect(beginner).toContain("brief English scaffolding");
+    expect(beginner).toContain("what it means in English");
     expect(intermediate).toContain("natural but clear pace");
     expect(intermediate).toContain("mostly the target language");
-    expect(intermediate).not.toContain("English scaffolding");
+    expect(intermediate).not.toContain("what it means in English");
   });
 
   it("leaves slow requests to set_speaking_pace rather than a prompt rule", () => {
