@@ -225,7 +225,7 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true">P</span>
           <span>
             <strong>Polyglot</strong>
-            <small>Language studio</small>
+            <small>Powered by Boson</small>
           </span>
         </a>
         <StatusBar connection={connection} activity={activity} closeMessage={closeMessage} />
