@@ -124,9 +124,21 @@ function stopPerWord(text: string, split: (bare: string) => boolean): string {
  * as long but came out as five even chunks that transcribed as an unrelated
  * repeated phrase; commas or spaces barely slowed it. The stop per word for
  * Japanese and Latin scripts, and speed_very_slow, are unprobed. Null when
- * there is nothing to say, or the line is too long for the route.
+ * there is nothing to say, or the line is too long for one request; a long
+ * line is said in parts through `slowSpeechChunks`.
  */
 export function slowSpeechInput(text: string, options: SlowSpeechOptions = {}): string | null {
+  const chunks = slowSpeechChunks(text, options);
+  return chunks?.length === 1 ? chunks[0] : null;
+}
+
+/**
+ * `slowSpeechInput` for a line of any length: TTS inputs of at most
+ * TTS_MAX_CHARS each, tag included, to be played one after another. Parts end
+ * at a syllable or word stop where they can, so no word is cut in two. Null
+ * when there is nothing to say.
+ */
+export function slowSpeechChunks(text: string, options: SlowSpeechOptions = {}): string[] | null {
   if (!/[\p{L}\p{N}]/u.test(text)) return null;
   const { language, pace = "slow", wholeTarget = false } = options;
 
@@ -139,8 +151,32 @@ export function slowSpeechInput(text: string, options: SlowSpeechOptions = {}): 
     out = stopPerWord(out, (bare) => PINYIN_SYLLABLE.test(bare));
   }
 
-  const input = SPEED_TAGS[pace] + out;
-  return Array.from(input).length <= TTS_MAX_CHARS ? input : null;
+  const tag = SPEED_TAGS[pace];
+  return splitAtStops(out, TTS_MAX_CHARS - Array.from(tag).length).map((part) => tag + part);
+}
+
+// Where a part may end: after a stop or a space. Kept on the earlier part.
+const BREAK_AFTER = /[。.!?！？,，、;；:\s]/u;
+
+/** `text` in parts of at most `max` characters, each broken after a stop or space if there is one. */
+function splitAtStops(text: string, max: number): string[] {
+  const chars = Array.from(text);
+  const parts: string[] = [];
+  let start = 0;
+  while (chars.length - start > max) {
+    let end = start + max;
+    // Back up to the last break in this window; with none, cut at the limit.
+    for (let i = end - 1; i > start; i--) {
+      if (BREAK_AFTER.test(chars[i])) {
+        end = i + 1;
+        break;
+      }
+    }
+    parts.push(chars.slice(start, end).join("").trim());
+    start = end;
+  }
+  parts.push(chars.slice(start).join("").trim());
+  return parts.filter((part) => /[\p{L}\p{N}]/u.test(part));
 }
 
 /** The item a slow repeat should say instead of the whole reply. */

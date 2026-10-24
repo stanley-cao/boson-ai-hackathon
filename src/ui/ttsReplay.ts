@@ -85,8 +85,13 @@ export function speechUrl(
 // Only one replay plays at a time; overlapping clips are unintelligible.
 let stopCurrent: (() => void) | null = null;
 
+// Bumped by every new replay and by stopReplay, so a sequence that was cut
+// off doesn't go on to its next part.
+let sequenceRun = 0;
+
 /** Stops whatever replay is playing, e.g. when the learner starts talking. */
 export function stopReplay(): void {
+  sequenceRun++;
   stopCurrent?.();
 }
 
@@ -97,7 +102,34 @@ export function stopReplay(): void {
  * `play()` runs after an await, outside the click's call stack. Chrome allows
  * that once the page has had any user gesture, which the mic button guarantees.
  */
-export async function playReplay(text: string, onStart?: () => void): Promise<void> {
+export function playReplay(text: string, onStart?: () => void): Promise<void> {
+  sequenceRun++;
+  return playPart(text, onStart);
+}
+
+/**
+ * Plays `texts` one after another, as one replay: for a line too long for a
+ * single /api/tts request. `onStart` fires once, when the first part is
+ * audible. Each part's audio is fetched while the one before it plays, so the
+ * gap between them is short. Stopping, or any newer replay, ends the whole
+ * sequence. Rejects with `ReplayError` if a part fails.
+ */
+export async function playReplaySequence(
+  texts: string[],
+  onStart?: () => void,
+  play: (text: string, onStart?: () => void) => Promise<void> = playPart,
+  prefetch: (text: string) => Promise<unknown> = speechUrl,
+): Promise<void> {
+  const run = ++sequenceRun;
+  for (let i = 0; i < texts.length; i++) {
+    if (run !== sequenceRun) return;
+    // A failed prefetch is retried, and reported, when its part's turn comes.
+    if (i + 1 < texts.length) prefetch(texts[i + 1]).catch(() => {});
+    await play(texts[i], i === 0 ? onStart : undefined);
+  }
+}
+
+async function playPart(text: string, onStart?: () => void): Promise<void> {
   const url = await speechUrl(text);
   stopCurrent?.();
 

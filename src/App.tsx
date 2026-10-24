@@ -30,7 +30,7 @@ import {
   type LanguageCode,
   type TargetLanguageCode,
 } from "./lang/profiles";
-import { slowSpeechInput, type SlowSpeechOptions } from "./realtime/pace";
+import { slowSpeechChunks, type SlowSpeechOptions } from "./realtime/pace";
 import { AvatarStage } from "./ui/AvatarStage";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
@@ -45,7 +45,7 @@ import {
 import { StatusBar } from "./ui/StatusBar";
 import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
-import { playReplay, stopReplay } from "./ui/ttsReplay";
+import { playReplaySequence, stopReplay } from "./ui/ttsReplay";
 
 /**
  * "Say that again slowly": the tutor's line through /api/tts, slowed with
@@ -53,11 +53,12 @@ import { playReplay, stopReplay } from "./ui/ttsReplay";
  * played, and the client then asks the model for the repeat instead.
  */
 function playSlowRepeat(text: string, options: SlowSpeechOptions): Promise<boolean> {
-  const input = slowSpeechInput(text, options);
-  if (!input) return Promise.resolve(false);
+  // In parts when the line is too long for one /api/tts request.
+  const inputs = slowSpeechChunks(text, options);
+  if (!inputs) return Promise.resolve(false);
   return new Promise((resolve) => {
     // The first call wins: onStart means it played, settling first means not.
-    playReplay(input, () => resolve(true)).then(
+    playReplaySequence(inputs, () => resolve(true)).then(
       () => resolve(false),
       () => resolve(false),
     );
