@@ -46,6 +46,18 @@ describe("language profiles", () => {
     expect(PROFILES.ja.sampleOpeners.every((opener) => JAPANESE.test(opener))).toBe(true);
   });
 
+  it("teaches Serbian in Latin script without romanization", () => {
+    expect(PROFILES.sr).toMatchObject({ name: "Serbian", script: "Latn" });
+    expect(PROFILES.sr).not.toHaveProperty("romanization");
+    expect(PROFILES.sr.promptNotes).toContain("seven noun cases");
+    expect(PROFILES.sr.promptNotes).toContain("verb aspect pairs");
+    expect(PROFILES.sr.promptNotes).toContain("č/ć and dž/đ");
+    expect(PROFILES.sr.sampleOpeners).toEqual([
+      "Zdravo! Šta želiš da vežbaš danas?",
+      "Kako ti je prošao dan?",
+    ]);
+  });
+
   it("keeps promptNotes short and gives every language openers", () => {
     // promptNotes go into the system prompt, and a long prompt stops the
     // model calling tools (see CLAUDE.md). The cap is a tripwire, not a target.

@@ -1,7 +1,7 @@
 /**
  * Language profiles: everything language-specific lives here as data, so the
  * system prompt (and later the UI and smoke tests) are built from a profile
- * rather than hard-coding a language. Adding ko/fr/ja is a new entry, not new
+ * rather than hard-coding a language. Adding a target is a new entry, not new
  * code. This is shared contract #1 in docs/ROADMAP.md — change its shape only
  * with a decision-log entry.
  */
@@ -79,13 +79,25 @@ const ja: LanguageProfile = {
   sampleOpeners: ["こんにちは！今日は何を練習したいですか？", "今日はどんな一日でしたか？"],
 };
 
-export const PROFILES = { en, zh, ko, fr, ja } satisfies Partial<
+const sr: LanguageProfile = {
+  code: "sr",
+  name: "Serbian",
+  script: "Latn",
+  promptNotes:
+    "Write Serbian in Latin script. Help with its seven noun cases, verb aspect pairs, and the č/ć and dž/đ distinctions.",
+  sampleOpeners: [
+    "Zdravo! Šta želiš da vežbaš danas?",
+    "Kako ti je prošao dan?",
+  ],
+};
+
+export const PROFILES = { en, zh, ko, fr, ja, sr } satisfies Partial<
   Record<LanguageCode, LanguageProfile>
 >;
 
 export type ProfileCode = keyof typeof PROFILES;
 export type TargetLanguageCode = Exclude<ProfileCode, "en">;
-export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja"] as const satisfies readonly TargetLanguageCode[];
+export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja", "sr"] as const satisfies readonly TargetLanguageCode[];
 
 export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;

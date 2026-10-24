@@ -35,6 +35,9 @@ const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
   ja: "ja",
   japanese: "ja",
   nihongo: "ja",
+  sr: "sr",
+  serbian: "sr",
+  srpski: "sr",
 };
 
 /**
