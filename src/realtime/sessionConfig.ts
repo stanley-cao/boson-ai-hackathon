@@ -94,6 +94,10 @@ export const SYSTEM_PROMPT = buildTutorPrompt();
  * choice while learning: no decoder, nothing to go wrong.
  */
 export const AUDIO_RATE = 24000;
+// Boson's preset library describes Eleanor as calm, articulate and suited to
+// educational explanations. Keep this named so the probe and tests can report
+// the exact voice whose Mandarin delivery needs live acceptance testing.
+export const OUTPUT_VOICE = "eleanor";
 
 export function buildSessionConfig(
   level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
@@ -140,7 +144,7 @@ export function buildSessionConfig(
         },
         output: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
-          voice: "default",
+          voice: OUTPUT_VOICE,
         },
       },
       // PART 4: the tools the model may call. Plain JSON Schema — there is no
