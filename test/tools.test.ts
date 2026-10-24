@@ -194,6 +194,24 @@ describe("set_practice_language", () => {
     // An enum here pulled a request for Korean onto "en"; see definitions.ts.
     expect(def?.parameters.properties.language).not.toHaveProperty("enum");
   });
+
+  it("is reserved for explicit language or level changes", () => {
+    const def = TOOL_DEFINITIONS.find((d) => d.name === "set_practice_language");
+
+    expect(def?.description).toContain("explicitly asks for a different language");
+    expect(def?.description).toContain("explicitly states a new level");
+    expect(def?.description).toContain(
+      "Do NOT call this merely because they name or ask to practise their current language",
+    );
+    expect(def?.description).toContain("Never infer a new level");
+
+    // Keep #13's real-switch contract intact: the handler still receives both
+    // the requested language and one of the three supported levels.
+    expect(def?.parameters).toMatchObject({
+      properties: { level: { enum: ["beginner", "intermediate", "advanced"] } },
+      required: ["language", "level"],
+    });
+  });
 });
 
 describe("pronunciation_feedback", () => {
