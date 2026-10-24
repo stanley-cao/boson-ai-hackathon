@@ -11,16 +11,17 @@ need the development server or an internet connection.
 - `N`: toggle speaker notes
 - Swipe horizontally on a touch screen
 
-The timed presentation is slides 1–10. Slides A1–A3 are backup slides for
-questions and demo recovery.
+The timed presentation is slides 1–10, structured as project name, team,
+introduction, what the model does, problem, audience, applications, demo,
+architecture, and closing. Slides A1–A3 are backup slides for questions and
+demo recovery.
 
 ## Before presenting
 
-1. Replace `Your team names` on the title slide.
-2. Rehearse the live-demo prompts on slide A3.
-3. Use voice-only mode for the primary demo and keep avatar mode optional.
-4. Clear old study notes before recording or presenting.
-5. Keep a screen recording of the successful demo as a fallback.
+1. Rehearse the live-demo prompts on slide A3.
+2. Use voice-only mode for the primary demo and keep avatar mode optional.
+3. Clear old study notes before recording or presenting.
+4. Keep a screen recording of the successful demo as a fallback.
 
 ## Export to PDF
 
