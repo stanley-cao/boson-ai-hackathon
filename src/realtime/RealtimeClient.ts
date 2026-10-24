@@ -27,7 +27,7 @@ import {
 import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../tools/handlers";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
-import { dispatch as dispatchTool } from "../tools/registry";
+import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
 
 // The model can also be set in session.update; passing it in the URL means the
@@ -403,15 +403,11 @@ export class RealtimeClient {
     const startedAt = Date.now();
 
     const p = (async () => {
-      let result: unknown;
-      try {
-        result = await dispatchTool(name, args);
-      } catch (e) {
-        // A thrown handler must still produce an output, or the model waits
-        // forever for a call_id that never comes back.
-        this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`);
-        result = { summary: "That lookup failed.", error: "tool_failed" };
-      }
+      // runTool answers even when a handler throws, or the model would wait
+      // forever for a call_id that never comes back.
+      let result: unknown = await runTool(name, args, (e) =>
+        this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`),
+      );
       // The badge alone isn't enough: the prompt carries the level's pace and
       // how much English to use, so a new level needs new instructions.
       const level = levelChangeFromTool(name, result, this.level);

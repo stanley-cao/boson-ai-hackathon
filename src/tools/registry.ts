@@ -21,3 +21,22 @@ export async function dispatch(
   }
   return handler(args ?? {});
 }
+
+/**
+ * `dispatch` for a transport: always resolves to a ToolResult, even if a
+ * handler throws, so whoever is waiting on the call_id gets an answer. The
+ * direct WebSocket and LiveKit RPC (src/livekit/toolRpc.ts) both run tools
+ * through here.
+ */
+export async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+  onError?: (error: unknown) => void,
+): Promise<ToolResult> {
+  try {
+    return await dispatch(name, args);
+  } catch (e) {
+    onError?.(e);
+    return { summary: "That lookup failed.", error: "tool_failed" };
+  }
+}
