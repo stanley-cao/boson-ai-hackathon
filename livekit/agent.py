@@ -45,9 +45,14 @@ from session_config import (
     instructions_for,
     load_prompts,
     load_session,
+    load_pace_notes,
     load_slow_note,
     model_kwargs,
+    one_off_pace,
     pace_request,
+    practice_focus,
+    session_pace_for,
+    slow_repeat_summary,
     practice_change,
     practice_choice,
     turn_transcription,
@@ -62,6 +67,7 @@ load_dotenv(override=True)
 SESSION = load_session()
 PROMPTS = load_prompts()
 SLOW_NOTE = load_slow_note()
+PACE_NOTES = load_pace_notes()
 
 # The identity this agent joins every room as. server/avatar.ts names it as the
 # avatar session's publisher_identity, and the avatar only plays audio from
@@ -84,6 +90,12 @@ class Tutor(Agent):
         # phrase can be added without changing it.
         self.pace = "normal"
         self.practised = PractisedPhrases()
+        # Tutor replies so far, to tell whether the last one was about a study
+        # item or was a one-off slow repeat: either is set at reply N and still
+        # "the last reply" while no more than one reply has followed.
+        self.replies = 0
+        self.focus: tuple[str, int] | None = None
+        self.one_off: tuple[str, int] | None = None
 
     async def after_tool(
         self, name: str, arguments: dict[str, Any], result: dict[str, Any], context: RunContext
@@ -105,19 +117,39 @@ class Tutor(Agent):
         elif name == "set_speaking_pace" and not result.get("error"):
             pace, scope = pace_request(arguments)
             if scope == "session":
+                pace = session_pace_for(pace, self.session_pace)
                 self.session_pace = pace
                 self.revert_pace_on_next_turn = False
-            elif self.session_pace != "slow":
+            else:
+                # Asked again straight after a slow repeat, the next goes slower.
+                one_off = self.one_off
+                just_heard = one_off[0] if one_off is not None and self.recent(one_off) else self.session_pace
+                pace = one_off_pace(pace, just_heard)
+                self.one_off = (pace, self.replies)
                 # Avatar mode has no TTS replay: the avatar has to say the
                 # slow repeat itself, so slow down for one reply and go back
                 # once the learner speaks again.
-                self.revert_pace_on_next_turn = True
+                self.revert_pace_on_next_turn = pace != self.session_pace
+                focus = self.focus
+                if focus is not None and self.recent(focus):
+                    # Right after a study item, the item is what gets repeated.
+                    result["summary"] = slow_repeat_summary(focus[0])
             logger.info("speaking pace %s (%s)", pace, scope)
             await self.set_pace(pace)
+        elif (item := practice_focus(result)) is not None:
+            self.focus = (item, self.replies)
+
+    def recent(self, mark: tuple[str, int]) -> bool:
+        """True while at most one tutor reply has followed the one `mark` was set at."""
+        return self.replies - mark[1] <= 1
+
+    def note_reply(self) -> None:
+        """Count a tutor reply."""
+        self.replies += 1
 
     async def set_pace(self, pace: str) -> None:
         self.pace = pace
-        instructions = with_pace(self.base_instructions, pace, SLOW_NOTE)
+        instructions = with_pace(self.base_instructions, pace, PACE_NOTES)
         # Last, after the pace note, as it is the one part that grows.
         note = self.practised.note(self.language)
         await self.update_instructions(f"{instructions} {note}" if note else instructions)
@@ -405,8 +437,11 @@ async def entrypoint(ctx: JobContext) -> None:
     def on_user_item(event: ConversationItemAddedEvent) -> None:
         # A typed turn never changes the user state; its message still ends a
         # one-off slow repeat. Harmless after a spoken one: already reverted.
-        if getattr(event.item, "role", None) == "user":
+        role = getattr(event.item, "role", None)
+        if role == "user":
             asyncio.create_task(tutor.end_one_off_pace())
+        elif role == "assistant":
+            tutor.note_reply()
 
     session.on("user_state_changed", on_user_state)
     session.on("conversation_item_added", on_user_item)

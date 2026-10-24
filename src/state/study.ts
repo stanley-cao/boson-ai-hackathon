@@ -8,6 +8,7 @@ import type {
   ToolDetail,
 } from "../tools/types";
 import { PROFILES } from "../lang/profiles";
+import { PRONUNCIATION_ISSUES } from "../tools/types";
 
 export interface StudyState {
   corrections: Correction[];
@@ -19,12 +20,7 @@ export interface StudyState {
 
 const LANGUAGES = new Set<LanguageCode>(Object.keys(PROFILES) as LanguageCode[]);
 const CORRECTION_KINDS = new Set<Correction["kind"]>(["grammar", "vocabulary", "other"]);
-const PRONUNCIATION_ISSUES = new Set<PronunciationNote["issue"]>([
-  "tone",
-  "initial",
-  "final",
-  "other",
-]);
+const ISSUES = new Set<PronunciationNote["issue"]>(PRONUNCIATION_ISSUES);
 const LEVELS = new Set<PracticeLanguage["level"]>(["beginner", "intermediate", "advanced"]);
 
 const DETAIL_TYPE_BY_TOOL: Record<string, ToolDetail["type"]> = {
@@ -81,7 +77,7 @@ export function isToolDetail(value: unknown): value is ToolDetail {
       return (
         isString(value.target) &&
         isString(value.issue) &&
-        PRONUNCIATION_ISSUES.has(value.issue as PronunciationNote["issue"]) &&
+        ISSUES.has(value.issue as PronunciationNote["issue"]) &&
         isString(value.tip) &&
         isOptionalString(value.romanization)
       );

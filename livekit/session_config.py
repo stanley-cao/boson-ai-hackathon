@@ -15,7 +15,7 @@ SHARED = Path(__file__).resolve().parent.parent / "shared"
 SESSION_JSON = SHARED / "session.json"
 # Every target language's prompt at every level, keyed [language][level].
 PROMPTS_JSON = SHARED / "prompts.json"
-# {"slow_note": ...}: the sentence a slow pace appends to any prompt.
+# {"slow_note": ..., "slower_note": ...}: the sentence each slow pace appends to any prompt.
 PACE_JSON = SHARED / "pace.json"
 
 
@@ -34,9 +34,54 @@ def load_slow_note(path: Path = PACE_JSON) -> str:
     return json.loads(path.read_text(encoding="utf-8"))["slow_note"]
 
 
-def with_pace(prompt: str, pace: str, slow_note: str) -> str:
-    """The prompt at a pace, as buildTutorPrompt appends SLOW_PACE_NOTE last."""
-    return f"{prompt} {slow_note}" if pace == "slow" else prompt
+def load_pace_notes(path: Path = PACE_JSON) -> dict[str, str]:
+    """{pace: sentence} for the slow paces, as PACE_NOTES in sessionConfig.ts."""
+    pace = json.loads(path.read_text(encoding="utf-8"))
+    return {"slow": pace["slow_note"], "slower": pace["slower_note"]}
+
+
+def with_pace(prompt: str, pace: str, notes: dict[str, str]) -> str:
+    """The prompt at a pace, as buildTutorPrompt appends the pace's note last."""
+    note = notes.get(pace)
+    return f"{prompt} {note}" if note else prompt
+
+
+PACE_ORDER = ["normal", "slow", "slower"]
+
+
+def slower_than(pace: str) -> str:
+    """The next pace down, as slowerThan in handlers.ts."""
+    return "slow" if pace == "normal" else "slower"
+
+
+def one_off_pace(requested: str, just_heard: str) -> str:
+    """A one-off slow repeat's pace, as oneOffPace in handlers.ts.
+
+    Asked for again when the line was already slow, it goes one step slower,
+    or the repeat would sound the same.
+    """
+    step = slower_than(just_heard)
+    return requested if PACE_ORDER.index(requested) > PACE_ORDER.index(step) else step
+
+
+def session_pace_for(requested: str, current: str) -> str:
+    """A lasting pace change, as planPaceChange: slow while already slow is slower."""
+    return "slower" if requested == "slow" and current != "normal" else requested
+
+
+def slow_repeat_summary(text: str) -> str:
+    """What to say for "say that slowly" right after a study item, as slowRepeatSummary."""
+    return f"Now say {text} again, slowly, syllable by syllable with a short pause after each. Add nothing new."
+
+
+def practice_focus(result: dict[str, Any]) -> str | None:
+    """The line a study tool's result centres the next reply on, as practiceFocusFromTool."""
+    detail = result.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    key = {"correction": "correct", "phrase": "phrase", "pronunciation": "target"}.get(str(detail.get("type")))
+    text = detail.get(key) if key else None
+    return text.strip() if isinstance(text, str) and text.strip() else None
 
 
 def pace_request(arguments: dict[str, Any]) -> tuple[str, str]:
@@ -45,7 +90,13 @@ def pace_request(arguments: dict[str, Any]) -> tuple[str, str]:
     Anything unrecognised is a one-off slow repeat, the cheapest wrong guess;
     "normal" always applies to the rest of the session.
     """
-    pace = "normal" if re.search(r"normal|fast|quick|natural|regular", str(arguments.get("pace", "")), re.I) else "slow"
+    raw = str(arguments.get("pace", ""))
+    if re.search(r"normal|fast|quick|natural|regular", raw, re.I):
+        pace = "normal"
+    elif re.search(r"slower|slowest|very|extra|even|more", raw, re.I):
+        pace = "slower"
+    else:
+        pace = "slow"
     if pace == "normal" or re.search(r"session|always|rest", str(arguments.get("scope", "")), re.I):
         return pace, "session"
     return pace, "once"
