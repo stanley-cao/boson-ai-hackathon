@@ -1,4 +1,4 @@
-import type { TranscriptState, ToolItem } from "./transcriptStore";
+import type { TranscriptItem, TranscriptState, ToolItem } from "./transcriptStore";
 import type {
   Correction,
   LanguageCode,
@@ -32,6 +32,13 @@ const DETAIL_TYPE_BY_TOOL: Record<string, ToolDetail["type"]> = {
   pronunciation_feedback: "pronunciation",
   set_practice_language: "practice_language",
 };
+const TOOL_BY_DETAIL_TYPE: Record<ToolDetail["type"], string> = {
+  correction: "note_correction",
+  phrase: "save_phrase",
+  pronunciation: "pronunciation_feedback",
+  practice_language: "set_practice_language",
+};
+const STUDY_TOOL_NAMES = new Set(Object.keys(DETAIL_TYPE_BY_TOOL));
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -49,7 +56,7 @@ function isLanguage(value: unknown): value is LanguageCode {
   return isString(value) && LANGUAGES.has(value as LanguageCode);
 }
 
-function isToolDetail(value: unknown): value is ToolDetail {
+export function isToolDetail(value: unknown): value is ToolDetail {
   if (!isRecord(value) || !isLanguage(value.language)) return false;
 
   switch (value.type) {
@@ -84,6 +91,58 @@ function isToolDetail(value: unknown): value is ToolDetail {
   }
 }
 
+export function emptyStudyState(): StudyState {
+  return {
+    corrections: [],
+    phrases: [],
+    pronunciationNotes: [],
+    practiceLanguage: null,
+  };
+}
+
+/** Rehydrate saved details as hidden tool items, keeping one transcript store. */
+export function transcriptFromStudy(study: StudyState): TranscriptState {
+  const details: ToolDetail[] = [
+    ...study.corrections,
+    ...study.phrases,
+    ...study.pronunciationNotes,
+  ];
+  if (study.practiceLanguage) details.push(study.practiceLanguage);
+
+  const order: string[] = [];
+  const items: Record<string, TranscriptItem> = {};
+  details.forEach((detail, index) => {
+    const itemId = `restored-study-${index}`;
+    order.push(itemId);
+    items[itemId] = {
+      kind: "tool",
+      itemId,
+      callId: `restored-study-call-${index}`,
+      name: TOOL_BY_DETAIL_TYPE[detail.type],
+      args: null,
+      result: { summary: "Restored saved study item.", detail },
+      status: "ok",
+      ms: null,
+      at: 0,
+      restored: true,
+    };
+  });
+  return { order, items };
+}
+
+/** Remove learning tool items while preserving the visible conversation. */
+export function withoutStudyItems(state: TranscriptState): TranscriptState {
+  const order = state.order.filter((itemId) => {
+    const item = state.items[itemId];
+    return item.kind !== "tool" || !STUDY_TOOL_NAMES.has(item.name);
+  });
+  if (order.length === state.order.length) return state;
+
+  const items: Record<string, TranscriptItem> = {};
+  for (const itemId of order) items[itemId] = state.items[itemId];
+  return { order, items };
+}
+
 function detailFrom(item: ToolItem): ToolDetail | null {
   if (item.status !== "ok" || !isRecord(item.result)) return null;
   const detail = item.result.detail;
@@ -97,12 +156,7 @@ function detailFrom(item: ToolItem): ToolDetail | null {
 
 /** Derive every study view from the transcript, without mutating its items. */
 export function studyFromTranscript(state: TranscriptState): StudyState {
-  const study: StudyState = {
-    corrections: [],
-    phrases: [],
-    pronunciationNotes: [],
-    practiceLanguage: null,
-  };
+  const study = emptyStudyState();
 
   for (const itemId of state.order) {
     const item = state.items[itemId];

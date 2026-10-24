@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "../src/realtime/events";
+import { transcriptFromStudy } from "../src/state/study";
 import {
   CLIENT_TOOL_RESULT,
   emptyTranscript,
@@ -35,7 +36,9 @@ function addTool(
 
 describe("StudyPanel", () => {
   it("renders a concise empty state", () => {
-    const html = renderToStaticMarkup(<StudyPanel state={emptyTranscript} />);
+    const html = renderToStaticMarkup(
+      <StudyPanel state={emptyTranscript} />,
+    );
 
     expect(html).toContain("Nothing saved yet");
     expect(html).not.toContain("study-group");
@@ -129,5 +132,41 @@ describe("StudyPanel", () => {
     expect(html).toContain("Nothing saved yet");
     expect(html).not.toContain("SHOULD_NOT_RENDER");
     expect(html).not.toContain("ALSO_HIDDEN");
+  });
+
+  it("offers a clear control only when study data exists", () => {
+    const empty = renderToStaticMarkup(
+      <StudyPanel state={emptyTranscript} onClear={() => undefined} />,
+    );
+    const state = addTool(emptyTranscript, "i1", "c1", "save_phrase", {
+      summary: "Phrase saved.",
+      detail: { type: "phrase", language: "zh", phrase: "加油", meaning: "keep going" },
+    });
+    const populated = renderToStaticMarkup(
+      <StudyPanel state={state} onClear={() => undefined} />,
+    );
+
+    expect(empty).not.toContain(">clear</button>");
+    expect(populated).toContain(">clear</button>");
+  });
+
+  it("can clear a persisted practice language even when there are no cards", () => {
+    const state = transcriptFromStudy({
+      corrections: [],
+      phrases: [],
+      pronunciationNotes: [],
+      practiceLanguage: {
+        type: "practice_language",
+        language: "zh",
+        level: "beginner",
+      },
+    });
+
+    const html = renderToStaticMarkup(
+      <StudyPanel state={state} onClear={() => undefined} />,
+    );
+
+    expect(html).toContain("Nothing saved yet");
+    expect(html).toContain(">clear</button>");
   });
 });

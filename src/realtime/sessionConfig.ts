@@ -53,10 +53,11 @@ export function buildTutorPrompt(
     // provide. Keeping this in data makes the two modes directly testable.
     level.promptNotes,
     // Code-switching.
-    "They switch between the two mid-sentence; never ask which language they want.",
+    "They switch mid-sentence; never ask which language they want.",
     `When they speak ${target.name}, answer in ${target.name}; when they speak ${native.name}, answer in ${native.name}.`,
     // Teaching.
     `Give at most one correction per turn, and explain it in ${native.name}.`,
+    "After note_correction returns, say its correct text clearly exactly once. After pronunciation_feedback returns, say its target clearly exactly once.",
     target.promptNotes,
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
@@ -68,8 +69,7 @@ export function buildTutorPrompt(
     "Keep every reply to one or two short sentences, matching the learner's energy.",
     "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
     // Turn-taking.
-    "A short follow-up question is fine; do not interrogate, and do not add",
-    "detail the learner did not ask for.",
+    "A short follow-up is fine; do not interrogate or add unasked detail.",
     // Tool use: nothing here on purpose. When to call each tool lives in its
     // description (src/tools/definitions.ts), which keeps this prompt short.
   ]
