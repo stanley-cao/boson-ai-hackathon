@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
+import {
+  buildSessionConfig,
+  buildTutorPrompt,
+  buildTutorPrompts,
+  SLOW_PACE_NOTE,
+} from "../src/realtime/sessionConfig";
+import { LEARNER_LEVELS, PROFILES } from "../src/lang/profiles";
 
 // The LiveKit agent reads this file instead of the TypeScript, so a stale copy
 // silently runs an old prompt or tool list there (#30).
@@ -32,5 +38,21 @@ describe("shared/prompts.json", () => {
 
   it("has the default prompt at the default pair and level", () => {
     expect((prompts as Record<string, Record<string, string>>).zh.beginner).toBe(exported.instructions);
+  });
+});
+
+describe("shared/pace.json", () => {
+  const pace = JSON.parse(readFileSync(new URL("../shared/pace.json", import.meta.url), "utf8")) as {
+    slow_note: string;
+  };
+
+  it("carries the slow-pace sentence (run `npm run export-config` if not)", () => {
+    expect(pace.slow_note).toBe(SLOW_PACE_NOTE);
+  });
+
+  it("is what a slow prompt appends, as the agent builds it", () => {
+    // livekit/agent.py builds the slow prompt as `prompt + " " + slow_note`.
+    const args = [PROFILES.sr, PROFILES.en, LEARNER_LEVELS.beginner] as const;
+    expect(buildTutorPrompt(...args, "slow")).toBe(`${buildTutorPrompt(...args, "normal")} ${pace.slow_note}`);
   });
 });

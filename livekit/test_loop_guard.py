@@ -34,3 +34,19 @@ def test_short_sentences_may_recur() -> None:
 def test_empty_inputs_are_not_an_error() -> None:
     assert strip_repeats("", [], None) is None
     assert strip_repeats("Ja volim da čitam knjige.", [], None) is None
+
+
+def test_a_repeat_the_learner_asked_for_is_kept() -> None:
+    # From the live Japanese session: the guard used to cut this to "Of course!".
+    reply = "Of course! Let's start with one word."
+    assert strip_repeats(reply, [reply], "Please say that slower again.") is None
+    assert strip_repeats(reply, [reply], "Možeš li to da ponoviš?") is None
+    assert strip_repeats(reply, [reply], "もう一度お願いします") is None
+
+
+def test_a_whole_reply_said_again_is_stripped_even_when_short_sentences() -> None:
+    # From a probe: each sentence is under MIN_WORDS, but the reply looped.
+    reply = "Hai, wakarimashita! (Yes, I understand!)"
+    assert strip_repeats(reply, [reply], "Just one word at a time.") == ""
+    # Two words said twice is ordinary conversation.
+    assert strip_repeats("Great job!", ["Great job!"], "Konnichiwa.") is None

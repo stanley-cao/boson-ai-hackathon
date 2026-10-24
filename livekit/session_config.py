@@ -7,6 +7,7 @@ and changing them stays a TypeScript change (ROADMAP shared contract 4).
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ SHARED = Path(__file__).resolve().parent.parent / "shared"
 SESSION_JSON = SHARED / "session.json"
 # Every target language's prompt at every level, keyed [language][level].
 PROMPTS_JSON = SHARED / "prompts.json"
+# {"slow_note": ...}: the sentence a slow pace appends to any prompt.
+PACE_JSON = SHARED / "pace.json"
 
 
 def load_session(path: Path = SESSION_JSON) -> dict[str, Any]:
@@ -24,6 +27,28 @@ def load_session(path: Path = SESSION_JSON) -> dict[str, Any]:
 def load_prompts(path: Path = PROMPTS_JSON) -> dict[str, dict[str, str]]:
     """Read the exported prompts. Raises if missing: run `npm run export-config`."""
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_slow_note(path: Path = PACE_JSON) -> str:
+    """Read the slow-pace sentence. Raises if missing: run `npm run export-config`."""
+    return json.loads(path.read_text(encoding="utf-8"))["slow_note"]
+
+
+def with_pace(prompt: str, pace: str, slow_note: str) -> str:
+    """The prompt at a pace, as buildTutorPrompt appends SLOW_PACE_NOTE last."""
+    return f"{prompt} {slow_note}" if pace == "slow" else prompt
+
+
+def pace_request(arguments: dict[str, Any]) -> tuple[str, str]:
+    """(pace, scope) from set_speaking_pace arguments, as paceRequestFrom in handlers.ts.
+
+    Anything unrecognised is a one-off slow repeat, the cheapest wrong guess;
+    "normal" always applies to the rest of the session.
+    """
+    pace = "normal" if re.search(r"normal|fast|quick|natural|regular", str(arguments.get("pace", "")), re.I) else "slow"
+    if pace == "normal" or re.search(r"session|always|rest", str(arguments.get("scope", "")), re.I):
+        return pace, "session"
+    return pace, "once"
 
 
 def learner_level_for(level: object) -> str:
