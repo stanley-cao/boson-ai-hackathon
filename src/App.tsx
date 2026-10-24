@@ -15,6 +15,7 @@ import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { PracticeBadge } from "./ui/PracticeBadge";
 import { StatusBar } from "./ui/StatusBar";
+import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
 
 /** Ask our own server for a fresh ephemeral key. One per connection. */
@@ -133,7 +134,10 @@ export default function App() {
         </div>
       </details>
 
-      <TranscriptPanel state={transcript} />
+      <div className="workspace">
+        <TranscriptPanel state={transcript} />
+        <StudyPanel state={transcript} />
+      </div>
 
       <DebugDrawer entries={log} />
     </main>
