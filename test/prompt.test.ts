@@ -33,6 +33,14 @@ describe("tutor prompt", () => {
     expect(prompt).not.toContain("tone marks");
   });
 
+  it("speaks each correction target clearly exactly once after its tool returns", () => {
+    const prompt = buildTutorPrompt();
+    expect(prompt).toContain("After note_correction returns, say its correct text clearly exactly once.");
+    expect(prompt).toContain(
+      "After pronunciation_feedback returns, say its target clearly exactly once.",
+    );
+  });
+
   it("gives beginners slower speech and more English support than intermediates", () => {
     const beginner = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.beginner);
     const intermediate = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.intermediate);
