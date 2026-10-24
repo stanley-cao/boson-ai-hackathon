@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { OUTPUT_VOICE } from "../src/realtime/sessionConfig";
 import { createApp, TTS_MAX_INPUT_CHARS } from "./index";
 
 const servers: Server[] = [];
@@ -54,7 +55,7 @@ describe("POST /api/tts", () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       model: "higgs-tts-3",
       input: "你好",
-      voice: "default",
+      voice: OUTPUT_VOICE,
       response_format: "wav",
     });
   });
