@@ -7,12 +7,12 @@ from typing import Any
 import pytest
 
 from session_config import (
-    auto_detect_transcription,
     instructions_for,
     load_prompts,
     load_session,
     model_kwargs,
     practice_change,
+    turn_transcription,
 )
 from tools import STAND_IN_SUMMARY, build_tools
 
@@ -32,15 +32,15 @@ def test_model_kwargs_match_the_exported_session(session: dict[str, Any]) -> Non
     assert kwargs["input_audio_transcription"]["model"] == "higgs-stt-3.1"
 
 
-def test_transcription_language_is_an_explicit_null(session: dict[str, Any]) -> None:
-    # The key must be present: Boson auto-detects only on an explicit JSON null.
-    transcription = model_kwargs(session)["input_audio_transcription"]
-    assert "language" in transcription and transcription["language"] is None
+def test_transcription_uses_native_language_hint(session: dict[str, Any]) -> None:
+    assert model_kwargs(session)["input_audio_transcription"]["language"] == "en"
 
 
-def test_turn_reset_matches_the_session_transcription(session: dict[str, Any]) -> None:
-    # The per-turn reset must not change the STT model the session started with.
-    assert auto_detect_transcription(session) == session["audio"]["input"]["transcription"]
+def test_turn_reset_resends_the_session_transcription(session: dict[str, Any]) -> None:
+    # Same model and hint every turn, and a copy, so the plugin can't mutate SESSION.
+    reset = turn_transcription(session)
+    assert reset == session["audio"]["input"]["transcription"]
+    assert reset is not session["audio"]["input"]["transcription"]
 
 
 def test_missing_export_raises(tmp_path: Path) -> None:
@@ -76,8 +76,7 @@ def test_plugin_sends_the_browsers_audio_config(session: dict[str, Any]) -> None
     opts = boson.realtime.RealtimeModel(api_key="bai-test", **model_kwargs(session))._boson_opts
     assert opts.turn_detection == session["audio"]["input"]["turn_detection"]
     assert opts.input_audio_transcription == session["audio"]["input"]["transcription"]
-    # An explicit null, not a missing key: Boson auto-detects only on null.
-    assert opts.input_audio_transcription["language"] is None
+    assert opts.input_audio_transcription["language"] == "en"
 
 
 def test_instructions_follow_the_learners_choice(session: dict[str, Any]) -> None:

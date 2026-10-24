@@ -84,18 +84,19 @@ def model_kwargs(session: dict[str, Any]) -> dict[str, Any]:
         # Passed through whole: the 1.5 s silence window lets learners pause
         # mid-sentence (#7), and the plugin's own default is 500 ms.
         "turn_detection": audio_in["turn_detection"],
-        # The raw dict rather than the plugin's model/language kwargs: those
-        # drop a None language, and Boson needs the explicit JSON null to
-        # auto-detect code-switched speech.
-        "input_audio_transcription": auto_detect_transcription(session),
+        # The raw dict, passed through whole, so the exported language hint
+        # (#107: the native language) reaches the server exactly as the
+        # browser sends it, including an explicit null if it is ever unset.
+        "input_audio_transcription": turn_transcription(session),
     }
 
 
-def auto_detect_transcription(session: dict[str, Any]) -> dict[str, Any]:
-    """The transcription config that asks Boson to detect the spoken language.
+def turn_transcription(session: dict[str, Any]) -> dict[str, Any]:
+    """The transcription config to resend as each turn starts.
 
     Boson lets STT follow the conversation language after the first reply, so a
-    Serbian tutor turns the learner's English captions into Serbian. The agent
-    resends this as each turn starts, as RealtimeClient.ts does in direct mode.
+    Serbian tutor turned the learner's English captions into Serbian. The agent
+    resends the exported config (model and language hint) every turn, as
+    buildTranscriptionDetectionReset does in RealtimeClient.ts.
     """
-    return {"model": session["audio"]["input"]["transcription"]["model"], "language": None}
+    return dict(session["audio"]["input"]["transcription"])

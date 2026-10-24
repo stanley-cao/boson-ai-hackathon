@@ -31,10 +31,10 @@ describe("buildSessionConfig", () => {
     });
   });
 
-  it("explicitly auto-detects the transcription language", () => {
+  it("uses the native language as a soft transcription hint", () => {
     expect(audioConfig().input.transcription).toEqual({
       model: "higgs-stt-3.1",
-      language: null,
+      language: "en",
     });
   });
 
@@ -44,7 +44,7 @@ describe("buildSessionConfig", () => {
       session: {
         audio: {
           input: {
-            transcription: { model: "higgs-stt-3.1", language: null },
+            transcription: { model: "higgs-stt-3.1", language: "en" },
           },
         },
       },

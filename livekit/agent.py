@@ -34,12 +34,12 @@ from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
 from session_config import (
-    auto_detect_transcription,
     instructions_for,
     load_prompts,
     load_session,
     model_kwargs,
     practice_change,
+    turn_transcription,
 )
 from tools import build_tools
 
@@ -81,7 +81,7 @@ class Tutor(Agent):
 def reset_transcription_language_each_turn(
     session: AgentSession, model: boson.realtime.RealtimeModel
 ) -> None:
-    """Keep STT auto-detecting, so captions show the language actually spoken.
+    """Keep STT on the session's own hint, so captions show the language actually spoken.
 
     Boson otherwise lets transcription follow the tutor's language after its
     first reply: with Serbian picked, the learner's English came back as
@@ -89,7 +89,7 @@ def reset_transcription_language_each_turn(
     and again as the learner starts speaking. The model-level update reaches
     every open session; the prompt and target language are left alone.
     """
-    reset = auto_detect_transcription(SESSION)
+    reset = turn_transcription(SESSION)
 
     def on_agent_state(event: AgentStateChangedEvent) -> None:
         if event.old_state == "speaking":

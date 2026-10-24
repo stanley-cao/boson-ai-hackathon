@@ -125,6 +125,11 @@ export function buildTutorPrompts(): Record<TargetLanguageCode, Record<LearnerLe
  */
 export const AUDIO_RATE = 24000;
 export const INPUT_TRANSCRIPTION_MODEL = "higgs-stt-3.1";
+// A language hint biases ambiguous speech without locking transcription to
+// that language. English is the learner's native language in the active
+// profile, so short English turns no longer drift into another Latin-script
+// language while clear Mandarin and other language switches remain detectable.
+export const INPUT_TRANSCRIPTION_LANGUAGE_HINT = ACTIVE_PAIR.native;
 // Boson's preset library describes Eleanor as calm, articulate and suited to
 // educational explanations. Keep this named so the probe and tests can report
 // the exact voice whose Mandarin delivery needs live acceptance testing.
@@ -169,11 +174,14 @@ export function buildSessionConfig(
           // endpoint does not serve fails the update with an error naming it.
           // As of this writing, "higgs-stt-3.1" is the one to use.
           //
-          // `null` explicitly requests automatic language detection. The
-          // direct client sends this same setting again as each utterance
-          // starts: Boson otherwise lets transcription follow the language of
-          // the preceding conversation, which can misread a later switch.
-          transcription: { model: INPUT_TRANSCRIPTION_MODEL, language: null },
+          // The native-language hint is a bias, not a fixed transcription
+          // language. Sending it again as each utterance starts gives short,
+          // ambiguous English speech a stable default while allowing clear
+          // switches to Mandarin or another language to be detected.
+          transcription: {
+            model: INPUT_TRANSCRIPTION_MODEL,
+            language: INPUT_TRANSCRIPTION_LANGUAGE_HINT,
+          },
         },
         output: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
@@ -189,7 +197,7 @@ export function buildSessionConfig(
 }
 
 /**
- * Reset STT to auto-detection for the utterance that is just beginning.
+ * Reset STT with the native-language hint for the utterance just beginning.
  *
  * This changes captions only. The target-language profile and tutor prompt
  * stay untouched, so switching spoken language does not silently switch the
@@ -201,7 +209,10 @@ export function buildTranscriptionDetectionReset(): ClientEvent {
     session: {
       audio: {
         input: {
-          transcription: { model: INPUT_TRANSCRIPTION_MODEL, language: null },
+          transcription: {
+            model: INPUT_TRANSCRIPTION_MODEL,
+            language: INPUT_TRANSCRIPTION_LANGUAGE_HINT,
+          },
         },
       },
     },
