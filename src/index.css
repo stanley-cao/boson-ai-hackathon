@@ -542,6 +542,24 @@ code {
   border-top: 1px solid var(--border);
 }
 
+.study-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.replay-button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+}
+
+.replay-error {
+  color: var(--error);
+  font-size: 0.78rem;
+}
+
 /* --- session recap --- */
 
 .recap-screen {
