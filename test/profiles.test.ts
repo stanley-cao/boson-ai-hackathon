@@ -4,6 +4,8 @@ import {
   ACTIVE_PAIR,
   LEARNER_LEVELS,
   PROFILES,
+  SCRIPT_PATTERNS,
+  TARGET_LANGUAGE_CODES,
 } from "../src/lang/profiles";
 
 const HAN = /\p{Script=Han}/u;
@@ -76,6 +78,38 @@ describe("language profiles", () => {
       expect(profile.promptNotes.length, profile.code).toBeGreaterThan(0);
       expect(profile.promptNotes.length, profile.code).toBeLessThanOrEqual(300);
       expect(profile.sampleOpeners.length, profile.code).toBeGreaterThan(0);
+    }
+  });
+
+  it("has every top-tier Higgs TTS 3 language: 85 profiles, 84 of them targets", () => {
+    expect(Object.keys(PROFILES)).toHaveLength(85);
+    expect(TARGET_LANGUAGE_CODES).toHaveLength(84);
+    expect(TARGET_LANGUAGE_CODES).not.toContain("en");
+    expect(new Set(Object.values(PROFILES).map((p) => p.name)).size).toBe(85);
+  });
+
+  it("lists target languages A to Z by name, for the picker", () => {
+    const names = TARGET_LANGUAGE_CODES.map((code) => PROFILES[code].name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "en")));
+    expect(names.slice(0, 3)).toEqual(["Afrikaans", "Arabic", "Armenian"]);
+  });
+
+  it("writes every non-Latin language's openers in its own script", () => {
+    for (const profile of Object.values(PROFILES)) {
+      if (profile.script === "Latn") continue;
+      const script = SCRIPT_PATTERNS[profile.script];
+      expect(script, profile.code).toBeDefined();
+      for (const opener of profile.sampleOpeners) expect(opener, profile.code).toMatch(script!.pattern);
+    }
+  });
+
+  it("keeps Latin-script openers free of other scripts", () => {
+    const other = Object.values(SCRIPT_PATTERNS).map((s) => s.pattern);
+    for (const profile of Object.values(PROFILES)) {
+      if (profile.script !== "Latn") continue;
+      for (const opener of profile.sampleOpeners) {
+        for (const pattern of other) expect(opener, profile.code).not.toMatch(pattern);
+      }
     }
   });
 

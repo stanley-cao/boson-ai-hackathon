@@ -15,6 +15,8 @@ Speak in short, plain sentences. One request per turn works better than two.
 | "Let's do Korean instead." | Same, for Korean |
 | "Let's go back to French." | Same, for French |
 | "Speak Serbian." / "Teach me Mandarin." | Same |
+| "How about Japanese?" / "Japanese please." | Same |
+| "Talk to me in Korean." | Same |
 
 Use a verb aimed at the language: *switch to*, *change to*, *go back to*,
 *let's do*, *let's learn*, *practise*, *speak*, *teach me*. The app spots these
@@ -22,12 +24,18 @@ itself, in both modes, even when the model doesn't call `set_practice_language`
 (`livekit/language_switch.py` for the avatar, `src/realtime/languageSwitch.ts`
 for voice only). You may hear one short line in the old language first.
 
-Languages: Mandarin (or Chinese), Korean, French, Japanese, Serbian, Vietnamese.
+In avatar mode you can also ask in French, Mandarin, Korean, Japanese, Serbian
+or Vietnamese ("Parlons japonais", "日本語で話しましょう", "Pričajmo japanski").
+In voice-only mode, ask in English.
+
+Languages: every language Boson rates top tier for Higgs TTS 3 (84 besides English), from Afrikaans to Zulu, for example Mandarin (or Chinese), Korean, French, Japanese, Spanish, German, Arabic, Hindi, Russian, Serbian and Vietnamese. The picker lists them all, A to Z.
 
 These don't switch:
 
-- "How do you say hello in Japanese?" is a question about a word.
-- "Japanese please" has no verb.
+- "How do you say hello in Japanese?" or "Can you say that in Japanese?" asks
+  for a translation.
+- "I'm studying Japanese at school" or "My friend speaks Korean" is a remark.
+- "I don't want to switch to Japanese" is a refusal.
 
 ## Change level
 

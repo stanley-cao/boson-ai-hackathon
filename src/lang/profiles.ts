@@ -5,15 +5,48 @@
  * code. This is shared contract #1 in docs/ROADMAP.md — change its shape only
  * with a decision-log entry.
  */
+import { MORE_PROFILES, type MoreLanguageCode } from "./moreProfiles";
 
 // BCP-47 base codes. Tool handlers normalise whatever the model sends
 // ("Mandarin", "zh-CN", "ZH") down to one of these.
-export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja" | "sr" | "vi";
+export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja" | "sr" | "vi" | MoreLanguageCode;
+
+// ISO 15924 codes for the script the tutor writes each language in.
+export type Script =
+  | "Latn" | "Hans" | "Hang" | "Jpan" | "Cyrl" | "Arab" | "Hebr" | "Grek"
+  | "Armn" | "Geor" | "Deva" | "Beng" | "Gujr" | "Knda" | "Mlym" | "Taml"
+  | "Telu" | "Thai";
+
+/**
+ * A character of each non-Latin script, and what to call the script when
+ * asking the model to write in it. `note_correction` rejects a correction
+ * with none of its language's characters, as romanization in the wrong field.
+ * Japanese mixes kanji and kana; Assamese shares the Bengali block.
+ */
+export const SCRIPT_PATTERNS: Partial<Record<Script, { pattern: RegExp; name: string }>> = {
+  Hans: { pattern: /\p{Script=Han}/u, name: "Chinese characters" },
+  Hang: { pattern: /\p{Script=Hangul}/u, name: "Hangul" },
+  Jpan: { pattern: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, name: "Japanese script" },
+  Cyrl: { pattern: /\p{Script=Cyrillic}/u, name: "Cyrillic" },
+  Arab: { pattern: /\p{Script=Arabic}/u, name: "Arabic script" },
+  Hebr: { pattern: /\p{Script=Hebrew}/u, name: "Hebrew letters" },
+  Grek: { pattern: /\p{Script=Greek}/u, name: "the Greek alphabet" },
+  Armn: { pattern: /\p{Script=Armenian}/u, name: "the Armenian alphabet" },
+  Geor: { pattern: /\p{Script=Georgian}/u, name: "the Georgian alphabet" },
+  Deva: { pattern: /\p{Script=Devanagari}/u, name: "Devanagari" },
+  Beng: { pattern: /\p{Script=Bengali}/u, name: "Bengali script" },
+  Gujr: { pattern: /\p{Script=Gujarati}/u, name: "Gujarati script" },
+  Knda: { pattern: /\p{Script=Kannada}/u, name: "Kannada script" },
+  Mlym: { pattern: /\p{Script=Malayalam}/u, name: "Malayalam script" },
+  Taml: { pattern: /\p{Script=Tamil}/u, name: "Tamil script" },
+  Telu: { pattern: /\p{Script=Telugu}/u, name: "Telugu script" },
+  Thai: { pattern: /\p{Script=Thai}/u, name: "Thai script" },
+};
 
 export interface LanguageProfile {
   code: LanguageCode;
   name: string;
-  script: "Latn" | "Hans" | "Hang" | "Jpan";
+  script: Script;
   romanization?: "pinyin" | "revised" | "hepburn";
   // Goes into the system prompt verbatim, so it must stay to a sentence or
   // two: upstream found that extra prompt rules stopped the model calling
@@ -102,13 +135,19 @@ const vi: LanguageProfile = {
   sampleOpeners: ["Xin chào! Hôm nay bạn muốn luyện tập gì?", "Hôm nay của bạn thế nào?"],
 };
 
-export const PROFILES = { en, zh, ko, fr, ja, sr, vi } satisfies Partial<
+export const PROFILES = { en, zh, ko, fr, ja, sr, vi, ...MORE_PROFILES } satisfies Partial<
   Record<LanguageCode, LanguageProfile>
 >;
 
 export type ProfileCode = keyof typeof PROFILES;
 export type TargetLanguageCode = Exclude<ProfileCode, "en">;
-export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja", "sr", "vi"] as const satisfies readonly TargetLanguageCode[];
+// Sorted by name, so the picker (and prompts.json) reads A to Z across 84
+// languages instead of in the order they were added.
+export const TARGET_LANGUAGE_CODES: readonly TargetLanguageCode[] = (
+  Object.keys(PROFILES) as ProfileCode[]
+)
+  .filter((code): code is TargetLanguageCode => code !== "en")
+  .sort((a, b) => PROFILES[a].name.localeCompare(PROFILES[b].name, "en"));
 
 export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;

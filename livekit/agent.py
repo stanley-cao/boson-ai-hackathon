@@ -14,6 +14,7 @@ Higgs Avatar only joins LiveKit Cloud rooms (Phase 4).
 """
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -40,14 +41,20 @@ from avatar_output import is_avatar_room, route_audio_to_avatar
 from dispatch import agent_name
 from language_switch import requested_language
 from loop_guard import strip_repeats
+from missed_tools import correction_in, phrase_to_save, saved_key
 from practised import PractisedPhrases, practised_phrase
 from session_config import (
     instructions_for,
     load_prompts,
     load_session,
+    load_pace_notes,
     load_slow_note,
     model_kwargs,
+    one_off_pace,
     pace_request,
+    practice_focus,
+    session_pace_for,
+    slow_repeat_summary,
     practice_change,
     practice_choice,
     turn_transcription,
@@ -62,6 +69,7 @@ load_dotenv(override=True)
 SESSION = load_session()
 PROMPTS = load_prompts()
 SLOW_NOTE = load_slow_note()
+PACE_NOTES = load_pace_notes()
 
 # The identity this agent joins every room as. server/avatar.ts names it as the
 # avatar session's publisher_identity, and the avatar only plays audio from
@@ -84,6 +92,19 @@ class Tutor(Agent):
         # phrase can be added without changing it.
         self.pace = "normal"
         self.practised = PractisedPhrases()
+        # (tool name, time.monotonic()) for each call, so the agent can tell
+        # which tools the model called while composing a reply.
+        self.tool_calls: list[tuple[str, float]] = []
+        # Phrases and corrected sentences already saved, by saved_key: a reply
+        # in two parts (a tool call with "Sure!", then the answer) would
+        # otherwise have its second part saved again.
+        self.saved: set[str] = set()
+        # Tutor replies so far, to tell whether the last one was about a study
+        # item or was a one-off slow repeat: either is set at reply N and still
+        # "the last reply" while no more than one reply has followed.
+        self.replies = 0
+        self.focus: tuple[str, int] | None = None
+        self.one_off: tuple[str, int] | None = None
 
     async def after_tool(
         self, name: str, arguments: dict[str, Any], result: dict[str, Any], context: RunContext
@@ -92,6 +113,11 @@ class Tutor(Agent):
         # RealtimeClient.ts applies in direct mode live in the prompt, so they
         # happen here. Awaited before the result goes back, so the reply that
         # follows already uses the new instructions.
+        self.tool_calls.append((name, time.monotonic()))
+        if name in ("save_phrase", "note_correction") and not result.get("error"):
+            self.saved.update(
+                saved_key(str(arguments.get(field) or "")) for field in ("phrase", "meaning", "said") if arguments.get(field)
+            )
         instructions = practice_change(name, result, PROMPTS)
         if instructions is not None and instructions != self.base_instructions:
             # The prompt carries the language's teaching notes and the level's
@@ -105,19 +131,39 @@ class Tutor(Agent):
         elif name == "set_speaking_pace" and not result.get("error"):
             pace, scope = pace_request(arguments)
             if scope == "session":
+                pace = session_pace_for(pace, self.session_pace)
                 self.session_pace = pace
                 self.revert_pace_on_next_turn = False
-            elif self.session_pace != "slow":
+            else:
+                # Asked again straight after a slow repeat, the next goes slower.
+                one_off = self.one_off
+                just_heard = one_off[0] if one_off is not None and self.recent(one_off) else self.session_pace
+                pace = one_off_pace(pace, just_heard)
+                self.one_off = (pace, self.replies)
                 # Avatar mode has no TTS replay: the avatar has to say the
                 # slow repeat itself, so slow down for one reply and go back
                 # once the learner speaks again.
-                self.revert_pace_on_next_turn = True
+                self.revert_pace_on_next_turn = pace != self.session_pace
+                focus = self.focus
+                if focus is not None and self.recent(focus):
+                    # Right after a study item, the item is what gets repeated.
+                    result["summary"] = slow_repeat_summary(focus[0])
             logger.info("speaking pace %s (%s)", pace, scope)
             await self.set_pace(pace)
+        elif (item := practice_focus(result)) is not None:
+            self.focus = (item, self.replies)
+
+    def recent(self, mark: tuple[str, int]) -> bool:
+        """True while at most one tutor reply has followed the one `mark` was set at."""
+        return self.replies - mark[1] <= 1
+
+    def note_reply(self) -> None:
+        """Count a tutor reply."""
+        self.replies += 1
 
     async def set_pace(self, pace: str) -> None:
         self.pace = pace
-        instructions = with_pace(self.base_instructions, pace, SLOW_NOTE)
+        instructions = with_pace(self.base_instructions, pace, PACE_NOTES)
         # Last, after the pace note, as it is the one part that grows.
         note = self.practised.note(self.language)
         await self.update_instructions(f"{instructions} {note}" if note else instructions)
@@ -273,6 +319,67 @@ def track_practised_phrases(session: AgentSession, tutor: Tutor) -> None:
     session.on("conversation_item_added", on_item)
 
 
+def save_what_the_model_skipped(session: AgentSession, tutor: Tutor) -> None:
+    """Make the save_phrase or note_correction call the model left out of a reply.
+
+    See missed_tools.py. Checked once each reply is in: a call the model did
+    make comes before its reply's text, so any call since the previous reply
+    belongs to this one. Goes through the browser's own handler, as the
+    model's call would have, so the card lands on the study panel.
+    """
+    last_reply_at = time.monotonic()
+
+    async def call(name: str, arguments: dict[str, Any]) -> None:
+        room_io = session.room_io
+        learner = room_io.linked_participant
+        result = await forward_tool_call(
+            room_io.room.local_participant,
+            learner.identity if learner is not None else None,
+            f"missed_{name}_{int(time.time() * 1000)}",
+            name,
+            arguments,
+        )
+        logger.info("model skipped %s; saved %s -> %s", name, json.dumps(arguments, ensure_ascii=False), result.get("summary"))
+
+    async def check(item_id: str, reply: str, called: set[str]) -> None:
+        messages = [m for m in session.current_agent.chat_ctx.items if m.type == "message"]
+        index = next((i for i, m in enumerate(messages) if m.id == item_id), None)
+        if index is None:
+            return
+        learner = next((m.text_content for m in reversed(messages[:index]) if m.role == "user"), None)
+        if not learner:
+            return
+        if "save_phrase" not in called and (phrase := phrase_to_save(learner, reply, tutor.language)):
+            if not tutor.saved & {saved_key(phrase["phrase"]), saved_key(phrase["meaning"])}:
+                tutor.saved.update({saved_key(phrase["phrase"]), saved_key(phrase["meaning"])})
+                await call("save_phrase", phrase)
+        elif "note_correction" not in called and (fix := correction_in(learner, reply, tutor.language)):
+            said, correct = fix
+            if saved_key(said) in tutor.saved:
+                return
+            tutor.saved.add(saved_key(said))
+            await call(
+                "note_correction",
+                {"language": tutor.language, "said": said, "correct": correct, "explanation": "", "kind": "grammar"},
+            )
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        nonlocal last_reply_at
+        item = event.item
+        reply = getattr(item, "text_content", None)
+        if getattr(item, "role", None) != "assistant" or not reply:
+            return
+        called = {name for name, at in tutor.tool_calls if at > last_reply_at}
+        last_reply_at = time.monotonic()
+        task = asyncio.create_task(check(item.id, reply, called))
+        # A missed card is only a missed card; never raise.
+        task.add_done_callback(
+            lambda t: t.cancelled() or t.exception() is None or logger.warning("missed tool check failed: %r", t.exception())
+        )
+
+    session.on("conversation_item_added", on_item)
+
+
 def switch_language_on_request(session: AgentSession, tutor: Tutor) -> None:
     """Make a spoken language switch happen even when the model calls no tool.
 
@@ -283,6 +390,10 @@ def switch_language_on_request(session: AgentSession, tutor: Tutor) -> None:
     """
 
     async def switch(language: str) -> None:
+        if tutor.language == language:
+            # The model's own set_practice_language call got there first; a
+            # second one only repeated the browser's tool card.
+            return
         arguments = {"language": language, "level": tutor.level}
         room_io = session.room_io
         learner = room_io.linked_participant
@@ -395,6 +506,7 @@ async def entrypoint(ctx: JobContext) -> None:
     tutor = Tutor(instructions, *practice_choice(learner.metadata, PROMPTS))
     switch_language_on_request(session, tutor)
     track_practised_phrases(session, tutor)
+    save_what_the_model_skipped(session, tutor)
 
     def on_user_state(event: UserStateChangedEvent) -> None:
         # The learner's next turn starts after the slow repeat was said, and
@@ -405,8 +517,11 @@ async def entrypoint(ctx: JobContext) -> None:
     def on_user_item(event: ConversationItemAddedEvent) -> None:
         # A typed turn never changes the user state; its message still ends a
         # one-off slow repeat. Harmless after a spoken one: already reverted.
-        if getattr(event.item, "role", None) == "user":
+        role = getattr(event.item, "role", None)
+        if role == "user":
             asyncio.create_task(tutor.end_one_off_pace())
+        elif role == "assistant":
+            tutor.note_reply()
 
     session.on("user_state_changed", on_user_state)
     session.on("conversation_item_added", on_user_item)
