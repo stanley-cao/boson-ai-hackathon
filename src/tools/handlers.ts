@@ -1,4 +1,4 @@
-import { PROFILES } from "../lang/profiles";
+import { PROFILES, type LanguageProfile } from "../lang/profiles";
 import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
@@ -82,6 +82,22 @@ function normalizeCorrectionKind(raw: unknown): Correction["kind"] {
 }
 
 /**
+ * Text reduced to what a correction can change: case, spacing and
+ * punctuation are dropped, so "我有三个狗" and "我有三个狗。" compare equal.
+ */
+function comparable(text: string): string {
+  return text.normalize("NFC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+// A character of each non-Latin profile script, and what to call the script
+// when asking the model to write in it. Japanese mixes kanji and kana.
+const SCRIPTS: Partial<Record<LanguageProfile["script"], { pattern: RegExp; name: string }>> = {
+  Hans: { pattern: /\p{Script=Han}/u, name: "Chinese characters" },
+  Hang: { pattern: /\p{Script=Hangul}/u, name: "Hangul" },
+  Jpan: { pattern: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, name: "Japanese script" },
+};
+
+/**
  * Record a correction for the study panel.
  *
  * The schema tells the model to call this BEFORE it speaks, so the summary is
@@ -89,6 +105,12 @@ function normalizeCorrectionKind(raw: unknown): Correction["kind"] {
  * 2026-10-23 with the probe: "call this in the same turn as you correct"
  * descriptions were called in 9 of 37 runs, while "call this first" was
  * called in 24 of 24.
+ *
+ * Two calls are refused rather than saved, both seen live on 2026-10-24 when
+ * a question about tones had no other tool to go to: `correct` identical to
+ * `said` ("mā hē mā" → "mā hē mā"), and pinyin in place of characters
+ * ("我" → "wǒ"). Only `correct` is checked for script: `said` is what was
+ * heard, which may be mis-transcribed or mixed-language.
  */
 export function noteCorrection(args: Record<string, unknown>): ToolResult {
   const language = normalizeLanguage(args.language);
@@ -105,6 +127,24 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
     return {
       summary: "Correction not saved: it needs what the learner said and the corrected version.",
       error: "missing_fields",
+    };
+  }
+
+  if (comparable(said) === comparable(correct)) {
+    return {
+      summary:
+        "Correction not saved: the corrected version is the same as what they said. " +
+        "If there was no mistake, don't call this; just carry on the conversation.",
+      error: "same_as_said",
+    };
+  }
+
+  // A summary naming the right script lets the model retry the call.
+  const script = SCRIPTS[PROFILES[language].script];
+  if (script && !script.pattern.test(correct)) {
+    return {
+      summary: `Correction not saved: write the corrected version in ${script.name}, and put the romanization in romanization.`,
+      error: "wrong_script",
     };
   }
 

@@ -124,6 +124,35 @@ describe("note_correction", () => {
     }
   });
 
+  it("refuses a correction that changes nothing but case, spacing or punctuation", () => {
+    const cases: [string, string, string][] = [
+      ["zh", "我有三本狗。", " 我有三本狗 "],
+      ["zh", "mā hē mā", "mā hē mā"],
+      ["en", "I goed home", "i goed home!"],
+    ];
+    for (const [language, said, correct] of cases) {
+      const r = noteCorrection({ ...args, language, said, correct });
+      expect(r.error, correct).toBe("same_as_said");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("refuses a Mandarin correction written in pinyin instead of characters", () => {
+    for (const correct of ["wǒ", "wo3 you3 san1 zhi1 gou3"]) {
+      const r = noteCorrection({ ...args, said: "我", correct });
+      expect(r.error, correct).toBe("wrong_script");
+      expect(r.summary).toContain("Chinese characters");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("still saves a mixed-language Mandarin fix, and an English one in Latin letters", () => {
+    expect(noteCorrection({ ...args, said: "I have 三本狗", correct: "I have 三只狗" }).detail).toBeDefined();
+    expect(
+      noteCorrection({ ...args, language: "en", said: "I goed home", correct: "I went home" }).detail,
+    ).toBeDefined();
+  });
+
   it("is registered, so dispatch reaches it", async () => {
     const r = await dispatch("note_correction", args);
     expect(r.detail?.type).toBe("correction");

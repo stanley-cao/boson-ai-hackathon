@@ -19,10 +19,17 @@ export const TOOL_DEFINITIONS = [
   {
     type: "function",
     name: "note_correction",
+    // Leads with when to call it, as save_phrase does: later in a
+    // conversation, a sentence with a measure-word error was often corrected
+    // aloud without a call (#58). "Not when nothing needs changing" is for the
+    // no-op corrections it saved when asked about tones.
     description:
-      "Correct a mistake the learner just made. Whenever what they said has a " +
-      "mistake, call this FIRST, before you say anything else; it saves the " +
-      "correction to their study panel and then tells you what to say.",
+      "Call this FIRST, before you say anything else, whenever something the " +
+      "learner says has a grammar or word mistake, at any point in the " +
+      "conversation, including when they ask you to check a sentence or mix " +
+      "languages in one turn. It saves the correction to their study panel and " +
+      "then tells you what to say. Not for pronunciation, and not when nothing " +
+      "needs changing.",
     parameters: {
       type: "object",
       properties: {
