@@ -9,6 +9,7 @@ The agent strips repeated sentences from the stored reply, so there's nothing
 left to copy.
 """
 
+import math
 import re
 
 # Short sentences recur naturally ("A ti?", "Dobro!", "Hvala.") and are never
@@ -59,12 +60,22 @@ _REPEAT_REQUEST = re.compile(
     ),
     re.IGNORECASE,
 )
-_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+# CJK full stops end a sentence with no space after them.
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|(?<=[。！？])\s*")
 _NON_WORD = re.compile(r"[^\w\s]")
+# Chinese and Japanese have no spaces: split() made every sentence one word,
+# so a looping 我昨天去了商店买了三个苹果。 could never reach MIN_WORDS. Two
+# characters to a word, about the length of a Mandarin word, so a recurring
+# 我很好啊 still counts as short.
+_UNSPACED_CHAR = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 
 
 def _sentences(text: str) -> list[str]:
     return [s for s in _SENTENCE_END.split(text.strip()) if s]
+
+
+def _words(key: str) -> int:
+    return sum(math.ceil(len(_UNSPACED_CHAR.findall(w)) / 2) or 1 for w in key.split())
 
 
 def _key(sentence: str) -> str:
@@ -84,7 +95,7 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
     # A whole reply said again counts even when each of its sentences is short:
     # "Hai, wakarimashita! (Yes, I understand!)" looped turn after turn.
     whole = _key(reply)
-    if len(whole.split()) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
+    if _words(whole) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
         return ""
     # The same reply twice in a row is a loop at any length: "How are you?"
     # and "Comment, ça, va?" each came back turn after turn, live.
@@ -98,7 +109,7 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
     kept: list[str] = []
     for sentence in _sentences(reply):
         key = _key(sentence)
-        if len(key.split()) >= MIN_WORDS and key in seen:
+        if _words(key) >= MIN_WORDS and key in seen:
             continue
         kept.append(sentence)
     if len(kept) == len(_sentences(reply)):

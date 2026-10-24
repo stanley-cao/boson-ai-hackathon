@@ -134,3 +134,12 @@ def requested_language(learner_turn: str, current: str) -> str | None:
             if code != current:
                 return code
     return None
+
+
+_IN_LANGUAGE = re.compile(rf"\bin\s+{_NAME}", re.IGNORECASE)
+
+
+def language_named(turn: str) -> str | None:
+    """The language a question is about: "how do you say thank you in Japanese?" → "ja"."""
+    match = _IN_LANGUAGE.search(turn)
+    return _CODE_FOR[match.group(1).lower()] if match else None

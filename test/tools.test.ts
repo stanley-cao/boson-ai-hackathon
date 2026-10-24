@@ -535,6 +535,20 @@ describe("save_phrase", () => {
     });
   });
 
+  it("drops a romanization for a language written in Latin script", () => {
+    // Live, a French correction came back with made-up pinyin.
+    const d = noteCorrection({
+      language: "fr",
+      said: "Je suis allé à la plage avec mon amis.",
+      correct: "Je suis allé à la plage avec mon ami.",
+      kind: "grammar",
+      romanization: "zhè shì yī gè chūcún de shīfàn.",
+    }).detail as Correction;
+    expect(d.correct).toBe("Je suis allé à la plage avec mon ami.");
+    expect(d).not.toHaveProperty("romanization");
+    expect(savePhrase({ ...args, language: "sr", phrase: "Hvala" }).detail).not.toHaveProperty("romanization");
+  });
+
   it("leaves out a blank or missing romanization and note", () => {
     const d = savePhrase({ ...args, romanization: " ", note: undefined }).detail as Phrase;
     expect(d).not.toHaveProperty("romanization");
