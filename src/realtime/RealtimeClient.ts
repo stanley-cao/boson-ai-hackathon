@@ -37,6 +37,7 @@ import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
+import { requestedLanguage } from "./languageSwitch";
 import { interruptedAssistantItem } from "./turnInterruption";
 
 // The model can also be set in session.update; passing it in the URL means the
@@ -299,6 +300,9 @@ export class RealtimeClient {
     // Adding the message does not start a turn. This does.
     this.send(responseCreate());
     this.setActivity("thinking");
+    // A typed turn has no transcription event, so check it for a switch here.
+    const language = requestedLanguage(text, this.target);
+    if (language) void this.switchLanguage(language);
   }
 
   send(evt: ClientEvent): void {
@@ -369,6 +373,13 @@ export class RealtimeClient {
       case SERVER.speechStopped:
         this.setActivity("thinking");
         break;
+
+      case SERVER.transcriptionCompleted: {
+        const language =
+          typeof evt.transcript === "string" ? requestedLanguage(evt.transcript, this.target) : null;
+        if (language) void this.switchLanguage(language);
+        break;
+      }
 
       case SERVER.outputItemAdded: {
         const item = evt.item as { id?: string; type?: string } | undefined;
@@ -551,6 +562,37 @@ export class RealtimeClient {
     } else {
       this.setActivity(this.capture.active ? "listening" : "idle");
     }
+  }
+
+  /**
+   * Make a spoken language switch happen even when the model calls no tool.
+   *
+   * Runs set_practice_language through the registry, as a model call would,
+   * so the transcript (and with it the badge and picker) records the switch.
+   * The tutor's reply to the request itself may still use the old prompt; the
+   * next turn uses the new one. Unlike the agent (livekit/agent.py), this
+   * can't ask for a fresh reply: Boson rejects response.create with "No user
+   * input" once the tutor has answered the latest turn.
+   */
+  private async switchLanguage(language: TargetLanguageCode): Promise<void> {
+    const call_id = `switch-${Date.now()}`;
+    const args = { language, level: this.level };
+    this.cb.onServerEvent?.({
+      type: SERVER.functionCallArgsDone,
+      call_id,
+      name: "set_practice_language",
+      item_id: call_id,
+      arguments: JSON.stringify(args),
+    });
+    const startedAt = Date.now();
+    const result = await runTool("set_practice_language", args);
+    this.cb.onServerEvent?.({ type: CLIENT_TOOL_RESULT, call_id, result, ms: Date.now() - startedAt });
+    const change = practiceChangeFromTool("set_practice_language", result, { target: this.target, level: this.level });
+    if (!change) return;
+    this.target = change.target;
+    this.level = change.level;
+    this.send(buildInstructionsUpdate(change.level, this.sessionPace, change.target));
+    this.info(`Learner asked for ${PROFILES[change.target].name}; switching.`);
   }
 
   /**

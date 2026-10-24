@@ -160,11 +160,13 @@ export const LEARNER_LEVELS = {
     // Concrete, because "add brief English scaffolding" was ignored: probed
     // beginners asking in English got target-only replies, promises like "I'll
     // show you how to say hello" with nothing after, and their own question
-    // said back to them.
+    // said back to them. A word count rather than "short": probes taught
+    // six-word phrases like "Watashi no namae wa Sam desu".
     promptNotes:
-      "Learner level: beginner. Speak slowly. Each reply says one short target-language " +
-      "phrase and then what it means in English. When they ask how to say something, say " +
-      "it straight away; when they ask you something, answer it instead of repeating it.",
+      "Learner level: beginner. Speak slowly. Each reply says one very short, easy " +
+      "target-language phrase of two to four everyday words, then what it means in English. " +
+      "When they ask how to say something, say it straight away; when they ask you " +
+      "something, answer it instead of repeating it.",
   },
   intermediate: {
     code: "intermediate",
