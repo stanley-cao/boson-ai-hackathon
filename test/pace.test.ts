@@ -18,6 +18,7 @@ import {
   estimateSyllables,
   paceMsPerSyllable,
   practiceFocusFromTool,
+  slowSpeechChunks,
   slowSpeechInput,
 } from "../src/realtime/pace";
 
@@ -225,6 +226,37 @@ describe("slowSpeechInput", () => {
   it("is null with nothing to say or a line too long for the route", () => {
     expect(slowSpeechInput("!?")).toBeNull();
     expect(slowSpeechInput("好".repeat(300))).toBeNull();
+  });
+});
+
+describe("slowSpeechChunks", () => {
+  it("is one part for a line that fits", () => {
+    expect(slowSpeechChunks("你好")).toEqual(["<|prosody:speed_slow|>你。好"]);
+  });
+
+  it("says a long line in parts that each fit the route, broken at stops", () => {
+    const parts = slowSpeechChunks("好".repeat(300))!;
+    expect(parts.length).toBeGreaterThan(1);
+    for (const part of parts) {
+      expect(Array.from(part).length).toBeLessThanOrEqual(500);
+      expect(part.startsWith("<|prosody:speed_slow|>")).toBe(true);
+      // Never a dangling half: each part ends on a syllable's stop or the line's end.
+      expect(part.endsWith("。") || part.endsWith("好")).toBe(true);
+    }
+    // Nothing lost: every syllable is in some part.
+    expect(parts.join("").match(/好/g)).toHaveLength(300);
+  });
+
+  it("breaks English at spaces, never inside a word", () => {
+    const words = Array.from({ length: 120 }, (_, i) => `word${i}`).join(" ");
+    const parts = slowSpeechChunks(words)!;
+    expect(parts.length).toBeGreaterThan(1);
+    const said = parts.map((p) => p.replace("<|prosody:speed_slow|>", "")).join(" ");
+    expect(said.split(/\s+/)).toEqual(words.split(" "));
+  });
+
+  it("is null with nothing to say", () => {
+    expect(slowSpeechChunks("!?")).toBeNull();
   });
 });
 

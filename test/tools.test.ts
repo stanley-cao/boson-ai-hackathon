@@ -471,6 +471,7 @@ describe("pronunciation_feedback", () => {
       ["ko", "Stress", "stress"],
       ["ja", "pitch accent", "pitch"],
       ["ja", "tones", "pitch"],
+      ["ja", "stress", "pitch"],
       ["sr", "accent", "pitch"],
       ["vi", "tone", "tone"],
       ["vi", "pitch", "tone"],
@@ -512,6 +513,83 @@ describe("pronunciation_feedback", () => {
       expect(r.summary, target).not.toContain("tone:");
       expect((r.detail as PronunciationNote).tip).toBe("Rise.");
     }
+  });
+
+  describe("rule checks for the non-tonal languages", () => {
+    const note = (language: string, issue: string, target: string, tip: string) => {
+      const r = pronunciationFeedback({ language, issue, target, tip });
+      return { summary: r.summary, tip: (r.detail as PronunciationNote).tip };
+    };
+
+    it("replaces a French stress tip that puts it early, and keeps one that puts it last", () => {
+      const wrong = note("fr", "stress", "important", "Stress the first syllable, IM-portant.");
+      expect(wrong.summary).toContain("French stress falls on the last syllable");
+      expect(wrong.summary).toContain("so it was replaced");
+      expect(wrong.tip).toBe("Keep every syllable even, with a little more length on the last one.");
+      const right = note("fr", "stress", "important", "Lean a little on the last syllable.");
+      expect(right.tip).toBe("Lean a little on the last syllable.");
+      expect(right.summary).not.toContain("replaced");
+    });
+
+    it("replaces a Korean tip that stresses a syllable, but not one that says not to", () => {
+      expect(note("ko", "stress", "사랑해요", "Stress the second syllable.").tip).toBe(
+        "Give every syllable the same weight; don't stress one of them.",
+      );
+      expect(note("ko", "stress", "사랑해요", "Don't stress the first syllable; keep it even.").tip).toBe(
+        "Don't stress the first syllable; keep it even.",
+      );
+    });
+
+    it("reads Korean consonant sets from the Hangul, and replaces a tip for a set the word lacks", () => {
+      // 빵: ㅃ is tense, so a puff of air is the wrong advice.
+      const wrong = note("ko", "consonant", "빵", "Release it with a strong puff of air.");
+      expect(wrong.summary).toContain("ㅃ is tense (tight throat, no puff of air)");
+      expect(wrong.tip).toBe("ㅃ: tight throat, no puff of air.");
+      expect(note("ko", "consonant", "빵", "Tighten your throat, like a doubled b.").tip).toBe(
+        "Tighten your throat, like a doubled b.",
+      );
+      // 커피: aspirated ㅋ and ㅍ.
+      expect(note("ko", "consonant", "커피", "Keep it relaxed and soft.").summary).toContain(
+        "ㅋ is aspirated (a strong puff of air); ㅍ is aspirated",
+      );
+    });
+
+    it("refiles a Japanese stress note as pitch and replaces a tip about loudness", () => {
+      const r = pronunciationFeedback({ language: "ja", issue: "stress", target: "箸", tip: "Say the first syllable louder." });
+      expect((r.detail as PronunciationNote).issue).toBe("pitch");
+      expect((r.detail as PronunciationNote).tip).toBe(
+        "Keep every mora the same length and loudness; only the pitch steps up or down.",
+      );
+      expect(note("ja", "pitch", "箸", "Start high, then drop.").tip).toBe("Start high, then drop.");
+    });
+
+    it("replaces a Serbian tip that stresses the last syllable of a longer word", () => {
+      expect(note("sr", "stress", "voda", "Stress the last syllable.").tip).toBe(
+        "Put the stress earlier in the word; Serbian never stresses the last syllable.",
+      );
+      // One syllable: the rule says nothing, so the note is saved as given.
+      const one = note("sr", "stress", "dan", "Stress the end.");
+      expect(one.tip).toBe("Stress the end.");
+      expect(one.summary).not.toContain("never falls");
+    });
+
+    it("checks Serbian č/ć tips against the letter in the word", () => {
+      const soft = note("sr", "consonant", "ćao", "Curl your tongue back, it's hard.");
+      expect(soft.summary).toContain("ć and đ are the soft pair");
+      expect(soft.tip).toContain("flat middle of your tongue");
+      const hard = note("sr", "consonant", "čaj", "It's soft, with a flat tongue.");
+      expect(hard.tip).toContain("raise the tip of your tongue");
+      // Both kinds in one word: no single rule, so no check.
+      expect(note("sr", "consonant", "čuća", "Soft.").tip).toBe("Soft.");
+    });
+
+    it("leaves notes no rule covers as given", () => {
+      const r = note("fr", "vowel", "rue", "Round your lips as for 'oo', but say 'ee'.");
+      expect(r.tip).toBe("Round your lips as for 'oo', but say 'ee'.");
+      expect(r.summary).toBe(
+        "Saved a pronunciation note for rue. Now say it the right way, give the tip in a few words, then carry on the conversation.",
+      );
+    });
   });
 
   it("leaves notes about initials and finals alone", () => {

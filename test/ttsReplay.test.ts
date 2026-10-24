@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchSpeech, REPLAY_MESSAGES, speechUrl } from "../src/ui/ttsReplay";
+import {
+  fetchSpeech,
+  playReplaySequence,
+  REPLAY_MESSAGES,
+  ReplayError,
+  speechUrl,
+  stopReplay,
+} from "../src/ui/ttsReplay";
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -62,5 +69,54 @@ describe("speechUrl", () => {
       "blob:retried",
     );
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("playReplaySequence", () => {
+  it("plays each part in order, starting once, and prefetches the next", async () => {
+    const played: string[] = [];
+    const prefetched: string[] = [];
+    const onStart = vi.fn();
+    await playReplaySequence(
+      ["a", "b", "c"],
+      onStart,
+      async (text, start) => {
+        played.push(text);
+        start?.();
+      },
+      async (text) => prefetched.push(text),
+    );
+    expect(played).toEqual(["a", "b", "c"]);
+    expect(prefetched).toEqual(["b", "c"]);
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after the current part when the replay is stopped", async () => {
+    const played: string[] = [];
+    await playReplaySequence(
+      ["a", "b", "c"],
+      undefined,
+      async (text) => {
+        played.push(text);
+        stopReplay();
+      },
+      async () => undefined,
+    );
+    expect(played).toEqual(["a"]);
+  });
+
+  it("rejects when a part fails, and plays nothing after it", async () => {
+    const played: string[] = [];
+    const sequence = playReplaySequence(
+      ["a", "b"],
+      undefined,
+      async (text) => {
+        played.push(text);
+        throw new ReplayError("Couldn't play audio");
+      },
+      async () => undefined,
+    );
+    await expect(sequence).rejects.toThrow("Couldn't play audio");
+    expect(played).toEqual(["a"]);
   });
 });

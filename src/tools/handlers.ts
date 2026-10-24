@@ -13,6 +13,7 @@ import type {
   PronunciationNote,
   ToolDetail,
 } from "./types";
+import { checkTip, NEGATED_CLAUSE } from "./pronunciationRules";
 
 /**
  * The result shape every tool returns.
@@ -311,14 +312,17 @@ const NON_TONAL_TERMS: Partial<Record<PronunciationIssue, PronunciationIssue>> =
   final: "vowel",
   tone: "pitch",
 };
+// Japanese has no stress accent: a "stress" note is about its pitch accent.
+const JAPANESE_TERMS = { ...NON_TONAL_TERMS, stress: "pitch" } as const;
 // Languages where pitch tells words apart, so a "pitch" note is filed as tone.
-// Every other language besides Mandarin uses the non-tonal terms.
+// Every other language besides Mandarin and Japanese uses the non-tonal terms.
 const TONAL_LANGUAGES: ReadonlySet<ProfileCode> = new Set<ProfileCode>([
   "vi", "th", "ha", "rw", "ln", "luo", "sn", "nso", "xh", "zu",
 ]);
 
 function issueTerms(language: ProfileCode): Partial<Record<PronunciationIssue, PronunciationIssue>> {
   if (language === "zh") return MANDARIN_TERMS;
+  if (language === "ja") return JAPANESE_TERMS;
   return TONAL_LANGUAGES.has(language) ? TONAL_TERMS : NON_TONAL_TERMS;
 }
 
@@ -501,9 +505,6 @@ function toneTip(words: WordToneInfo[]): string {
   return `${tip.charAt(0).toUpperCase()}${tip.slice(1)}.`;
 }
 
-// From a negation to the end of its clause. Probed live, a correct first-tone
-// tip ended "try saying it without dipping or rising".
-const NEGATED_CLAUSE = /\b(without|not|no|never|don't|do not|avoid|instead of|rather than)\b[^.,;:!?]*/g;
 
 /** True when the tip describes a pitch movement that none of these tones has. */
 function tipContradicts(tip: string, words: WordToneInfo[]): boolean {
@@ -518,8 +519,9 @@ function tipContradicts(tip: string, words: WordToneInfo[]): boolean {
  * Save a pronunciation note. Tone notes are checked against the tone marks in
  * Mandarin and Vietnamese, the two tonal targets, since the model hears the
  * learner's tones directly rather than through a transcript. The other
- * languages' notes are saved as given: a tip about a French vowel has nothing
- * in the text to check it against.
+ * languages' tips are checked against the rules in `checkTip` (stress
+ * placement, Korean consonant sets, Serbian č/ć); a note no rule covers, such
+ * as a French vowel, is saved as given.
  *
  * The schema tells the model to call this BEFORE it speaks, so the summary is
  * its cue for what to say next rather than a line to read out: a "same turn"
@@ -547,14 +549,26 @@ export function pronunciationFeedback(args: Record<string, unknown>): ToolResult
   const issue = normalizePronunciationIssue(args.issue, language);
   const tones = issue === "tone" ? noteTones(language, target, romanization) : null;
   const fixedTip = tones && tipContradicts(tip, tones) ? toneTip(tones) : null;
+  // The non-tonal languages have no marks to read, but rules a tip can break.
+  const rule = tones ? null : checkTip(language, issue, target, tip);
   const detail: PronunciationNote = {
     type: "pronunciation",
     language,
     target,
     issue,
-    tip: fixedTip ?? tip,
+    tip: fixedTip ?? rule?.tip ?? tip,
     ...(romanization ? { romanization } : {}),
   };
+  if (rule) {
+    // In the summary for the same reason as a tone's contour, below.
+    return {
+      summary:
+        `Saved a pronunciation note for ${target}: ${rule.fact}. ` +
+        (rule.tip ? "Your tip went against that, so it was replaced. " : "") +
+        "Now say it the right way, explain that in a few words, then carry on the conversation.",
+      detail,
+    };
+  }
   if (!tones) {
     return {
       summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
