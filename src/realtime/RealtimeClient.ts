@@ -13,6 +13,7 @@ import {
 import {
   buildInstructionsUpdate,
   buildSessionConfig,
+  buildTranscriptionDetectionReset,
   levelChangeFromTool,
   planPaceChange,
 } from "./sessionConfig";
@@ -322,6 +323,11 @@ export class RealtimeClient {
         break;
 
       case SERVER.speechStarted:
+        // Boson normally lets STT follow the conversation language after the
+        // first reply. Reset its language hint for every new utterance so a
+        // learner can switch languages from one turn to the next and still
+        // see what they actually said under "you".
+        this.send(buildTranscriptionDetectionReset());
         // The user started talking over the model. This is the barge-in path.
         void this.handleBargeIn();
         break;
@@ -454,6 +460,11 @@ export class RealtimeClient {
    * The turn is over. If it contained tool calls, this is where we answer them.
    */
   private onResponseDone(evt: ServerEvent): void {
+    // The next user turn may be in a different language. Clear the language
+    // Boson inferred from this reply before that audio arrives; speechStarted
+    // repeats the reset as a safeguard at the actual utterance boundary.
+    this.send(buildTranscriptionDetectionReset());
+
     // The slow repeat is over: back to the lasting pace for the next turn.
     const id = (evt.response as { id?: unknown } | undefined)?.id;
     if (this.revertPace && this.revertPace !== "armed" && this.revertPace.responseId === id) {
