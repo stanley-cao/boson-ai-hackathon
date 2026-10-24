@@ -21,10 +21,10 @@ Status values: ⬜ not started · 🟨 in progress · ✅ done · ⛔ blocked (s
 
 1. Read `CLAUDE.md` (commands, invariants) and `docs/ARCHITECTURE.md` (event flow).
 2. Find the earliest phase that isn't ✅, and pick an unclaimed `[ ]` task **in your track**. Tasks in later phases are fair game only if they're marked *parallel*.
-3. Claim it by editing the line to `[ ] … (@your-handle)` and pushing that one-line change, or say so in the team chat.
+3. Claim it by **assigning yourself on the linked GitHub issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/boson-ai-hackathon/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first.
 4. Branch as `phase<N>/<track>-<topic>`, for example `phase1/b-correction-tool`.
 5. Before opening a PR, run that phase's **Verification** steps. Paste the results into the PR description.
-6. In the same PR, tick the box (`[x]`) and update the status table. Get one review from someone on a different track.
+6. Put `Closes #N` in the PR description. In the same PR, tick the box (`[x]`) and update the status table. Get one review from someone on a different track.
 7. If you change a **shared contract**, tag every track on the PR and add a line to the decision log.
 
 A phase is ✅ only when its **exit criteria** are met in a live session, not just when every box is ticked.
@@ -69,14 +69,14 @@ Agree on these first. Changing them requires a decision-log entry.
 
 *About half a day. Every track does its task.*
 
-- [ ] **All:** add `BOSON_API_KEY` to `.env`, run `npm run dev`, and have a short conversation with the template.
-- [ ] **D:** run `npm run probe -- --say "我想练习中文, can you help me?"` and a pure-Mandarin and a pure-English utterance, and save the output as fixtures in `test/fixtures/`. Record in `docs/FINDINGS.md`:
+- [ ] **All:** add `BOSON_API_KEY` to `.env`, run `npm run dev`, and have a short conversation with the template. (#4)
+- [ ] **D:** run `npm run probe -- --say "我想练习中文, can you help me?"` and a pure-Mandarin and a pure-English utterance, and save the output as fixtures in `test/fixtures/`. Record in `docs/FINDINGS.md` (#1):
   - Does `higgs-stt-3.1` transcribe Mandarin, and mixed English/Mandarin?
   - Does the server report a detected language?
   - Is the output in Simplified or Traditional characters?
   - Roughly how long is the response latency?
-- [ ] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log.
-- [ ] **C:** do a UI sketch (transcript, study panel, practice-language badge, and space reserved for the avatar video). Put a screenshot or ASCII sketch in the PR.
+- [ ] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log. (#2)
+- [ ] **C:** do a UI sketch (transcript, study panel, practice-language badge, and space reserved for the avatar video). Put a screenshot or ASCII sketch in the PR. (#3)
 
 **Exit criteria:** `FINDINGS.md` gives a go or no-go on Mandarin transcription. If transcription is weak, we still go ahead: the model understands the audio regardless. We show the model's own text and label user transcripts "approximate".
 
@@ -84,20 +84,21 @@ Agree on these first. Changing them requires a decision-log entry.
 
 ## Phase 1: English + Mandarin MVP
 
-- [ ] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`.
-- [ ] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`).
-- [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice.
-- [ ] **B:** `src/tools/types.ts` with the `detail` types.
-- [ ] **B:** replace `web_search` with:
+- [ ] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`. (#5)
+- [ ] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`). (#6)
+- [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
+- [ ] **B:** `src/tools/types.ts` with the `detail` types. (#8)
+- [ ] **B:** replace `web_search` with (#10, #11, #12, #13):
   - `note_correction {language, said, correct, explanation, kind, romanization}`
   - `save_phrase {language, phrase, meaning, romanization, note}`
   - `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase.
   - `set_practice_language {language, level}`
-- [ ] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool.
-- [ ] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript.
-- [ ] **C:** a language-tagged transcript that colours Han versus Latin runs, with pinyin shown under Han text when a tool supplied it.
-- [ ] **C:** a study panel with correction, phrase and pronunciation cards, plus a "practising: 中文" badge. It must work at phone width.
-- [ ] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`.
+- [ ] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9)
+- [ ] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14)
+- [ ] **C:** a language-tagged transcript that colours Han versus Latin runs, with pinyin shown under Han text when a tool supplied it. (#15, #16)
+- [ ] **C:** a study panel with correction, phrase and pronunciation cards, plus a "practising: 中文" badge. It must work at phone width. (#17, #18)
+- [ ] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`. (#19)
+- [ ] **All:** Phase 1 live acceptance session with a Mandarin speaker, against the exit criteria below (#20)
 
 **Exit criteria:** a live conversation of about 3 minutes, mixing English and Mandarin, in which the tutor (1) corrects at least one mistake, (2) gives tone feedback, (3) saves a phrase, and (4) is never derailed by a mid-sentence switch.
 
@@ -105,13 +106,13 @@ Agree on these first. Changing them requires a decision-log entry.
 
 ## Phase 2: Depth and polish
 
-- [ ] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly".
-- [ ] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it.
-- [ ] **B:** explain-phrase flow: the learner asks "what does 加油 mean?", and the tutor explains and saves it.
-- [ ] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload.
-- [ ] **D + C:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side, and a replay button on study cards.
-- [ ] **C:** an end-of-session recap screen.
-- [ ] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013.
+- [ ] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly". (#21)
+- [ ] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22)
+- [ ] **B:** explain-phrase flow: the learner asks "what does 加油 mean?", and the tutor explains and saves it. (#23)
+- [ ] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24)
+- [ ] **D + C:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side, and a replay button on study cards. (#25, #26)
+- [ ] **C:** an end-of-session recap screen. (#27)
+- [ ] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28)
 
 **Exit criteria:** a beginner can hold a slow conversation, replay any saved phrase, and see a recap at the end.
 
@@ -119,14 +120,15 @@ Agree on these first. Changing them requires a decision-log entry.
 
 ## Phase 3: More languages, and de-risking the avatar
 
-- [ ] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI).
-- [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어).
-- [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike:
+- [ ] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI). (#29)
+- [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
+- [ ] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
+- [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
   - Copy `livekit/` from [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0) and extend `NOTICE` to cover it.
   - Create a LiveKit Cloud project. Self-hosted LiveKit is refused by the avatar API.
   - Load `shared/session.json` in the agent.
   - Get a voice-only conversation working through LiveKit.
-- [ ] **B:** make tool execution transport-agnostic. In LiveKit mode the agent receives the tool calls and forwards them to the browser over a LiveKit data channel or RPC. The browser runs `registry.dispatch` and returns the result, so the study panel works unchanged.
+- [ ] **B:** make tool execution transport-agnostic. In LiveKit mode the agent receives the tool calls and forwards them to the browser over a LiveKit data channel or RPC. The browser runs `registry.dispatch` and returns the result, so the study panel works unchanged. (#32)
 
 **Exit criteria:** the same conversation, with working tools and study panel, runs both in direct-WebSocket mode and through LiveKit.
 
@@ -136,16 +138,16 @@ Agree on these first. Changing them requires a decision-log entry.
 
 Realtime Higgs Avatar runs only inside a **LiveKit Cloud** room. Our agent relays the Higgs Realtime audio to it, and the browser never calls Boson directly. See the [realtime sessions docs](https://docs.boson.ai/models/higgs-avatar/realtime-sessions.md).
 
-- [ ] **D:** server endpoints:
+- [ ] **D:** server endpoints (#33):
   - Mint LiveKit tokens for the browser, the agent and the avatar.
   - `POST /v1/avatar/sessions` (`avatar_id` such as `builtin_claire_v1`, with `publisher_identity` set to the agent).
   - `DELETE` the session when the user leaves.
   - On `429 capacity_exhausted`, honour `Retry-After`.
-- [ ] **D:** the agent forwards `response.output_audio.delta` to the avatar over a LiveKit data stream, and tells the avatar to drop unplayed audio on barge-in.
-- [ ] **C:** an avatar mode using `livekit-client`: join the room, publish the mic, and attach the avatar's video and audio tracks, with the transcript and study panel beside the video.
-- [ ] **C:** keep direct-WebSocket mode as a **fallback** behind a toggle, in case avatar capacity or latency is a problem.
-- [ ] **A:** tune the prompt for an on-screen tutor (shorter turns, more expressive delivery).
-- [ ] **Fallback, only if realtime is blocked:** pre-render intro and recap clips with `POST /v1/videos/stream` (fragmented MP4 from a still image and TTS text).
+- [ ] **D:** the agent forwards `response.output_audio.delta` to the avatar over a LiveKit data stream, and tells the avatar to drop unplayed audio on barge-in. (#34)
+- [ ] **C:** an avatar mode using `livekit-client`: join the room, publish the mic, and attach the avatar's video and audio tracks, with the transcript and study panel beside the video. (#35)
+- [ ] **C:** keep direct-WebSocket mode as a **fallback** behind a toggle, in case avatar capacity or latency is a problem. (#35)
+- [ ] **A:** tune the prompt for an on-screen tutor (shorter turns, more expressive delivery). (#35)
+- [ ] **Fallback, only if realtime is blocked:** pre-render intro and recap clips with `POST /v1/videos/stream` (fragmented MP4 from a still image and TTS text). (#33)
 
 **Exit criteria:** a lip-synced avatar tutor holds the Phase 1 conversation, and barge-in stops the avatar mid-sentence.
 
@@ -155,12 +157,12 @@ Realtime Higgs Avatar runs only inside a **LiveKit Cloud** room. Our agent relay
 
 Track D leads, and everyone contributes.
 
-- [ ] Script the 2–3 minute demo: English → Mandarin mid-sentence → correction and tone feedback → saved phrase and TTS replay → switch to Korean → avatar on screen.
-- [ ] Record the video and upload it publicly, with no request-access step.
-- [ ] Update `README.md` with full setup (including LiveKit), and add a known-limitations section.
-- [ ] Write the two write-ups of up to 200 words each: (1) what Polyglot is, (2) how each Higgs model is used and what is technically hard. Add team info with GitHub handles.
-- [ ] Check that no keys are anywhere in the git history (`git log -p | grep -i "bai-"`).
-- [ ] Tag the judged commit, `git tag v1.0-submission && git push --tags`, and put the SHA in the form.
+- [ ] Script the 2–3 minute demo: English → Mandarin mid-sentence → correction and tone feedback → saved phrase and TTS replay → switch to Korean → avatar on screen. (#36)
+- [ ] Record the video and upload it publicly, with no request-access step. (#36)
+- [ ] Update `README.md` with full setup (including LiveKit), and add a known-limitations section. (#36)
+- [ ] Write the two write-ups of up to 200 words each: (1) what Polyglot is, (2) how each Higgs model is used and what is technically hard. Add team info with GitHub handles. (#36)
+- [ ] Check that no keys are anywhere in the git history (`git log -p | grep -i "bai-"`). (#36)
+- [ ] Tag the judged commit, `git tag v1.0-submission && git push --tags`, and put the SHA in the form. (#36)
 
 Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switching, tools during speech, TTS replay, avatar), **UX 25%**, **innovation 25%**, **technical execution 20%**.
 
