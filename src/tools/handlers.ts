@@ -1,4 +1,4 @@
-import { PROFILES } from "../lang/profiles";
+import { PROFILES, type LanguageProfile } from "../lang/profiles";
 import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
@@ -82,6 +82,22 @@ function normalizeCorrectionKind(raw: unknown): Correction["kind"] {
 }
 
 /**
+ * Text reduced to what a correction can change: case, spacing and
+ * punctuation are dropped, so "我有三个狗" and "我有三个狗。" compare equal.
+ */
+function comparable(text: string): string {
+  return text.normalize("NFC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+// A character of each non-Latin profile script, and what to call the script
+// when asking the model to write in it. Japanese mixes kanji and kana.
+const SCRIPTS: Partial<Record<LanguageProfile["script"], { pattern: RegExp; name: string }>> = {
+  Hans: { pattern: /\p{Script=Han}/u, name: "Chinese characters" },
+  Hang: { pattern: /\p{Script=Hangul}/u, name: "Hangul" },
+  Jpan: { pattern: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, name: "Japanese script" },
+};
+
+/**
  * Record a correction for the study panel.
  *
  * The schema tells the model to call this BEFORE it speaks, so the summary is
@@ -89,6 +105,12 @@ function normalizeCorrectionKind(raw: unknown): Correction["kind"] {
  * 2026-10-23 with the probe: "call this in the same turn as you correct"
  * descriptions were called in 9 of 37 runs, while "call this first" was
  * called in 24 of 24.
+ *
+ * Two calls are refused rather than saved, both seen live on 2026-10-24 when
+ * a question about tones had no other tool to go to: `correct` identical to
+ * `said` ("mā hē mā" → "mā hē mā"), and pinyin in place of characters
+ * ("我" → "wǒ"). Only `correct` is checked for script: `said` is what was
+ * heard, which may be mis-transcribed or mixed-language.
  */
 export function noteCorrection(args: Record<string, unknown>): ToolResult {
   const language = normalizeLanguage(args.language);
@@ -105,6 +127,24 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
     return {
       summary: "Correction not saved: it needs what the learner said and the corrected version.",
       error: "missing_fields",
+    };
+  }
+
+  if (comparable(said) === comparable(correct)) {
+    return {
+      summary:
+        "Correction not saved: the corrected version is the same as what they said. " +
+        "If there was no mistake, don't call this; just carry on the conversation.",
+      error: "same_as_said",
+    };
+  }
+
+  // A summary naming the right script lets the model retry the call.
+  const script = SCRIPTS[PROFILES[language].script];
+  if (script && !script.pattern.test(correct)) {
+    return {
+      summary: `Correction not saved: write the corrected version in ${script.name}, and put the romanization in romanization.`,
+      error: "wrong_script",
     };
   }
 
@@ -194,6 +234,110 @@ function normalizePronunciationIssue(raw: unknown): PronunciationNote["issue"] {
   return "other";
 }
 
+type Tone = 1 | 2 | 3 | 4 | 5;
+type Movement = "level" | "rise" | "fall" | "dip";
+
+// Mandarin tones as a learner is told them. Probed live, the tip for 妈 (mā)
+// once described the rising second tone, and the tutor read it aloud. So for a
+// tone note the handler states the contour from the pinyin itself, and drops a
+// tip that describes a movement the tone doesn't have (#55).
+const TONES: Record<Tone, { name: string; contour: string; tip: string; moves: Movement[] }> = {
+  1: { name: "first tone", contour: "high and level", tip: "start high and keep it level", moves: ["level"] },
+  2: { name: "second tone", contour: "rising, like a question", tip: "start in the middle and rise, as if asking a question", moves: ["rise"] },
+  // A full third tone falls and then rises, so a tip may mention any of these.
+  3: { name: "third tone", contour: "low and dipping", tip: "dip low, then rise a little", moves: ["dip", "fall", "rise"] },
+  4: { name: "fourth tone", contour: "sharply falling", tip: "start high and fall sharply", moves: ["fall"] },
+  5: { name: "neutral tone", contour: "short and light", tip: "keep it short and light, without stress", moves: [] },
+};
+
+const MOVEMENT_WORDS: Record<Movement, RegExp> = {
+  level: /\b(level|flat|steady)\b/,
+  rise: /\b(rise|rises|rising|raise|raises|raising|go(es)? up|going up|upwards?|climb(s|ing)?|question)\b/,
+  fall: /\b(fall|falls|falling|drop|drops|dropping|go(es)? down|going down|downwards?)\b/,
+  dip: /\b(dip|dips|dipping)\b/,
+};
+
+// Breve vowels count as the third tone: they look like the caron and models
+// sometimes send them instead.
+const TONE_MARKS = new Map<string, Tone>();
+for (const [tone, vowels] of [
+  [1, "āēīōūǖ"],
+  [2, "áéíóúǘ"],
+  [3, "ǎěǐǒǔǚăĕĭŏŭ"],
+  [4, "àèìòùǜ"],
+] as const) {
+  for (const vowel of vowels) TONE_MARKS.set(vowel, tone);
+}
+
+const PINYIN_WORD = /^[a-zü:v0-5āēīōūǖáéíóúǘǎěǐǒǔǚăĕĭŏŭàèìòùǜ]+$/;
+const VOWEL_CLUSTER = /[aeiouüvāēīōūǖáéíóúǘǎěǐǒǔǚăĕĭŏŭàèìòùǜ]+/g;
+
+interface WordTones {
+  word: string;
+  tones: Tone[];
+}
+
+/**
+ * The tones in a pinyin string, word by word, read from tone marks or from
+ * tone numbers ("ma1"), which models sometimes send despite the schema.
+ *
+ * Returns null when the string isn't plain pinyin, or carries no tone marks or
+ * numbers at all. An unmarked "ma" may be a neutral tone or a mark the model
+ * left out, and stating the wrong tone is the bug this exists to prevent. Once
+ * marks are in use, an unmarked syllable is neutral: each syllable has one
+ * vowel cluster, so "māma" reads as mā and a neutral ma.
+ */
+export function pinyinTones(pinyin: string): WordTones[] | null {
+  const words = pinyin.normalize("NFC").toLowerCase().split(/[\s'’-]+/).filter(Boolean);
+  if (words.length === 0 || !words.every((w) => PINYIN_WORD.test(w))) return null;
+
+  let marked = false;
+  const read = words.map((word) => {
+    const numbered = [...word.matchAll(/[a-zü:v]+([0-5])/g)];
+    if (numbered.length > 0) {
+      marked = true;
+      return { word, tones: numbered.map((m) => (m[1] === "0" || m[1] === "5" ? 5 : Number(m[1])) as Tone) };
+    }
+    const tones = (word.match(VOWEL_CLUSTER) ?? []).flatMap((cluster): Tone[] => {
+      const marks = [...cluster].flatMap((ch) => TONE_MARKS.get(ch) ?? []);
+      if (marks.length > 0) marked = true;
+      return marks.length > 0 ? marks : [5];
+    });
+    return { word, tones };
+  });
+  return marked && read.every((w) => w.tones.length > 0) ? read : null;
+}
+
+/** "mā, first tone: high and level", one clause per word. */
+function describeTones(words: WordTones[]): string {
+  return words
+    .map(({ word, tones }) => `${word}, ${tones.map((t) => `${TONES[t].name}: ${TONES[t].contour}`).join(", then ")}`)
+    .join("; ");
+}
+
+/** The card's tip for these tones, used when the model's own tip contradicts them. */
+function toneTip(words: WordTones[]): string {
+  const perWord = words.map(({ word, tones }) => {
+    const tip = tones.map((t) => TONES[t].tip).join(", then ");
+    return words.length === 1 ? tip : `${word}: ${tip}`;
+  });
+  const tip = perWord.join("; ");
+  return `${tip.charAt(0).toUpperCase()}${tip.slice(1)}.`;
+}
+
+// From a negation to the end of its clause. Probed live, a correct first-tone
+// tip ended "try saying it without dipping or rising".
+const NEGATED_CLAUSE = /\b(without|not|no|never|don't|do not|avoid|instead of|rather than)\b[^.,;:!?]*/g;
+
+/** True when the tip describes a pitch movement that none of these tones has. */
+function tipContradicts(tip: string, words: WordTones[]): boolean {
+  const allowed = new Set(words.flatMap(({ tones }) => tones.flatMap((t) => TONES[t].moves)));
+  const text = tip.toLowerCase().replace(/’/g, "'").replace(NEGATED_CLAUSE, "");
+  return (Object.keys(MOVEMENT_WORDS) as Movement[]).some(
+    (move) => !allowed.has(move) && MOVEMENT_WORDS[move].test(text),
+  );
+}
+
 /**
  * Save a pronunciation note: the Mandarin showcase, since the model hears the
  * learner's tones directly rather than through a transcript.
@@ -221,16 +365,33 @@ export function pronunciationFeedback(args: Record<string, unknown>): ToolResult
   }
 
   const romanization = normalizeText(args.romanization);
+  const issue = normalizePronunciationIssue(args.issue);
+  const tones =
+    issue === "tone" && PROFILES[language].romanization === "pinyin" && romanization
+      ? pinyinTones(romanization)
+      : null;
+  const fixedTip = tones && tipContradicts(tip, tones) ? toneTip(tones) : null;
   const detail: PronunciationNote = {
     type: "pronunciation",
     language,
     target,
-    issue: normalizePronunciationIssue(args.issue),
-    tip,
+    issue,
+    tip: fixedTip ?? tip,
     ...(romanization ? { romanization } : {}),
   };
+  if (!tones) {
+    return {
+      summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
+      detail,
+    };
+  }
+  // The contour goes in the summary because the summary is what the tutor
+  // speaks from; a correct card is no use if it says a different tone aloud.
   return {
-    summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
+    summary:
+      `Saved a pronunciation note for ${target}: ${describeTones(tones)}. ` +
+      (fixedTip ? "Your tip described a different tone, so it was replaced. " : "") +
+      "Now say it the right way, describe that tone in a few words, then carry on the conversation.",
     detail,
   };
 }

@@ -19,10 +19,17 @@ export const TOOL_DEFINITIONS = [
   {
     type: "function",
     name: "note_correction",
+    // Leads with when to call it, as save_phrase does: later in a
+    // conversation, a sentence with a measure-word error was often corrected
+    // aloud without a call (#58). "Not when nothing needs changing" is for the
+    // no-op corrections it saved when asked about tones.
     description:
-      "Correct a mistake the learner just made. Whenever what they said has a " +
-      "mistake, call this FIRST, before you say anything else; it saves the " +
-      "correction to their study panel and then tells you what to say.",
+      "Call this FIRST, before you say anything else, whenever something the " +
+      "learner says has a grammar or word mistake, at any point in the " +
+      "conversation, including when they ask you to check a sentence or mix " +
+      "languages in one turn. It saves the correction to their study panel and " +
+      "then tells you what to say. Not for pronunciation, and not when nothing " +
+      "needs changing.",
     parameters: {
       type: "object",
       properties: {
@@ -65,10 +72,13 @@ export const TOOL_DEFINITIONS = [
     type: "function",
     name: "set_practice_language",
     description:
-      "Switch the language or level the learner is practising. Only when they " +
-      "ask to practise a different language or change their level, call this " +
-      "FIRST, before you say anything else; it updates the badge on their " +
-      "screen and then tells you what to say.",
+      "Switch the language or level only when the learner explicitly asks for " +
+      "a different language than the one they are already practising, or " +
+      "explicitly states a new level. Do NOT call this merely because they name " +
+      "or ask to practise their current language, or ask for pronunciation " +
+      "feedback. Never infer a new level. For a real switch, call this FIRST, " +
+      "before you say anything else; it updates their badge and then tells you " +
+      "what to say.",
     parameters: {
       type: "object",
       properties: {
@@ -131,9 +141,15 @@ export const TOOL_DEFINITIONS = [
         },
         tip: {
           type: "string",
-          // No example here: the model copied one verbatim into its tips for
-          // other tones in live probes.
-          description: "One short, practical tip for making this sound correctly.",
+          // No single example tip here: the model copied one verbatim into its
+          // tips for other tones in live probes. A list of every contour is a
+          // reference to pick from, and the handler checks the tip against the
+          // tone marks anyway (#55).
+          description:
+            "One short, practical tip for making this sound correctly. For a " +
+            "Mandarin tone, describe the tone written in `romanization`: first " +
+            "(ā) high and level, second (á) rising, third (ǎ) low and dipping, " +
+            "fourth (à) sharply falling, neutral short and light.",
         },
       },
       required: ["language", "target", "issue", "tip"],

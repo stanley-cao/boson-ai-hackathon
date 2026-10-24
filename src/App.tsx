@@ -6,11 +6,19 @@ import {
   type LogEntry,
 } from "./realtime/RealtimeClient";
 import {
-  emptyTranscript,
   transcriptReducer,
   type TranscriptState,
 } from "./state/transcriptStore";
-import { studyFromTranscript } from "./state/study";
+import {
+  studyFromTranscript,
+  transcriptFromStudy,
+  withoutStudyItems,
+} from "./state/study";
+import {
+  clearStoredStudy,
+  loadStoredStudy,
+  saveStoredStudy,
+} from "./state/studyStorage";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { PracticeBadge } from "./ui/PracticeBadge";
@@ -32,7 +40,9 @@ export default function App() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [closeMessage, setCloseMessage] = useState<string | null>(null);
   const [text, setText] = useState("Hi! Say something short so I can check my speakers.");
-  const [transcript, setTranscript] = useState<TranscriptState>(emptyTranscript);
+  const [transcript, setTranscript] = useState<TranscriptState>(() =>
+    transcriptFromStudy(loadStoredStudy()),
+  );
   const [micActive, setMicActive] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
@@ -86,8 +96,25 @@ export default function App() {
   }, []);
 
   const isOpen = connection === "open";
-  // Derived from the transcript rather than stored, so it can't drift from it.
   const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
+
+  // A failed write is deliberately ignored so private browsing cannot break
+  // the current session. Restored details live in the transcript as hidden
+  // tool items, preserving the transcript as the UI's single source of truth.
+  useEffect(() => {
+    const hasStudyData =
+      study.corrections.length > 0 ||
+      study.phrases.length > 0 ||
+      study.pronunciationNotes.length > 0 ||
+      study.practiceLanguage !== null;
+    if (!hasStudyData) return;
+    saveStoredStudy(study);
+  }, [study]);
+
+  const clearStudy = useCallback(() => {
+    clearStoredStudy();
+    setTranscript((state) => withoutStudyItems(state));
+  }, []);
 
   return (
     <main className="app">
@@ -136,7 +163,7 @@ export default function App() {
 
       <div className="workspace">
         <TranscriptPanel state={transcript} />
-        <StudyPanel state={transcript} />
+        <StudyPanel state={transcript} onClear={clearStudy} />
       </div>
 
       <DebugDrawer entries={log} />
