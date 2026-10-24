@@ -13,6 +13,7 @@ Higgs Avatar only joins LiveKit Cloud rooms (Phase 4).
     uv run agent.py dev         # join rooms on LIVEKIT_URL; talk to it in the Agents Playground
 """
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -33,6 +34,7 @@ from livekit.agents import (
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
+from loop_guard import strip_repeats
 from session_config import (
     instructions_for,
     load_prompts,
@@ -78,26 +80,39 @@ class Tutor(Agent):
         self.session.generate_reply(instructions="Greet the learner in one short sentence.")
 
 
-def reset_transcription_language_each_turn(
-    session: AgentSession, model: boson.realtime.RealtimeModel
-) -> None:
+def reset_transcription_language_each_turn(session: AgentSession) -> None:
     """Keep STT on the session's own hint, so captions show the language actually spoken.
 
     Boson otherwise lets transcription follow the tutor's language after its
     first reply: with Serbian picked, the learner's English came back as
     Serbian. Mirrors RealtimeClient.ts: reset once the tutor's reply is over
-    and again as the learner starts speaking. The model-level update reaches
-    every open session; the prompt and target language are left alone.
+    and again as the learner starts speaking.
+
+    Only the transcription field is sent, as the browser's
+    buildTranscriptionDetectionReset does. The plugin's update_options would
+    resend the whole session (prompt and tools included) twice a turn; the
+    repeating-one-line loops were first seen with that, though probes could
+    not pin them on it.
     """
-    reset = turn_transcription(SESSION)
+    event = {
+        "type": "session.update",
+        "session": {"audio": {"input": {"transcription": turn_transcription(SESSION)}}},
+    }
+
+    def reset() -> None:
+        try:
+            session.current_agent.realtime_llm_session.send_event(dict(event))
+        except RuntimeError:
+            # No agent or realtime session yet (starting up) or any more (closing).
+            pass
 
     def on_agent_state(event: AgentStateChangedEvent) -> None:
         if event.old_state == "speaking":
-            model.update_options(input_audio_transcription=reset)
+            reset()
 
     def on_user_state(event: UserStateChangedEvent) -> None:
         if event.new_state == "speaking":
-            model.update_options(input_audio_transcription=reset)
+            reset()
 
     session.on("agent_state_changed", on_agent_state)
     session.on("user_state_changed", on_user_state)
@@ -118,6 +133,48 @@ def log_conversation(session: AgentSession) -> None:
             return
         interrupted = " (interrupted)" if getattr(item, "interrupted", False) else ""
         logger.info("%s%s: %s", role, interrupted, getattr(item, "text_content", None))
+
+    session.on("conversation_item_added", on_item)
+
+
+def guard_against_loops(session: AgentSession) -> None:
+    """Strip repeated sentences from each reply the model will see again.
+
+    See loop_guard.py: the learner has already heard the repeat, but taking it
+    out of the context stops the model copying it into every later reply. The
+    plugin sends the edit as a delete and re-create of that one item.
+    """
+
+    async def strip(item_id: str) -> None:
+        agent = session.current_agent
+        ctx = agent.chat_ctx.copy()
+        messages = [m for m in ctx.items if m.type == "message"]
+        index = next((i for i, m in enumerate(messages) if m.id == item_id), None)
+        if index is None:
+            return
+        reply = messages[index]
+        earlier = [m.text_content or "" for m in messages[:index] if m.role == "assistant"]
+        learner = next((m.text_content for m in reversed(messages[:index]) if m.role == "user"), None)
+        stripped = strip_repeats(reply.text_content or "", earlier, learner)
+        if stripped is None:
+            return
+        logger.info("loop guard: keeping %r of %r", stripped, reply.text_content)
+        # A new message rather than an edit: copy() shares item objects with
+        # the agent's own context, and the diff would then see no change.
+        ctx.items[ctx.index_by_id(item_id)] = reply.model_copy(
+            update={"content": [stripped] if stripped else []}
+        )
+        await agent.update_chat_ctx(ctx)
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        item = event.item
+        if getattr(item, "role", None) != "assistant" or not getattr(item, "text_content", None):
+            return
+        task = asyncio.create_task(strip(item.id))
+        # A failed edit only leaves the repeat in context; log it, never raise.
+        task.add_done_callback(
+            lambda t: t.cancelled() or t.exception() is None or logger.warning("loop guard failed: %r", t.exception())
+        )
 
     session.on("conversation_item_added", on_item)
 
@@ -149,8 +206,9 @@ async def entrypoint(ctx: JobContext) -> None:
         **options,
     )
     session = AgentSession(llm=model)
-    reset_transcription_language_each_turn(session, model)
+    reset_transcription_language_each_turn(session)
     log_conversation(session)
+    guard_against_loops(session)
     if is_avatar_room(ctx.room.name):
         # Set this before start(): RoomIO sees an existing output and does not
         # publish the agent's normal audio track. Realtime PCM goes to the
