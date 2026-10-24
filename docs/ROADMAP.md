@@ -95,7 +95,8 @@ Agree on these first. Changing them requires a decision-log entry.
   - `set_practice_language {language, level}`
 - [x] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9) (@KyleDong03)
 - [ ] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14)
-- [ ] **C:** a language-tagged transcript that colours Han versus Latin runs, with pinyin shown under Han text when a tool supplied it. (#15, #16)
+- [x] **C:** a language-tagged transcript that colours Han versus Latin runs. (#15) (@lanazgonjanin)
+- [ ] **C:** pinyin shown under Han text when a tool supplied it. (#16)
 - [ ] **C:** a study panel with correction, phrase and pronunciation cards, plus a "practising: 中文" badge. It must work at phone width. (#17, #18)
 - [ ] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`. (#19)
 - [ ] **All:** Phase 1 live acceptance session with a Mandarin speaker, against the exit criteria below
