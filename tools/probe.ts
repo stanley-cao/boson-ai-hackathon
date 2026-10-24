@@ -39,11 +39,13 @@ import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import dotenv from "dotenv";
 import {
   AUDIO_RATE,
-  buildPaceUpdate,
+  buildInstructionsUpdate,
   buildSessionConfig,
+  levelChangeFromTool,
   OUTPUT_VOICE,
   planPaceChange,
 } from "../src/realtime/sessionConfig";
+import { ACTIVE_LEVEL, type LearnerLevel } from "../src/lang/profiles";
 import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../src/tools/handlers";
 import {
   describeClose,
@@ -307,6 +309,9 @@ async function main() {
    */
   let extraResponsesExpected = 0;
   let lastResponseCreatedAt = 0;
+  // Tracked like the browser does, so a "I'm intermediate" turn re-instructs
+  // the session here too.
+  let level: LearnerLevel = ACTIVE_LEVEL;
   // Pace changes, as RealtimeClient makes them, so a slow repeat is measured.
   let sessionPace: SpeakingPace = "normal";
   let revertPace: "armed" | string | null = null;
@@ -375,6 +380,12 @@ async function main() {
         void (async () => {
           let result = await dispatchTool(name, args);
           console.log(`        ↳ ${name} -> ${result.summary}`);
+          const next = levelChangeFromTool(name, result, level);
+          if (next) {
+            level = next;
+            console.log(`        ↳ level is now ${level}; sending session.update`);
+            send(buildInstructionsUpdate(level, sessionPace));
+          }
           // The browser plays a one-off slow repeat through /api/tts and asks
           // for no reply; synthesise the same input here to measure its pace.
           const input =
@@ -398,7 +409,7 @@ async function main() {
           if (name === "set_speaking_pace") {
             const plan = planPaceChange(paceRequestFrom(args), sessionPace);
             sessionPace = plan.sessionPace;
-            if (plan.send) send(buildPaceUpdate(plan.send));
+            if (plan.send) send(buildInstructionsUpdate(level, plan.send));
             if (plan.revertAfterReply) revertPace = "armed";
             console.log(`        ↳ pace ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}`);
           }
@@ -419,7 +430,7 @@ async function main() {
       const id = (evt.response as { id?: unknown } | undefined)?.id;
       if (revertPace !== null && revertPace === String(id)) {
         revertPace = null;
-        send(buildPaceUpdate(sessionPace));
+        send(buildInstructionsUpdate(level, sessionPace));
       }
       const r = replyAudio.get(String(id ?? ""));
       const pace = r ? paceMsPerSyllable(r.samples, r.transcript) : null;

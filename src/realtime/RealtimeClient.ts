@@ -10,7 +10,13 @@ import {
   type CloseInfo,
   type ServerEvent,
 } from "./events";
-import { buildPaceUpdate, buildSessionConfig, planPaceChange } from "./sessionConfig";
+import {
+  buildInstructionsUpdate,
+  buildSessionConfig,
+  levelChangeFromTool,
+  planPaceChange,
+} from "./sessionConfig";
+import { ACTIVE_LEVEL, LEARNER_LEVELS, type LearnerLevel } from "../lang/profiles";
 import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../tools/handlers";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
@@ -93,7 +99,7 @@ export class RealtimeClient {
   private toolBatch: {
     promises: Promise<void>[];
     outputs: ClientEvent[];
-    /** A pace change from this turn's tools, sent before the outputs. */
+    /** A level or pace change from this turn's tools, sent before the outputs. */
     sessionUpdate?: ClientEvent;
     revertPaceAfterReply?: boolean;
     /** A slow repeat is playing through TTS, so no reply is asked for. */
@@ -116,6 +122,9 @@ export class RealtimeClient {
    * and its response.done restores `sessionPace`.
    */
   private revertPace: "armed" | { responseId: string } | null = null;
+
+  /** The learner level the session's current instructions were built for. */
+  private level: LearnerLevel = ACTIVE_LEVEL;
 
   /**
    * ⚠ The single most important line in this file.
@@ -169,8 +178,12 @@ export class RealtimeClient {
     this.info("Microphone stopped.");
   }
 
-  /** Mint a key and open the socket. Safe to call twice; the second is ignored. */
-  async connect(): Promise<void> {
+  /**
+   * Mint a key and open the socket. Safe to call twice; the second is ignored.
+   * `level` is the learner's stored level, so a reload doesn't reset them to
+   * beginner.
+   */
+  async connect(level: LearnerLevel = ACTIVE_LEVEL): Promise<void> {
     if (this.connecting || this.state === "open" || this.state === "connecting") {
       this.info("connect() ignored — a connection is already active.");
       return;
@@ -203,8 +216,12 @@ export class RealtimeClient {
     ws.onopen = () => {
       this.connecting = false;
       this.setState("open");
-      this.info("Socket open — sending session.update.");
-      this.send(buildSessionConfig());
+      this.info(`Socket open — sending session.update (${level} level).`);
+      // A new session starts at normal pace; nothing carries over.
+      this.level = level;
+      this.sessionPace = "normal";
+      this.revertPace = null;
+      this.send(buildSessionConfig(LEARNER_LEVELS[level]));
     };
     ws.onmessage = (ev) => this.onMessage(ev);
     ws.onerror = () => this.info("WebSocket error — the close code below has the detail.");
@@ -381,6 +398,14 @@ export class RealtimeClient {
         this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`);
         result = { summary: "That lookup failed.", error: "tool_failed" };
       }
+      // The badge alone isn't enough: the prompt carries the level's pace and
+      // how much English to use, so a new level needs new instructions.
+      const level = levelChangeFromTool(name, result, this.level);
+      if (level) {
+        this.level = level;
+        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace);
+        this.info(`Learner level is now ${level} — updating the session instructions.`);
+      }
       if (name === "set_speaking_pace") {
         const request = paceRequestFrom(args);
         // A one-off repeat is re-spoken through TTS when it can be: pace in
@@ -396,7 +421,7 @@ export class RealtimeClient {
         } else {
           const plan = planPaceChange(request, this.sessionPace);
           this.sessionPace = plan.sessionPace;
-          if (plan.send) batch.sessionUpdate = buildPaceUpdate(plan.send);
+          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send);
           batch.revertPaceAfterReply = plan.revertAfterReply;
           this.info(`Speaking pace: ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}.`);
         }
@@ -423,7 +448,7 @@ export class RealtimeClient {
     const id = (evt.response as { id?: unknown } | undefined)?.id;
     if (this.revertPace && this.revertPace !== "armed" && this.revertPace.responseId === id) {
       this.revertPace = null;
-      this.send(buildPaceUpdate(this.sessionPace));
+      this.send(buildInstructionsUpdate(this.level, this.sessionPace));
     }
 
     // ⚠ The double-fire. Tool calls that already arrived via
@@ -474,7 +499,7 @@ export class RealtimeClient {
     await Promise.all(batch.promises);
 
     // Before the outputs and response.create, so the reply is already spoken
-    // at the new pace.
+    // under the new level's or pace's instructions.
     if (batch.sessionUpdate) this.send(batch.sessionUpdate);
     if (batch.revertPaceAfterReply) this.revertPace = "armed";
     for (const out of batch.outputs) this.send(out);

@@ -80,3 +80,15 @@ export const LEARNER_LEVELS = {
 
 /** Default for a new session; callers may select another profile explicitly. */
 export const ACTIVE_LEVEL: LearnerLevel = "beginner";
+
+/**
+ * The prompt profile for a level as stored or as `set_practice_language`
+ * reports it. "advanced" shares the intermediate profile rather than getting
+ * its own: intermediate already asks for mostly the target language, and the
+ * prompt is near its length tripwire (#80). Anything else, including no stored
+ * level, falls back to the default.
+ */
+export function learnerLevelFor(level: string | null | undefined): LearnerLevel {
+  if (level === "intermediate" || level === "advanced") return "intermediate";
+  return ACTIVE_LEVEL;
+}

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "../src/realtime/events";
+import { emptyStudyState, studyFromTranscript, transcriptFromStudy } from "../src/state/study";
 import {
   CLIENT_TOOL_RESULT,
   emptyTranscript,
@@ -21,6 +22,7 @@ function addTool(
   callId: string,
   name: string,
   result: unknown,
+  at = 1,
 ): TranscriptState {
   const pending = transcriptReducer(
     state,
@@ -28,31 +30,38 @@ function addTool(
       type: "response.output_item.added",
       item: { id: itemId, type: "function_call", name, call_id: callId },
     }),
-    1,
+    at,
   );
   return transcriptReducer(
     pending,
     evt({ type: CLIENT_TOOL_RESULT, call_id: callId, result, ms: 2 }),
-    2,
+    at + 1,
   );
+}
+
+function phraseResult(phrase: string) {
+  return {
+    summary: "Phrase saved.",
+    detail: { type: "phrase", language: "zh", phrase, meaning: `${phrase} meaning` },
+  };
 }
 
 describe("SessionRecap", () => {
   it("opens only when a session that reached open disconnects", () => {
-    const failed = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "closed");
+    const failed = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "closed", 5);
     expect(failed.visible).toBe(false);
 
-    const opened = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "open");
-    const closing = recapVisibilityAfterConnection(opened, "closing");
-    const closed = recapVisibilityAfterConnection(closing, "closed");
+    const opened = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "open", 10);
+    const closing = recapVisibilityAfterConnection(opened, "closing", 20);
+    const closed = recapVisibilityAfterConnection(closing, "closed", 30);
 
     expect(closing.visible).toBe(false);
-    expect(closed).toEqual({ sessionOpened: false, visible: true });
+    expect(closed).toEqual({ sessionOpened: false, visible: true, openedAt: 10 });
   });
 
   it("renders zero counts and useful empty states", () => {
     const html = renderToStaticMarkup(
-      <SessionRecap state={emptyTranscript} onContinue={() => undefined} />,
+      <SessionRecap state={emptyTranscript} openedAt={0} onContinue={() => undefined} />,
     );
 
     expect(html).toContain("Session complete");
@@ -115,7 +124,7 @@ describe("SessionRecap", () => {
     });
 
     const html = renderToStaticMarkup(
-      <SessionRecap state={state} onContinue={() => undefined} />,
+      <SessionRecap state={state} openedAt={0} onContinue={() => undefined} />,
     );
 
     expect(html).toContain("You collected 5 study notes to revisit.");
@@ -142,11 +151,65 @@ describe("SessionRecap", () => {
     });
 
     const html = renderToStaticMarkup(
-      <SessionRecap state={state} onContinue={() => undefined} />,
+      <SessionRecap state={state} openedAt={0} onContinue={() => undefined} />,
     );
 
     expect(html).not.toContain("HIDDEN");
     expect(html).not.toContain("ALSO_HIDDEN");
+    expect(html.match(/<strong>0<\/strong>/g)).toHaveLength(3);
+  });
+
+  it("leaves out notes restored from storage, which the study panel still has", () => {
+    const saved = {
+      ...emptyStudyState(),
+      phrases: [
+        { type: "phrase" as const, language: "zh" as const, phrase: "旧的", meaning: "old" },
+      ],
+    };
+    const state = addTool(transcriptFromStudy(saved), "p1", "call-1", "save_phrase", phraseResult("新的"), 100);
+
+    // openedAt 0 as well, so the restored flag alone is enough to exclude them.
+    for (const openedAt of [0, 50]) {
+      const html = renderToStaticMarkup(
+        <SessionRecap state={state} openedAt={openedAt} onContinue={() => undefined} />,
+      );
+      expect(html, String(openedAt)).toContain("You collected 1 study note to revisit.");
+      expect(html).toContain("新的");
+      expect(html).not.toContain("旧的");
+    }
+    expect(studyFromTranscript(state).phrases.map((p) => p.phrase)).toEqual(["旧的", "新的"]);
+  });
+
+  it("counts only the second session's notes after a reconnect on the same page", () => {
+    let visibility = recapVisibilityAfterConnection(INITIAL_RECAP_VISIBILITY, "open", 10);
+    let state = addTool(emptyTranscript, "p1", "call-1", "save_phrase", phraseResult("第一"), 20);
+    visibility = recapVisibilityAfterConnection(visibility, "closed", 30);
+    visibility = recapVisibilityAfterConnection(visibility, "open", 40);
+    state = addTool(state, "p2", "call-2", "save_phrase", phraseResult("第二"), 50);
+    visibility = recapVisibilityAfterConnection(visibility, "closed", 60);
+
+    const html = renderToStaticMarkup(
+      <SessionRecap state={state} openedAt={visibility.openedAt} onContinue={() => undefined} />,
+    );
+    expect(html).toContain("You collected 1 study note to revisit.");
+    expect(html).toContain("第二");
+    expect(html).not.toContain("第一");
+  });
+
+  it("shows the empty message for a session that saved nothing, even with earlier notes", () => {
+    const saved = {
+      ...emptyStudyState(),
+      phrases: [
+        { type: "phrase" as const, language: "zh" as const, phrase: "旧的", meaning: "old" },
+      ],
+    };
+    const state = addTool(transcriptFromStudy(saved), "p1", "call-1", "save_phrase", phraseResult("早的"), 20);
+
+    const html = renderToStaticMarkup(
+      <SessionRecap state={state} openedAt={40} onContinue={() => undefined} />,
+    );
+    expect(html).toContain("No study notes were saved.");
+    expect(html).toContain("No phrases were saved this session.");
     expect(html.match(/<strong>0<\/strong>/g)).toHaveLength(3);
   });
 });

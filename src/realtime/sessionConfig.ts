@@ -6,7 +6,9 @@ import {
   ACTIVE_PAIR,
   LEARNER_LEVELS,
   PROFILES,
+  learnerLevelFor,
   type LanguageProfile,
+  type LearnerLevel,
   type LearnerLevelProfile,
 } from "../lang/profiles";
 
@@ -163,25 +165,47 @@ export function buildSessionConfig(
 }
 
 /**
- * Re-instructs a live session at a new speaking pace.
+ * Re-instructs a live session for a learner level and speaking pace.
  *
  * Only `instructions` changes, so the audio, turn-detection and tool settings
- * from the first update stay as they were. Probed 2026-10-24 (#76): this
- * doubled the ms per syllable of a slow repeat, while the same sentence sent
- * as `response.instructions` lost the conversation ("你好. Hello.").
+ * from the first update stay as they were; acknowledged with
+ * `session.updated`. Both level (#77) and pace (#76) live in the prompt, so
+ * either change rebuilds it from both. Probed 2026-10-24 (#76): a slow pace
+ * sent this way slowed some replies; the same sentence as
+ * `response.instructions` lost the conversation ("你好. Hello.").
  */
-export function buildPaceUpdate(pace: SpeakingPace): ClientEvent {
+export function buildInstructionsUpdate(level: LearnerLevel, pace: SpeakingPace): ClientEvent {
   return {
     type: "session.update",
     session: {
       instructions: buildTutorPrompt(
         PROFILES[ACTIVE_PAIR.target],
         PROFILES[ACTIVE_PAIR.native],
-        LEARNER_LEVELS[ACTIVE_LEVEL],
+        LEARNER_LEVELS[level],
         pace,
       ),
     },
   };
+}
+
+/**
+ * The level a tool result moves the session to, or null when it doesn't.
+ *
+ * Only `set_practice_language` changes level, and only when its detail maps
+ * to a different prompt profile: "intermediate" → "advanced" keeps the same
+ * instructions, so it isn't worth a session.update. Results arrive as
+ * `unknown` from the registry, so the shape is checked rather than trusted.
+ */
+export function levelChangeFromTool(
+  name: string,
+  result: unknown,
+  current: LearnerLevel,
+): LearnerLevel | null {
+  if (name !== "set_practice_language") return null;
+  const detail = (result as { detail?: { type?: unknown; level?: unknown } } | null)?.detail;
+  if (detail?.type !== "practice_language" || typeof detail.level !== "string") return null;
+  const next = learnerLevelFor(detail.level);
+  return next === current ? null : next;
 }
 
 /** What the client does about a `set_speaking_pace` call. */

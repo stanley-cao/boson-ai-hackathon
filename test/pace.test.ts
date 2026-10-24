@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildPaceUpdate,
+  buildInstructionsUpdate,
   buildTutorPrompt,
   planPaceChange,
   SLOW_PACE_NOTE,
@@ -74,13 +74,19 @@ describe("slow-pace instructions", () => {
     expect(buildTutorPrompt(undefined, undefined, undefined, "slow").length).toBeLessThanOrEqual(1200);
   });
 
+  it("keeps the level when the pace changes", () => {
+    const update = buildInstructionsUpdate("intermediate", "slow").session as { instructions: string };
+    expect(update.instructions).toContain("Learner level: intermediate");
+    expect(update.instructions).toContain(SLOW_PACE_NOTE);
+  });
+
   it("updates only the instructions", () => {
-    const event = buildPaceUpdate("slow");
+    const event = buildInstructionsUpdate("beginner", "slow");
     expect(event.type).toBe("session.update");
     const session = event.session as Record<string, unknown>;
     expect(Object.keys(session)).toEqual(["instructions"]);
     expect(session.instructions).toContain(SLOW_PACE_NOTE);
-    expect((buildPaceUpdate("normal").session as { instructions: string }).instructions).toBe(SYSTEM_PROMPT);
+    expect((buildInstructionsUpdate("beginner", "normal").session as { instructions: string }).instructions).toBe(SYSTEM_PROMPT);
   });
 });
 

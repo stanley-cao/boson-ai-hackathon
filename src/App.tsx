@@ -19,6 +19,7 @@ import {
   loadStoredStudy,
   saveStoredStudy,
 } from "./state/studyStorage";
+import { learnerLevelFor } from "./lang/profiles";
 import { slowSpeechInput } from "./realtime/pace";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
@@ -76,7 +77,9 @@ export default function App() {
   // actually opened before treating a later close as the end of one.
   const handleConnectionState = useCallback((next: ConnectionState) => {
     setConnection(next);
-    setRecapVisibility((current) => recapVisibilityAfterConnection(current, next));
+    // Read the clock outside the updater, which StrictMode runs twice.
+    const now = Date.now();
+    setRecapVisibility((current) => recapVisibilityAfterConnection(current, next, now));
   }, []);
 
   // The client outlives re-renders, so it lives in a ref rather than state.
@@ -105,10 +108,14 @@ export default function App() {
     return () => void client.close();
   }, []);
 
+  const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
+  // The stored level, restored from localStorage or set earlier this session.
+  const storedLevel = study.practiceLanguage?.level;
+
   const connect = useCallback(async () => {
     setCloseMessage(null);
-    await clientRef.current!.connect();
-  }, []);
+    await clientRef.current!.connect(learnerLevelFor(storedLevel));
+  }, [storedLevel]);
 
   const send = useCallback(() => {
     if (!text.trim()) return;
@@ -129,7 +136,6 @@ export default function App() {
   }, []);
 
   const isOpen = connection === "open";
-  const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
 
   // A failed write is deliberately ignored so private browsing cannot break
   // the current session. Restored details live in the transcript as hidden
@@ -162,6 +168,7 @@ export default function App() {
       {recapVisibility.visible ? (
         <SessionRecap
           state={transcript}
+          openedAt={recapVisibility.openedAt}
           onContinue={() =>
             setRecapVisibility((current) => ({ ...current, visible: false }))
           }
