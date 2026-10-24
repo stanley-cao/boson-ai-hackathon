@@ -120,6 +120,7 @@ export class AvatarSession {
   /**
    * Join a fresh room, publish the mic, then add the avatar. Throws
    * AvatarUnavailableError, after leaving the room, if any step fails.
+   * Resolves quietly if the learner disconnects before it finishes.
    */
   async connect(): Promise<void> {
     if (this.room) {
@@ -130,9 +131,13 @@ export class AvatarSession {
     this.room = room;
     this.ready = false;
     this.setState("connecting");
+    // Disconnect works while connecting (avatar creation takes ~2 s), and
+    // leave() then clears this.room: every step after an await checks that.
+    const cancelled = () => this.room !== room;
 
     try {
       const lk = await this.post<LiveKitToken>("/api/livekit/token");
+      if (cancelled()) return;
       const emit = (evt: ServerEvent) => this.cb.onServerEvent?.(evt);
       // Both handlers go on before connecting: the agent greets, and may call
       // a tool, as soon as the learner joins (toolRpc.ts).
@@ -143,19 +148,28 @@ export class AvatarSession {
       this.listen(room);
 
       await room.connect(lk.url, lk.token);
+      if (cancelled()) return;
       this.info(`Joined ${lk.room} as ${lk.identity}.`);
       // Allowed because connect() runs from the Connect click.
       await room.startAudio();
       await this.setMic(true);
+      if (cancelled()) return;
 
       // Only now: Boson ends a session once no other participant is left.
       const session = await this.post<AvatarSessionView>("/api/avatar/sessions", { room: lk.room });
       this.sessionId = session.id;
+      if (cancelled()) {
+        // Created as the learner left: release it, or it holds a slot.
+        this.releaseAvatar();
+        return;
+      }
       this.info(`Avatar session ${session.id} is ${session.status}.`);
       globalThis.addEventListener?.("pagehide", this.releaseAvatar);
       this.ready = true;
       this.setState("open");
     } catch (e) {
+      // Leaving mid-connect makes room.connect() reject; that isn't a failure.
+      if (cancelled()) return;
       const error =
         e instanceof AvatarUnavailableError
           ? e
@@ -167,6 +181,8 @@ export class AvatarSession {
   }
 
   disconnect(): void {
+    // Logged so the event log shows whether a Disconnect press got here.
+    this.info(`disconnect() while ${this.state}.`);
     if (!this.room) {
       this.setState("closed");
       return;
