@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activityFromAgentState,
   readTranscription,
+  tutorActivityFrom,
   type TranscriptionStream,
 } from "../src/livekit/transcription";
 import type { ServerEvent } from "../src/realtime/events";
@@ -123,5 +124,18 @@ describe("activityFromAgentState", () => {
     expect(activityFromAgentState("initializing")).toBe("idle");
     expect(activityFromAgentState(undefined)).toBe("idle");
     expect(activityFromAgentState("dancing")).toBe("idle");
+  });
+});
+
+describe("tutorActivityFrom", () => {
+  it("reads the tutor agent's state", () => {
+    expect(tutorActivityFrom({ "lk.agent.state": "speaking" }, "polyglot-tutor", "polyglot-tutor")).toBe("speaking");
+  });
+
+  it("ignores other participants and unrelated attributes", () => {
+    // The avatar is in the room too; its attributes must not drive the status bar.
+    expect(tutorActivityFrom({ "lk.agent.state": "listening" }, "polyglot-avatar", "polyglot-tutor")).toBeNull();
+    expect(tutorActivityFrom({ other: "x" }, "polyglot-tutor", "polyglot-tutor")).toBeNull();
+    expect(tutorActivityFrom({ "lk.agent.state": "speaking" }, undefined, "polyglot-tutor")).toBeNull();
   });
 });

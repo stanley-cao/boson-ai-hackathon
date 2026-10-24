@@ -12,6 +12,7 @@ from session_config import (
     load_session,
     model_kwargs,
     practice_change,
+    practice_choice,
     turn_transcription,
 )
 from tools import STAND_IN_SUMMARY, build_tools
@@ -111,3 +112,12 @@ def test_other_tools_and_failed_switches_keep_the_prompt() -> None:
     assert practice_change("set_practice_language", failed, prompts) is None
     assert practice_change("set_practice_language", _practise("xx", "beginner"), prompts) is None
     assert practice_change("set_practice_language", {"summary": "x", "detail": "x"}, prompts) is None
+
+
+def test_practice_choice_reads_the_token_metadata() -> None:
+    prompts = load_prompts()
+    assert practice_choice('{"language": "fr", "level": "intermediate"}', prompts) == ("fr", "intermediate")
+    # The same fallback as instructions_for: the default pair.
+    assert practice_choice("", prompts) == ("zh", "beginner")
+    assert practice_choice("not json", prompts) == ("zh", "beginner")
+    assert practice_choice('{"language": "xx"}', prompts) == ("zh", "beginner")

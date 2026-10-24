@@ -14,12 +14,7 @@ import type { LearnerLevel, TargetLanguageCode } from "../lang/profiles";
 import type { ServerEvent } from "../realtime/events";
 import type { Activity, ConnectionState, LogEntry } from "../realtime/RealtimeClient";
 import { registerToolRpc } from "./toolRpc";
-import {
-  AGENT_STATE_ATTRIBUTE,
-  TRANSCRIPTION_TOPIC,
-  activityFromAgentState,
-  readTranscription,
-} from "./transcription";
+import { TRANSCRIPTION_TOPIC, readTranscription, tutorActivityFrom } from "./transcription";
 
 /**
  * Avatar mode (#35): the tutor through a LiveKit Cloud room with a Higgs Avatar.
@@ -268,10 +263,9 @@ export class AvatarSession {
         track.detach().forEach((el) => el.remove());
         if (track.kind === Track.Kind.Video) this.cb.onVideo?.(null);
       })
-      .on(RoomEvent.ParticipantAttributesChanged, (changed) => {
-        if (AGENT_STATE_ATTRIBUTE in changed) {
-          this.cb.onActivity?.(activityFromAgentState(changed[AGENT_STATE_ATTRIBUTE]));
-        }
+      .on(RoomEvent.ParticipantAttributesChanged, (changed, participant) => {
+        const activity = tutorActivityFrom(changed, participant?.identity, AGENT_IDENTITY);
+        if (activity) this.cb.onActivity?.(activity);
       });
   }
 

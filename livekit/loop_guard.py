@@ -50,6 +50,10 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
     whole = _key(reply)
     if len(whole.split()) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
         return ""
+    # The same reply twice in a row is a loop at any length: "How are you?"
+    # and "Comment, ça, va?" each came back turn after turn, live.
+    if whole and earlier_replies and whole == _key(earlier_replies[-1]):
+        return ""
 
     seen = {_key(s) for text in earlier_replies for s in _sentences(text)}
     if learner_turn:
