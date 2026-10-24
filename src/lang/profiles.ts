@@ -8,7 +8,7 @@
 
 // BCP-47 base codes. Tool handlers normalise whatever the model sends
 // ("Mandarin", "zh-CN", "ZH") down to one of these.
-export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja";
+export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja" | "sr";
 
 export interface LanguageProfile {
   code: LanguageCode;

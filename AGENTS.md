@@ -4,7 +4,7 @@ Onboarding notes for coding agents working in this repository. For human-facing 
 
 ## Project
 
-**Polyglot** is a real-time multilingual conversation partner for the [Boson AI Higgs Audio Hackathon](https://www.boson.ai/hackathon), Conversation as the Interface track. The learner speaks English, switches to Korean, French, or Japanese mid-sentence, and asks for corrections or explanations without breaking the conversation.
+**Polyglot** is a real-time multilingual conversation partner for the [Boson AI Higgs Audio Hackathon](https://www.boson.ai/hackathon), Conversation as the Interface track. The learner speaks English, switches to Korean, French, Japanese, or Serbian mid-sentence, and asks for corrections or explanations without breaking the conversation.
 
 It is built on **Higgs Realtime** (`wss://api.boson.ai/v1/realtime`, model `higgs-realtime`), which speaks the OpenAI Realtime GA event protocol.
 
