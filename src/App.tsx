@@ -250,7 +250,12 @@ export default function App() {
             <button onClick={connect} disabled={busy}>
               {connection === "connecting" ? "Connecting…" : "Connect"}
             </button>
-            <button onClick={() => session().disconnect()} disabled={!isOpen}>
+            {/* Avatar mode can be left while it connects; RealtimeClient
+                can't yet cancel before its socket exists. */}
+            <button
+              onClick={() => session().disconnect()}
+              disabled={!(isOpen || (mode === "avatar" && connection === "connecting"))}
+            >
               Disconnect
             </button>
           </div>

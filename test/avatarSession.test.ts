@@ -95,6 +95,39 @@ describe("AvatarSession", () => {
     expect(session.micActive).toBe(false);
   });
 
+  it("can be left while the avatar is being created, and still releases it", async () => {
+    let session!: AvatarSession;
+    // The learner presses Disconnect while Boson is still creating the avatar.
+    const ctx = setup(() => {
+      session.disconnect();
+      return json(201, { id: "as_late", status: "active" });
+    });
+    session = ctx.session;
+
+    // Resolves quietly: a cancel is not "avatar unavailable".
+    await expect(session.connect()).resolves.toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ctx.calls).toContain("disconnect");
+    expect(ctx.calls).toContain("DELETE /api/avatar/sessions/as_late");
+    expect(ctx.states).toEqual(["connecting", "closing", "closed"]);
+  });
+
+  it("skips the remaining steps when left before joining the room", async () => {
+    const calls: string[] = [];
+    let session!: AvatarSession;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      calls.push(`POST ${String(input)}`);
+      session.disconnect();
+      return json(200, TOKEN);
+    });
+    session = new AvatarSession({ fetchImpl: fetchImpl as typeof fetch, createRoom: () => fakeRoom(calls) });
+
+    await expect(session.connect()).resolves.toBeUndefined();
+    expect(calls).not.toContain("connect");
+    expect(calls).not.toContain("POST /api/avatar/sessions");
+    expect(session.connectionState).toBe("closed");
+  });
+
   it("reports a token server without LiveKit the same way", async () => {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async () => json(500, { error: "livekit_not_configured" }));
