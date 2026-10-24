@@ -22,6 +22,14 @@ export interface LanguageProfile {
   sampleOpeners: string[];
 }
 
+export type LearnerLevel = "beginner" | "intermediate";
+
+export interface LearnerLevelProfile {
+  code: LearnerLevel;
+  /** Short because this is inserted into every realtime system prompt. */
+  promptNotes: string;
+}
+
 const en: LanguageProfile = {
   code: "en",
   name: "English",
@@ -41,8 +49,7 @@ const zh: LanguageProfile = {
   script: "Hans",
   romanization: "pinyin",
   promptNotes:
-    "Write Simplified characters with pinyin using tone marks (nǐ hǎo, not ni3 hao3). " +
-    "Listen closely for tone errors and missing or wrong measure words.",
+    "Speak in Simplified characters. Listen closely for tone errors and missing or wrong measure words.",
   sampleOpeners: ["你好！今天想聊什么？", "你今天过得怎么样？", "我们用中文聊聊天吧！"],
 };
 
@@ -55,3 +62,21 @@ export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;
   target: keyof typeof PROFILES;
 };
+
+export const LEARNER_LEVELS = {
+  beginner: {
+    code: "beginner",
+    promptNotes:
+      "Learner level: beginner. Speak slowly, use short simple target-language phrases, " +
+      "and add brief English scaffolding after them.",
+  },
+  intermediate: {
+    code: "intermediate",
+    promptNotes:
+      "Learner level: intermediate. Speak at a natural but clear pace, use mostly the " +
+      "target language, and use English only for brief clarification.",
+  },
+} as const satisfies Record<LearnerLevel, LearnerLevelProfile>;
+
+/** Default for a new session; callers may select another profile explicitly. */
+export const ACTIVE_LEVEL: LearnerLevel = "beginner";

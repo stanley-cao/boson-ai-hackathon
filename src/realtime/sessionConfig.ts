@@ -1,6 +1,13 @@
 import type { ClientEvent } from "./events";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
-import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
+import {
+  ACTIVE_LEVEL,
+  ACTIVE_PAIR,
+  LEARNER_LEVELS,
+  PROFILES,
+  type LanguageProfile,
+  type LearnerLevelProfile,
+} from "../lang/profiles";
 
 /**
  * The first thing we send after the socket opens.
@@ -26,28 +33,37 @@ import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
  * The learner's native language and the target language both come from
  * `ACTIVE_PAIR`; the target's `promptNotes` carry the teaching specifics.
  *
- * Code-switching: the tutor replies in whichever language the learner just
- * used, rather than asking which one they want. That matches how the learner
- * talks and avoids a question that would break the flow. The probe has not
- * yet compared this with the target-language-first variant; see the ROADMAP
- * decision log once that run is recorded.
+ * Code-switching: an explicit "target → target, native → native" mirror,
+ * with corrections explained in the native language. Probed 2026-10-24 (see
+ * the ROADMAP decision log): plain "reply in the language they just used"
+ * answered Mandarin in English, "mostly the target language" dropped English
+ * from corrections and stopped tool calls, and "learner chooses" asked them
+ * to pick. Pinyin is confined to tool arguments; an unscoped "write with
+ * pinyin" made the tutor speak pinyin instead of characters.
  */
 export function buildTutorPrompt(
   target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
   native: LanguageProfile = PROFILES[ACTIVE_PAIR.native],
+  level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
 ): string {
   return [
     // Role and capabilities.
     `You are a friendly language tutor. The learner speaks ${native.name} and is learning ${target.name}.`,
+    // Level controls both audible pace and how much native-language support to
+    // provide. Keeping this in data makes the two modes directly testable.
+    level.promptNotes,
     // Code-switching.
-    "They switch between the two mid-sentence. Follow the switch and reply in the language they just used.",
-    "Never ask which language they want.",
+    "They switch between the two mid-sentence; never ask which language they want.",
+    `When they speak ${target.name}, answer in ${target.name}; when they speak ${native.name}, answer in ${native.name}.`,
     // Teaching.
-    "Give at most one correction per turn, after answering what they said.",
+    `Give at most one correction per turn, and explain it in ${native.name}.`,
     target.promptNotes,
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
       : "",
+    // Repeat requests should change delivery, not silently paraphrase or add a
+    // second explanation the learner did not request.
+    'If the learner says "say that again slowly" or asks for a slower repeat, repeat the same content at a noticeably slower pace with short pauses; do not add new material.',
     // Speaking style.
     "Keep every reply to one or two short sentences, matching the learner's energy.",
     "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
@@ -79,12 +95,18 @@ export const SYSTEM_PROMPT = buildTutorPrompt();
  */
 export const AUDIO_RATE = 24000;
 
-export function buildSessionConfig(): ClientEvent {
+export function buildSessionConfig(
+  level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
+): ClientEvent {
   return {
     type: "session.update",
     session: {
       model: "higgs-realtime",
-      instructions: SYSTEM_PROMPT,
+      instructions: buildTutorPrompt(
+        PROFILES[ACTIVE_PAIR.target],
+        PROFILES[ACTIVE_PAIR.native],
+        level,
+      ),
       // Exactly ["audio"] or exactly ["text"] — this is not a list you can mix.
       // Asking for audio still gives you a text transcript of what was spoken,
       // via the response.output_audio_transcript.* events.
@@ -92,12 +114,14 @@ export function buildSessionConfig(): ClientEvent {
       audio: {
         input: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
-          // Language learners pause while searching for words. Semantic VAD
-          // combines speech detection with an end-of-turn judgement, making it
-          // less likely to cut those pauses into separate turns than a fixed
-          // silence window. Keep the documented defaults until issue #7's live
-          // English, Mandarin and code-switching comparison is complete.
-          turn_detection: { type: "semantic_vad" },
+          // Language learners pause while searching for words, so the turn
+          // only ends after 1.5 s of silence (the default is 500 ms). Probed
+          // 2026-10-24 (#7, ROADMAP decision log): semantic_vad committed
+          // "I went to the…" at its default window, and at equal windows it
+          // held no more pauses than server_vad; its only accepted eagerness
+          // is "auto". server_vad holds any pause shorter than this window
+          // and splits longer ones; the cost is a ~1.3 s wait after every turn.
+          turn_detection: { type: "server_vad", silence_duration_ms: 1500 },
           // PART 3: transcribe the user's speech.
           //
           // Off by default — the ack shows `model: ""` if you omit this — and

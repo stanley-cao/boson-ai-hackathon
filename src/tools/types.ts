@@ -61,7 +61,7 @@ export interface PronunciationNote {
 export interface PracticeLanguage {
   type: "practice_language";
   language: LanguageCode;
-  level: "beginner" | "intermediate";
+  level: "beginner" | "intermediate" | "advanced";
 }
 
 export type ToolDetail = Correction | Phrase | PronunciationNote | PracticeLanguage;

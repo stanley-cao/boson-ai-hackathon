@@ -10,7 +10,7 @@ Update this table in the same PR that finishes a task or a phase.
 | --- | --- | --- | --- | --- |
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
 | 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
-| 2 | Depth and polish (levels, TTS replay, recap) | ⬜ not started | | |
+| 2 | Depth and polish (levels, TTS replay, recap) | 🟨 in progress | | |
 | 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
 | 5 | Demo video and submission | ⬜ not started | | |
@@ -75,7 +75,7 @@ Agree on these first. Changing them requires a decision-log entry.
   - Does the server report a detected language?
   - Is the output in Simplified or Traditional characters?
   - Roughly how long is the response latency?
-- [ ] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log.
+- [x] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log.
 - [ ] **C:** do a UI sketch (transcript, study panel, practice-language badge, and space reserved for the avatar video). Put a screenshot or ASCII sketch in the PR.
 
 **Exit criteria:** `FINDINGS.md` gives a go or no-go on Mandarin transcription. If transcription is weak, we still go ahead: the model understands the audio regardless. We show the model's own text and label user transcripts "approximate".
@@ -85,14 +85,14 @@ Agree on these first. Changing them requires a decision-log entry.
 ## Phase 1: English + Mandarin MVP
 
 - [x] **A:** `src/lang/profiles.ts` with `en` and `zh`, and `ACTIVE_PAIR = { native: "en", target: "zh" }`. (#5) (@KyleDong03)
-- [ ] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`). (#6)
-- [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
+- [x] **A:** generate the tutor system prompt from the profile. It should cover a short persona, following code-switches without asking the learner to pick a language, one correction per turn, and pinyin with tone marks in tool calls. **Keep it short** (see `CLAUDE.md`). (#6)
+- [x] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
 - [x] **B:** `src/tools/types.ts` with the `detail` types. (#8)
-- [ ] **B:** replace `web_search` with (#10, #11, #12, #13):
+- [x] **B:** replace `web_search` with (#10, #11, #12, #13):
   - [x] `note_correction {language, said, correct, explanation, kind, romanization}` (#10)
-  - [ ] `save_phrase {language, phrase, meaning, romanization, note}` (#11)
-  - [ ] `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase. (#12)
-  - [ ] `set_practice_language {language, level}` (#13)
+  - [x] `save_phrase {language, phrase, meaning, romanization, note}` (#11)
+  - [x] `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase. (#12)
+  - [x] `set_practice_language {language, level: "beginner"|"intermediate"|"advanced"}` (#13)
 - [x] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9) (@KyleDong03)
 - [x] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14) (@dorsa-molaverdikhani)
 - [x] **C:** a language-tagged transcript that colours Han versus Latin runs. (#15) (@lanazgonjanin)
@@ -104,15 +104,16 @@ Agree on these first. Changing them requires a decision-log entry.
 
 **Exit criteria:** a live conversation of about 3 minutes, mixing English and Mandarin, in which the tutor (1) corrects at least one mistake, (2) gives tone feedback, (3) saves a phrase, and (4) is never derailed by a mid-sentence switch.
 
-**Verification:** `npm test && npm run typecheck && npm run build`, then `scripts/smoke.sh`, then a live session with a Mandarin speaker.
+**Verification:** `npm test && npm run typecheck && npm run build`, then a live session with a Mandarin speaker.
 
 ## Phase 2: Depth and polish
 
-- [ ] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly". (#21)
+- [x] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly". (#21) (@dorsa-molaverdikhani)
 - [ ] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22)
 - [ ] **B:** explain-phrase flow: the learner asks "what does 加油 mean?", and the tutor explains and saves it. (#23)
 - [x] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24) (@dorsa-molaverdikhani)
-- [ ] **D + C:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side, and a replay button on study cards. (#25, #26)
+- [x] **D:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side. (#25) (@lanazgonjanin)
+- [ ] **C:** a replay button on study cards. (#26)
 - [ ] **C:** an end-of-session recap screen. (#27)
 - [ ] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28)
 
@@ -190,5 +191,10 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-23 | Provisionally use `semantic_vad` with Boson's default parameters; keep #7 open pending a live comparison. | Semantic end-of-turn judgement is designed to preserve natural pauses while learners search for words. Validate it against `server_vad` with English, Mandarin and code-switched speech before considering the decision final. |
 | 2026-10-23 | `LanguageCode` is declared once, in `src/lang/profiles.ts`; `src/tools/types.ts` re-exports it, and `ToolResult.detail` is typed as `ToolDetail`. Supersedes the 2026-10-23 entry that put the union in `types.ts`. | The profiles landed with their own copy of the union, and two copies drift. Typing `detail` means a handler can only hand the study panel a shape it renders. |
 | 2026-10-23 | Learning tools are described as "call this FIRST, before you say anything", and their `summary` tells the model what to say next. | Probed live with the tutor prompt: "call this in the same turn as you correct" got `note_correction` called in 9 of 37 runs; "call this first" got it called in 24 of 24. |
+| 2026-10-23 | Practice `level` is beginner / intermediate / advanced (adds advanced, per #13). A missing or unrecognised level is stored as beginner, and the tool's summary says the level aloud. Its `language` argument has no enum. | #13 asked for three levels. Defaulting rather than rejecting follows "schema enums are hints", and speaking the level means a wrong default is heard and corrected. With an en/zh enum, a live request for Korean came back as `en` and the tutor claimed to switch to Korean; as free text, the handler refuses it and the tutor says Korean isn't available yet. |
 | 2026-10-24 | Provisionally keep code-switching variant (a), "follow the switch and reply in the language they just used"; keep #6 open. | Probed live, 3 runs per variant of the same three spoken turns (English-first mixed, pure Mandarin, English request plus a sentence with a measure-word error). (a) replied in English to the pure-Mandarin turn in 2 of 3 runs. (b) "mostly target language" stayed in Mandarin there 3 of 3, but dropped English from the mixed correction turn 3 of 3. (c) "learner chooses" asked which language to use in 2 of 3 runs, which #6 rules out. `note_correction` fired on the error turn in only 1 of 9 runs, although the transcript showed the error in at least 7, so no variant meets #6 yet. |
+| 2026-10-24 | Code-switching uses an explicit mirror, "when they speak Mandarin, answer in Mandarin; when they speak English, answer in English", with corrections explained in English. Pinyin is asked for only in tool arguments. Supersedes the provisional 2026-10-24 entry; closes #6. | Earlier runs were skewed by a probe bug: when semantic VAD split a turn, the probe moved on before the reply to the rest of it, so the "1 of 9" `note_correction` figure was largely an artifact (fixed in `tools/probe.ts`). With the fix, 3 to 4 runs per variant of the same three spoken turns: (a) answered the pure-Mandarin turn in English 3 of 3; a "Mandarin by default" hybrid called `note_correction` 0 of 3 and spoke pinyin; the explicit mirror with the profile's unscoped "write … with pinyin" note removed answered Mandarin in characters 4 of 4, but went all-Mandarin on the correction turn; adding "explain corrections in English" and dropping "after answering" (which contradicted the tool's "call this FIRST") kept English there 3 of 4 and fired the tool 2 of 4 spoken, 4 of 4 typed. The spoken misses trace to input: TTS-synthesised Mandarin inside English is often mis-transcribed (我有三个狗 → "where your fingers go"), and VAD splits "Can you check this sentence?" from the sentence (#7). |
+| 2026-10-24 | Keep `set_practice_language.level` required and restrict the tool description to explicit language or level changes. | Fixes #56 without changing the shared tool-result contract. A mention of the current language or a pronunciation question must not invent `beginner`; genuine requests such as intermediate Mandarin or an unsupported language still follow #13's existing handler behavior. |
+| 2026-10-24 | Turn detection is `server_vad` with `silence_duration_ms: 1500`. Supersedes the provisional 2026-10-23 `semantic_vad` entry; closes #7. | Probed live (`--turn-detection` and `[pause N]` in `tools/probe.ts`) with TTS turns paused mid-sentence: English, Mandarin and code-switched turns with 1.4 to 1.85 s of real silence, and one with 2.4 to 2.6 s. A turn counts as whole when it was committed once with no reply mid-sentence. `semantic_vad` at its default (100 ms) and `server_vad` at 500 and 1000 ms: 0 of 8 whole. At 1500 ms `semantic_vad` kept 4 of 8 whole and `server_vad` 10 of 19, so the semantic judgement added nothing: at its default it committed "I went to the…" every time, and any `eagerness` other than `"auto"` is rejected. `server_vad` held every pause shorter than its window and split every longer one. 1500 ms (10 of 15 short-pause turns whole, reply about 1.3 s after speech ends) was chosen over 2000 ms (6 of 6, reply about 1.8 s) to keep the conversation responsive. Pauses over 1.5 s still split a turn. |
+| 2026-10-24 | Don't run `scripts/smoke.sh` for issues or PRs; it stays in `scripts/` for when someone asks for a run. A change is verified with `npm test && npm run typecheck && npm run build`, plus one `npm run probe` run when it touches a tool, the prompt, session config or the protocol. | A smoke run makes four live probe sessions and takes minutes, which cost more time per ticket than it saved. |
 | 2026-10-24 | Persist a versioned, runtime-validated `StudyState` snapshot in `localStorage`, then rehydrate it as restored tool items that are hidden from the conversation view. | Saved learning data survives reloads without creating a parallel UI store: the study panel and practice badge remain derived from transcript state, and blocked or corrupt storage safely behaves as empty. |

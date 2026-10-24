@@ -114,6 +114,14 @@ describe("studyFromTranscript", () => {
     });
   });
 
+  it("accepts every practice level, including advanced", () => {
+    const state = addTool(emptyTranscript, "i1", "c1", "set_practice_language", {
+      summary: "Now practising Mandarin Chinese at advanced level.",
+      detail: { type: "practice_language", language: "zh", level: "advanced" },
+    });
+    expect(studyFromTranscript(state).practiceLanguage?.level).toBe("advanced");
+  });
+
   it("ignores incomplete, failed, unrelated, mismatched and malformed results", () => {
     let state = emptyTranscript;
     state = addTool(state, "i1", "c1", "save_phrase");
