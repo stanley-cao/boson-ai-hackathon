@@ -1,6 +1,9 @@
 """The Polyglot tutor as a LiveKit voice agent, on Higgs Realtime.
 
-    learner audio ──► LiveKit room ──► Higgs Realtime ──► LiveKit room ──► learner
+    learner audio ──► LiveKit room ──► Higgs Realtime ──► avatar data stream
+                                                               │
+                                                               ▼
+                                                      lip-synced A/V tracks
 
 The prompt, voice, turn detection, transcription and tool schemas all come
 from shared/session.json (`npm run export-config`), so this agent and the
@@ -17,6 +20,7 @@ from dotenv import load_dotenv
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequest, cli
 from livekit.plugins import boson
 
+from avatar_output import is_avatar_room, route_audio_to_avatar
 from session_config import load_session, model_kwargs
 from tools import build_tools
 
@@ -62,6 +66,12 @@ async def entrypoint(ctx: JobContext) -> None:
             **options,
         ),
     )
+    if is_avatar_room(ctx.room.name):
+        # Set this before start(): RoomIO sees an existing output and does not
+        # publish the agent's normal audio track. Realtime PCM goes to the
+        # avatar, whose synchronized audio/video tracks are what the learner
+        # subscribes to. AgentSession clears this sink automatically on barge-in.
+        route_audio_to_avatar(session, ctx.room)
     await session.start(agent=Tutor(), room=ctx.room)
 
 
