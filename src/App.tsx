@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RealtimeClient,
   type Activity,
@@ -10,9 +10,12 @@ import {
   transcriptReducer,
   type TranscriptState,
 } from "./state/transcriptStore";
+import { studyFromTranscript } from "./state/study";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
+import { PracticeBadge } from "./ui/PracticeBadge";
 import { StatusBar } from "./ui/StatusBar";
+import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
 
 /** Ask our own server for a fresh ephemeral key. One per connection. */
@@ -83,6 +86,8 @@ export default function App() {
   }, []);
 
   const isOpen = connection === "open";
+  // Derived from the transcript rather than stored, so it can't drift from it.
+  const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
 
   return (
     <main className="app">
@@ -94,6 +99,7 @@ export default function App() {
       </p>
 
       <StatusBar connection={connection} activity={activity} closeMessage={closeMessage} />
+      <PracticeBadge practice={study.practiceLanguage} />
 
       <div className="row">
         <button onClick={connect} disabled={connection === "connecting" || isOpen}>
@@ -128,7 +134,10 @@ export default function App() {
         </div>
       </details>
 
-      <TranscriptPanel state={transcript} />
+      <div className="workspace">
+        <TranscriptPanel state={transcript} />
+        <StudyPanel state={transcript} />
+      </div>
 
       <DebugDrawer entries={log} />
     </main>

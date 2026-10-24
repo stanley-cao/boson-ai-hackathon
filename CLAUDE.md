@@ -29,6 +29,7 @@ Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `
 
 - Always run `npm test && npm run typecheck && npm run build`.
 - If you touched the protocol, session config or tools, run `npm run probe` against the live API when a key is available. Unit tests don't cover server behaviour.
+- If you touched the prompt, session config or tools, run `bash scripts/smoke.sh` when a key is available. It must exit 0. A `PENDING` line means an expected tool isn't registered yet; when you add that tool, check that its case now passes.
 - If you touched audio (`src/audio/`), it needs a listening test in the browser. Say so if you couldn't do one.
 
 ## Map

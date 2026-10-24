@@ -10,6 +10,9 @@
   --warn: #f0c674;
   --script-latin: #9fc5ff;
   --script-han: #f4b8e4;
+  --correction: #f28b82;
+  --phrase: #81c995;
+  --pronunciation: #c58af9;
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -45,7 +48,7 @@ body {
 }
 
 .app {
-  max-width: 46rem;
+  max-width: 76rem;
   margin: 0 auto;
   padding: 3rem 1.5rem 6rem;
 }
@@ -146,6 +149,37 @@ code {
   padding-left: 0.6rem;
 }
 
+/* --- practising badge --- */
+
+.practice {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.35rem 0.8rem;
+  margin-bottom: 1.2rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.practice-label {
+  color: var(--muted);
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+
+.practice-lang {
+  font-weight: 600;
+}
+
+.practice-level {
+  color: var(--muted);
+  border-left: 1px solid var(--border);
+  padding-left: 0.5rem;
+}
+
 /* --- microphone --- */
 
 .mic {
@@ -195,6 +229,13 @@ code {
 }
 
 /* --- transcript --- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+  gap: 1.5rem;
+  align-items: start;
+}
 
 .empty {
   color: var(--muted);
@@ -337,6 +378,156 @@ code {
 @keyframes blink {
   to {
     visibility: hidden;
+  }
+}
+
+/* --- study panel --- */
+
+.study-panel {
+  margin-top: 1.2rem;
+  min-width: 0;
+}
+
+.study-head {
+  min-height: 1.55rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+}
+
+.study-head h2,
+.study-group h3 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.study-head > span,
+.study-group h3 span {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.study-empty {
+  margin: 0.8rem 0 0;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.study-group {
+  margin-top: 1rem;
+}
+
+.study-group h3 {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
+.study-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.study-card {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 0.5rem;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+
+.study-card--correction {
+  border-left-color: var(--correction);
+}
+
+.study-card--phrase {
+  border-left-color: var(--phrase);
+}
+
+.study-card--pronunciation {
+  border-left-color: var(--pronunciation);
+}
+
+.study-card-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.study-card p {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.study-target {
+  display: block;
+  font-size: 1.12rem;
+  line-height: 1.35;
+}
+
+.romanization {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.correction-pair {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.correction-pair > div {
+  min-width: 0;
+}
+
+.study-label {
+  display: block;
+  margin-bottom: 0.1rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.correction-pair del {
+  color: var(--muted);
+  text-decoration-color: var(--correction);
+}
+
+.study-card .study-meaning {
+  color: var(--text);
+}
+
+.study-note {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 44rem) {
+  .app {
+    padding: 1.5rem 1rem 5rem;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4rem;
   }
 }
 

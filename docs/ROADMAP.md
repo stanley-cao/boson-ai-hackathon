@@ -94,11 +94,12 @@ Agree on these first. Changing them requires a decision-log entry.
   - `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase.
   - `set_practice_language {language, level}`
 - [x] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9) (@KyleDong03)
-- [ ] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14)
+- [x] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14) (@dorsa-molaverdikhani)
 - [x] **C:** a language-tagged transcript that colours Han versus Latin runs. (#15) (@lanazgonjanin)
 - [ ] **C:** pinyin shown under Han text when a tool supplied it. (#16)
-- [ ] **C:** a study panel with correction, phrase and pronunciation cards, plus a "practising: 中文" badge. It must work at phone width. (#17, #18)
-- [ ] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`. (#19)
+- [x] **C:** a study panel with correction, phrase and pronunciation cards. It must work at phone width. (#17) (@dorsa-molaverdikhani)
+- [x] **C:** a "practising: 中文" badge driven by the latest practice-language tool result. (#18) (@KyleDong03)
+- [x] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`. (#19) (@KyleDong03)
 - [ ] **All:** Phase 1 live acceptance session with a Mandarin speaker, against the exit criteria below
 
 **Exit criteria:** a live conversation of about 3 minutes, mixing English and Mandarin, in which the tutor (1) corrects at least one mistake, (2) gives tone feedback, (3) saves a phrase, and (4) is never derailed by a mid-sentence switch.
