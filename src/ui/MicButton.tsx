@@ -26,7 +26,8 @@ export function MicButton({
   return (
     <div className="mic">
       <button onClick={onToggle} disabled={disabled} className={active ? "mic-on" : ""}>
-        {active ? "◼ Stop microphone" : "● Start microphone"}
+        <span className="mic-icon" aria-hidden="true">{active ? "■" : "●"}</span>
+        {active ? "Stop listening" : "Start speaking"}
       </button>
 
       <div className="meter" title={`RMS ${level.toFixed(4)}`}>
