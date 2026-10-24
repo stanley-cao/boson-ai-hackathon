@@ -281,6 +281,7 @@ code {
   grid-template-columns: minmax(16rem, 0.9fr) minmax(0, 1.1fr) minmax(16rem, 0.75fr);
 }
 
+/* Higgs Avatar video is 480x640, so the stage keeps its 3:4 shape. */
 .avatar-stage {
   position: sticky;
   top: 1rem;
@@ -294,10 +295,11 @@ code {
   border-radius: 0.75rem;
 }
 
+/* Contain, not cover: a crop always takes the face first. */
 .avatar-stage video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .avatar-waiting {
@@ -313,11 +315,12 @@ code {
     grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
   }
 
+  /* Height-led, so the portrait video stays whole without filling the screen. */
   .workspace--avatar .avatar-stage {
     grid-column: 1 / -1;
+    justify-self: center;
     position: static;
-    aspect-ratio: 16 / 9;
-    max-height: 50vh;
+    height: min(55vh, 30rem);
   }
 }
 
