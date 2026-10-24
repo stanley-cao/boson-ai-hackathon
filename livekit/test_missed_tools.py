@@ -2,7 +2,7 @@
 
 import pytest
 
-from missed_tools import correction_in, phrase_question, phrase_to_save
+from missed_tools import correction_in, phrase_question, phrase_to_save, saved_key
 
 
 @pytest.mark.parametrize(
@@ -54,6 +54,10 @@ def test_a_taught_phrase_is_read_from_the_reply(turn: str, reply: str, current: 
         # The reply only says the English back.
         ("How do you say good night?", "Good night."),
         ("How do you say thank you?", ""),
+        # Points back at something earlier; "that" is no phrase to save.
+        ("What does that mean?", 'It means "see you soon".'),
+        ("How do you say that in French?", "You say: Je suis fatigué."),
+        ("How do you say it?", "Merci beaucoup."),
     ],
 )
 def test_it_gives_up_rather_than_guess(turn: str, reply: str) -> None:
@@ -69,16 +73,15 @@ def test_questions_are_recognised() -> None:
 
 def test_a_sentence_said_back_fixed_is_a_correction() -> None:
     # The live miss: the measure word 个 was missing.
-    assert correction_in("我昨天去了商店买了三苹果。", "我昨天去了商店买了三个苹果。") == (
+    assert correction_in("我昨天去了商店买了三苹果。", "我昨天去了商店买了三个苹果。", "zh") == (
         "我昨天去了商店买了三苹果。",
         "我昨天去了商店买了三个苹果。",
     )
     assert correction_in(
         "Can you check my French? Je suis allé à la plage avec mon amis.",
         "Presque ! Je suis allé à la plage avec mon ami.",
+        "fr",
     ) == ("Je suis allé à la plage avec mon amis.", "Je suis allé à la plage avec mon ami.")
-    # An accent is a real mistake.
-    assert correction_in("Je vais a la plage.", "Je vais à la plage.") == ("Je vais a la plage.", "Je vais à la plage.")
 
 
 @pytest.mark.parametrize(
@@ -90,8 +93,20 @@ def test_a_sentence_said_back_fixed_is_a_correction() -> None:
         ("Je suis allé à la plage.", "Super ! Qu'est-ce que tu as fait à la plage ?"),
         # Too short to correct.
         ("Oui.", "Non."),
+        # An echo in other words: the subject changed, so it's a reply.
+        ("Je suis allé à la plage.", "Tu es allé à la plage ! Super."),
+        ("I went to the store yesterday.", "You went to the store yesterday! What did you buy?"),
+        # English, which the tutor rephrases rather than corrects.
+        ("I goed to the store yesterday.", "I went to the store yesterday? Super !"),
+        # Only the accents differ: transcription drops them from speech.
+        ("Je voudrais un cafe.", "Oui. Je voudrais un café."),
         ("", ""),
     ],
 )
 def test_other_replies_are_not_corrections(turn: str, reply: str) -> None:
-    assert correction_in(turn, reply) is None
+    assert correction_in(turn, reply, "fr") is None
+
+
+def test_a_saved_key_ignores_case_accents_and_punctuation() -> None:
+    assert saved_key("Je voudrais un café.") == saved_key("je voudrais un cafe")
+    assert saved_key("早上好！") == saved_key("早上好")

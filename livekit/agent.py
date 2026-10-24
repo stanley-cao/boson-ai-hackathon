@@ -41,7 +41,7 @@ from avatar_output import is_avatar_room, route_audio_to_avatar
 from dispatch import agent_name
 from language_switch import requested_language
 from loop_guard import strip_repeats
-from missed_tools import correction_in, phrase_to_save
+from missed_tools import correction_in, phrase_to_save, saved_key
 from practised import PractisedPhrases, practised_phrase
 from session_config import (
     instructions_for,
@@ -95,6 +95,10 @@ class Tutor(Agent):
         # (tool name, time.monotonic()) for each call, so the agent can tell
         # which tools the model called while composing a reply.
         self.tool_calls: list[tuple[str, float]] = []
+        # Phrases and corrected sentences already saved, by saved_key: a reply
+        # in two parts (a tool call with "Sure!", then the answer) would
+        # otherwise have its second part saved again.
+        self.saved: set[str] = set()
         # Tutor replies so far, to tell whether the last one was about a study
         # item or was a one-off slow repeat: either is set at reply N and still
         # "the last reply" while no more than one reply has followed.
@@ -110,6 +114,10 @@ class Tutor(Agent):
         # happen here. Awaited before the result goes back, so the reply that
         # follows already uses the new instructions.
         self.tool_calls.append((name, time.monotonic()))
+        if name in ("save_phrase", "note_correction") and not result.get("error"):
+            self.saved.update(
+                saved_key(str(arguments.get(field) or "")) for field in ("phrase", "meaning", "said") if arguments.get(field)
+            )
         instructions = practice_change(name, result, PROMPTS)
         if instructions is not None and instructions != self.base_instructions:
             # The prompt carries the language's teaching notes and the level's
@@ -342,9 +350,14 @@ def save_what_the_model_skipped(session: AgentSession, tutor: Tutor) -> None:
         if not learner:
             return
         if "save_phrase" not in called and (phrase := phrase_to_save(learner, reply, tutor.language)):
-            await call("save_phrase", phrase)
-        elif "note_correction" not in called and (fix := correction_in(learner, reply)):
+            if not tutor.saved & {saved_key(phrase["phrase"]), saved_key(phrase["meaning"])}:
+                tutor.saved.update({saved_key(phrase["phrase"]), saved_key(phrase["meaning"])})
+                await call("save_phrase", phrase)
+        elif "note_correction" not in called and (fix := correction_in(learner, reply, tutor.language)):
             said, correct = fix
+            if saved_key(said) in tutor.saved:
+                return
+            tutor.saved.add(saved_key(said))
             await call(
                 "note_correction",
                 {"language": tutor.language, "said": said, "correct": correct, "explanation": "", "kind": "grammar"},
