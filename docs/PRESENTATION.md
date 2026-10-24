@@ -3,6 +3,8 @@
 Open `docs/presentation.html` in a browser. It is self-contained and does not
 need the development server or an internet connection.
 
+The word-for-word speaking guide is in `docs/PRESENTATION_SCRIPT.md`.
+
 ## Controls
 
 - Right arrow, Page Down, or Space: next slide
