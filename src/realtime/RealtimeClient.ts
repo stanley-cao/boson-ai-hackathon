@@ -10,7 +10,8 @@ import {
   type CloseInfo,
   type ServerEvent,
 } from "./events";
-import { buildSessionConfig } from "./sessionConfig";
+import { buildLevelUpdate, buildSessionConfig, levelChangeFromTool } from "./sessionConfig";
+import { ACTIVE_LEVEL, LEARNER_LEVELS, type LearnerLevel } from "../lang/profiles";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { dispatch as dispatchTool } from "../tools/registry";
@@ -83,7 +84,15 @@ export class RealtimeClient {
    * own function_call_output, but there must be exactly ONE response.create
    * afterwards — so the batch is collected here and flushed together.
    */
-  private toolBatch: { promises: Promise<void>[]; outputs: ClientEvent[] } | null = null;
+  private toolBatch: {
+    promises: Promise<void>[];
+    outputs: ClientEvent[];
+    /** A level change from this turn's tools, sent before the outputs. */
+    sessionUpdate?: ClientEvent;
+  } | null = null;
+
+  /** The learner level the session's current instructions were built for. */
+  private level: LearnerLevel = ACTIVE_LEVEL;
 
   /**
    * ⚠ The single most important line in this file.
@@ -137,8 +146,12 @@ export class RealtimeClient {
     this.info("Microphone stopped.");
   }
 
-  /** Mint a key and open the socket. Safe to call twice; the second is ignored. */
-  async connect(): Promise<void> {
+  /**
+   * Mint a key and open the socket. Safe to call twice; the second is ignored.
+   * `level` is the learner's stored level, so a reload doesn't reset them to
+   * beginner.
+   */
+  async connect(level: LearnerLevel = ACTIVE_LEVEL): Promise<void> {
     if (this.connecting || this.state === "open" || this.state === "connecting") {
       this.info("connect() ignored — a connection is already active.");
       return;
@@ -171,8 +184,9 @@ export class RealtimeClient {
     ws.onopen = () => {
       this.connecting = false;
       this.setState("open");
-      this.info("Socket open — sending session.update.");
-      this.send(buildSessionConfig());
+      this.info(`Socket open — sending session.update (${level} level).`);
+      this.level = level;
+      this.send(buildSessionConfig(LEARNER_LEVELS[level]));
     };
     ws.onmessage = (ev) => this.onMessage(ev);
     ws.onerror = () => this.info("WebSocket error — the close code below has the detail.");
@@ -339,6 +353,14 @@ export class RealtimeClient {
         this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`);
         result = { summary: "That lookup failed.", error: "tool_failed" };
       }
+      // The badge alone isn't enough: the prompt carries the level's pace and
+      // how much English to use, so a new level needs new instructions.
+      const level = levelChangeFromTool(name, result, this.level);
+      if (level) {
+        this.level = level;
+        batch.sessionUpdate = buildLevelUpdate(level);
+        this.info(`Learner level is now ${level} — updating the session instructions.`);
+      }
       // Feed the result into the transcript through the same reducer path as
       // everything else, using a synthetic event type of our own.
       this.cb.onServerEvent?.({
@@ -404,6 +426,9 @@ export class RealtimeClient {
     // as long as the slower one, not as long as both.
     await Promise.all(batch.promises);
 
+    // Before the outputs and response.create, so the reply that confirms the
+    // new level is already spoken under its instructions.
+    if (batch.sessionUpdate) this.send(batch.sessionUpdate);
     for (const out of batch.outputs) this.send(out);
 
     // Mandatory. Without it the model has every result and says nothing.

@@ -37,7 +37,13 @@
  */
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import dotenv from "dotenv";
-import { buildSessionConfig, AUDIO_RATE } from "../src/realtime/sessionConfig";
+import {
+  AUDIO_RATE,
+  buildLevelUpdate,
+  buildSessionConfig,
+  levelChangeFromTool,
+} from "../src/realtime/sessionConfig";
+import { ACTIVE_LEVEL, type LearnerLevel } from "../src/lang/profiles";
 import {
   describeClose,
   functionCallOutput,
@@ -291,6 +297,9 @@ async function main() {
    */
   let extraResponsesExpected = 0;
   let lastResponseCreatedAt = 0;
+  // Tracked like the browser does, so a "I'm intermediate" turn re-instructs
+  // the session here too.
+  let level: LearnerLevel = ACTIVE_LEVEL;
 
   const ws = new WebSocket(WS_URL, ["realtime", `bai-client-secret.${key}`]);
   const send = (evt: unknown) => ws.send(JSON.stringify(evt));
@@ -348,6 +357,12 @@ async function main() {
         void (async () => {
           const result = await dispatchTool(name, args);
           console.log(`        ↳ ${name} -> ${result.summary}`);
+          const next = levelChangeFromTool(name, result, level);
+          if (next) {
+            level = next;
+            console.log(`        ↳ level is now ${level}; sending session.update`);
+            send(buildLevelUpdate(level));
+          }
           send(functionCallOutput(callId, JSON.stringify(result)));
           send(responseCreate());
         })();

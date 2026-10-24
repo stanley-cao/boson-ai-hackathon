@@ -5,7 +5,9 @@ import {
   ACTIVE_PAIR,
   LEARNER_LEVELS,
   PROFILES,
+  learnerLevelFor,
   type LanguageProfile,
+  type LearnerLevel,
   type LearnerLevelProfile,
 } from "../lang/profiles";
 
@@ -153,4 +155,44 @@ export function buildSessionConfig(
       tool_choice: "auto",
     },
   };
+}
+
+/**
+ * Re-instructs a live session for a new learner level.
+ *
+ * Only `instructions` changes, so this carries nothing else: the audio,
+ * turn-detection and tool settings from the first update stay as they were.
+ * Acknowledged with `session.updated`.
+ */
+export function buildLevelUpdate(level: LearnerLevel): ClientEvent {
+  return {
+    type: "session.update",
+    session: {
+      instructions: buildTutorPrompt(
+        PROFILES[ACTIVE_PAIR.target],
+        PROFILES[ACTIVE_PAIR.native],
+        LEARNER_LEVELS[level],
+      ),
+    },
+  };
+}
+
+/**
+ * The level a tool result moves the session to, or null when it doesn't.
+ *
+ * Only `set_practice_language` changes level, and only when its detail maps
+ * to a different prompt profile: "intermediate" → "advanced" keeps the same
+ * instructions, so it isn't worth a session.update. Results arrive as
+ * `unknown` from the registry, so the shape is checked rather than trusted.
+ */
+export function levelChangeFromTool(
+  name: string,
+  result: unknown,
+  current: LearnerLevel,
+): LearnerLevel | null {
+  if (name !== "set_practice_language") return null;
+  const detail = (result as { detail?: { type?: unknown; level?: unknown } } | null)?.detail;
+  if (detail?.type !== "practice_language" || typeof detail.level !== "string") return null;
+  const next = learnerLevelFor(detail.level);
+  return next === current ? null : next;
 }

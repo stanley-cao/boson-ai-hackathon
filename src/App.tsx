@@ -19,6 +19,7 @@ import {
   loadStoredStudy,
   saveStoredStudy,
 } from "./state/studyStorage";
+import { learnerLevelFor } from "./lang/profiles";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { PracticeBadge } from "./ui/PracticeBadge";
@@ -85,10 +86,14 @@ export default function App() {
     return () => void client.close();
   }, []);
 
+  const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
+  // The stored level, restored from localStorage or set earlier this session.
+  const storedLevel = study.practiceLanguage?.level;
+
   const connect = useCallback(async () => {
     setCloseMessage(null);
-    await clientRef.current!.connect();
-  }, []);
+    await clientRef.current!.connect(learnerLevelFor(storedLevel));
+  }, [storedLevel]);
 
   const send = useCallback(() => {
     if (!text.trim()) return;
@@ -109,7 +114,6 @@ export default function App() {
   }, []);
 
   const isOpen = connection === "open";
-  const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
 
   // A failed write is deliberately ignored so private browsing cannot break
   // the current session. Restored details live in the transcript as hidden
