@@ -21,7 +21,7 @@ Status values: ⬜ not started · 🟨 in progress · ✅ done · ⛔ blocked (s
 
 1. Read `CLAUDE.md` (commands, invariants) and `docs/ARCHITECTURE.md` (event flow).
 2. Find the earliest phase that isn't ✅, and pick an unclaimed `[ ]` task **in your track**. Tasks in later phases are fair game only if they're marked *parallel*.
-3. Feature tasks have a GitHub issue (`#N`): claim one by **assigning yourself on the issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/boson-ai-hackathon/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first. Tasks with no issue number (research, testing, submission) are claimed in the team chat.
+3. Feature tasks have a GitHub issue (`#N`): claim one by **assigning yourself on the issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/polyglot/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first. Tasks with no issue number (research, testing, submission) are claimed in the team chat.
 4. Branch as `phase<N>/<track>-<topic>`, for example `phase1/b-correction-tool`.
 5. Before opening a PR, run the checks in `CLAUDE.md` ("Before calling a change done") and list them in the PR description. A phase's **Verification** steps are for its exit, not for every PR.
 6. Put `Closes #N` in the PR description. In the same PR, tick the box (`[x]`) and update the status table. Get one review from someone on a different track.
