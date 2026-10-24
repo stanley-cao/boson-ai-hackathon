@@ -77,6 +77,21 @@ export async function readTranscription(
   }
 }
 
+/**
+ * The tutor's new activity from a participant-attributes change, or null.
+ *
+ * Only the tutor agent counts: the Higgs Avatar is a participant too, and an
+ * `lk.agent.state` from it would flip the status bar between the two.
+ */
+export function tutorActivityFrom(
+  changed: Record<string, string>,
+  participantIdentity: string | undefined,
+  agentIdentity: string,
+): Activity | null {
+  if (participantIdentity !== agentIdentity || !(AGENT_STATE_ATTRIBUTE in changed)) return null;
+  return activityFromAgentState(changed[AGENT_STATE_ATTRIBUTE]);
+}
+
 /** The agent's `lk.agent.state` as the status bar's activity. */
 export function activityFromAgentState(state: string | undefined): Activity {
   switch (state) {

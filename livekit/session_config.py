@@ -81,6 +81,21 @@ def instructions_for(metadata: str, prompts: dict[str, dict[str, str]], default:
     return prompt_for(choice.get("language"), choice.get("level"), prompts) or default
 
 
+def practice_choice(metadata: str, prompts: dict[str, dict[str, str]]) -> tuple[str, str]:
+    """(language, level) from the learner's token metadata, as instructions_for reads it.
+
+    Falls back to the default pair, zh at beginner, which is the prompt
+    instructions_for falls back to as well.
+    """
+    try:
+        choice = json.loads(metadata) if metadata else {}
+    except json.JSONDecodeError:
+        choice = {}
+    if not isinstance(choice, dict) or str(choice.get("language")) not in prompts:
+        return "zh", "beginner"
+    return str(choice["language"]), str(choice.get("level") or "beginner")
+
+
 def practice_change(name: str, result: dict[str, Any], prompts: dict[str, dict[str, str]]) -> str | None:
     """The new prompt a tool result calls for, as practiceChangeFromTool in sessionConfig.ts.
 

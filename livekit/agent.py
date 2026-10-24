@@ -15,7 +15,9 @@ Higgs Avatar only joins LiveKit Cloud rooms (Phase 4).
 
 import asyncio
 import logging
+import math
 import os
+import time
 from typing import Any
 
 from dotenv import load_dotenv
@@ -31,9 +33,11 @@ from livekit.agents import (
     UserStateChangedEvent,
     cli,
 )
+from livekit.agents.worker import ServerEnvOption
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
+from language_switch import requested_language
 from loop_guard import strip_repeats
 from session_config import (
     instructions_for,
@@ -43,10 +47,11 @@ from session_config import (
     model_kwargs,
     pace_request,
     practice_change,
+    practice_choice,
     turn_transcription,
     with_pace,
 )
-from tools import build_tools
+from tools import build_tools, forward_tool_call
 
 logger = logging.getLogger("polyglot")
 
@@ -63,10 +68,12 @@ AGENT_IDENTITY = "polyglot-tutor"
 
 
 class Tutor(Agent):
-    def __init__(self, instructions: str) -> None:
+    def __init__(self, instructions: str, language: str = "zh", level: str = "beginner") -> None:
         super().__init__(instructions=instructions, tools=build_tools(SESSION, self.after_tool))
         # The prompt for the language and level, before any pace note.
         self.base_instructions = instructions
+        self.language = language
+        self.level = level
         # The lasting pace ("speak more slowly") and whether a one-off slow
         # repeat is due to end, as RealtimeClient.ts tracks them.
         self.session_pace = "normal"
@@ -86,6 +93,8 @@ class Tutor(Agent):
             detail = result.get("detail", {})
             logger.info("now practising %s at %s level", detail.get("language"), detail.get("level"))
             self.base_instructions = instructions
+            self.language = str(detail.get("language"))
+            self.level = str(detail.get("level"))
             await self.set_pace(self.session_pace)
         elif name == "set_speaking_pace" and not result.get("error"):
             pace, scope = pace_request(arguments)
@@ -214,7 +223,82 @@ def guard_against_loops(session: AgentSession) -> None:
     session.on("conversation_item_added", on_item)
 
 
-server = AgentServer()
+def switch_language_on_request(session: AgentSession, tutor: Tutor) -> None:
+    """Make a spoken language switch happen even when the model calls no tool.
+
+    See language_switch.py. The switch goes through the browser's own
+    set_practice_language handler, so the study panel's badge follows, then
+    through Tutor.after_tool for the new prompt. The reply already under way
+    was generated with the old prompt, so the tutor answers again once it ends.
+    """
+
+    async def switch(language: str) -> None:
+        arguments = {"language": language, "level": tutor.level}
+        room_io = session.room_io
+        learner = room_io.linked_participant
+        result = await forward_tool_call(
+            room_io.room.local_participant,
+            learner.identity if learner is not None else None,
+            f"switch_{language}_{int(time.time() * 1000)}",
+            "set_practice_language",
+            arguments,
+        )
+        if result.get("error"):
+            logger.warning("language switch to %s failed: %s", language, result.get("summary"))
+            return
+        if "detail" not in result:
+            # The Agents Playground and probe.py have no browser handler; the
+            # stand-in answer carries no detail, so make the one it would have.
+            result = {**result, "detail": {"type": "practice_language", **arguments}}
+        logger.info("learner asked to switch to %s; switching", language)
+        await tutor.after_tool("set_practice_language", arguments, result, None)  # type: ignore[arg-type]
+        # The reply already under way used the old prompt. Interrupting it
+        # left LiveKit waiting on that speech, so the new reply never came;
+        # let it finish and ask again once the tutor is listening.
+        await until_listening()
+        session.generate_reply()
+
+    async def until_listening(timeout: float = 20.0) -> None:
+        # The turn's own reply may not have started yet when its transcript
+        # lands; give it a moment so the two replies don't collide.
+        await asyncio.sleep(0.75)
+        if session.agent_state in ("listening", "idle"):
+            return
+        done = asyncio.get_running_loop().create_future()
+
+        def on_state(event: AgentStateChangedEvent) -> None:
+            if event.new_state in ("listening", "idle") and not done.done():
+                done.set_result(None)
+
+        session.on("agent_state_changed", on_state)
+        try:
+            await asyncio.wait_for(done, timeout)
+        except asyncio.TimeoutError:
+            logger.warning("tutor still busy after a language switch; replying anyway")
+        finally:
+            session.off("agent_state_changed", on_state)
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        item = event.item
+        if getattr(item, "role", None) != "user":
+            return
+        language = requested_language(getattr(item, "text_content", None) or "", tutor.language)
+        if language is None:
+            return
+        task = asyncio.create_task(switch(language))
+        task.add_done_callback(
+            lambda t: t.cancelled() or t.exception() is None or logger.warning("language switch failed: %r", t.exception())
+        )
+
+    session.on("conversation_item_added", on_item)
+
+
+# One process kept warm in dev too, as production does by default: with none,
+# every session logged "no warmed process available" and waited ~1.5 s for a
+# fresh one before the tutor could greet.
+server = AgentServer(
+    num_idle_processes=ServerEnvOption(dev_default=1, prod_default=math.ceil(os.cpu_count() or 1)),
+)
 
 
 async def accept_as_tutor(request: JobRequest) -> None:
@@ -240,17 +324,25 @@ async def entrypoint(ctx: JobContext) -> None:
         api_key=os.environ["BOSON_API_KEY"],
         **options,
     )
-    session = AgentSession(llm=model)
+    avatar = is_avatar_room(ctx.room.name)
+    session = AgentSession(
+        llm=model,
+        # The avatar's audio output can't pause, so LiveKit can't resume a
+        # reply after a false interruption anyway; it logs a warning at every
+        # start and recommends turning this off with an avatar.
+        turn_handling={"interruption": {"resume_false_interruption": False}} if avatar else {},
+    )
     reset_transcription_language_each_turn(session)
     log_conversation(session)
     guard_against_loops(session)
-    if is_avatar_room(ctx.room.name):
+    if avatar:
         # Set this before start(): RoomIO sees an existing output and does not
         # publish the agent's normal audio track. Realtime PCM goes to the
         # avatar, whose synchronized audio/video tracks are what the learner
         # subscribes to. AgentSession clears this sink automatically on barge-in.
         route_audio_to_avatar(session, ctx.room)
-    tutor = Tutor(instructions)
+    tutor = Tutor(instructions, *practice_choice(learner.metadata, PROMPTS))
+    switch_language_on_request(session, tutor)
 
     def on_user_state(event: UserStateChangedEvent) -> None:
         # The learner's next turn starts after the slow repeat was said, and
@@ -258,7 +350,14 @@ async def entrypoint(ctx: JobContext) -> None:
         if event.new_state == "speaking":
             asyncio.create_task(tutor.end_one_off_pace())
 
+    def on_user_item(event: ConversationItemAddedEvent) -> None:
+        # A typed turn never changes the user state; its message still ends a
+        # one-off slow repeat. Harmless after a spoken one: already reverted.
+        if getattr(event.item, "role", None) == "user":
+            asyncio.create_task(tutor.end_one_off_pace())
+
     session.on("user_state_changed", on_user_state)
+    session.on("conversation_item_added", on_user_item)
     await session.start(agent=tutor, room=ctx.room)
 
 

@@ -48,5 +48,12 @@ def test_a_whole_reply_said_again_is_stripped_even_when_short_sentences() -> Non
     # From a probe: each sentence is under MIN_WORDS, but the reply looped.
     reply = "Hai, wakarimashita! (Yes, I understand!)"
     assert strip_repeats(reply, [reply], "Just one word at a time.") == ""
-    # Two words said twice is ordinary conversation.
-    assert strip_repeats("Great job!", ["Great job!"], "Konnichiwa.") is None
+    # Two words said again later is ordinary conversation.
+    assert strip_repeats("Great job!", ["Great job!", "Hai."], "Konnichiwa.") is None
+
+
+def test_the_same_short_reply_twice_in_a_row_is_stripped() -> None:
+    # Live, a French session answered "Comment, ça, va?" to five different turns.
+    assert strip_repeats("Comment, ça, va?", ["Bonjour!", "Comment, ça, va?"], "No, no. I heard French.") == ""
+    # Not when it isn't the reply just before.
+    assert strip_repeats("Great job!", ["Great job!", "Hai."], "Hai.") is None
