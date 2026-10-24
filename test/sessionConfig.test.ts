@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_RATE, buildSessionConfig } from "../src/realtime/sessionConfig";
+import { AUDIO_RATE, buildSessionConfig, OUTPUT_VOICE } from "../src/realtime/sessionConfig";
 
 interface AudioConfig {
   input: {
@@ -7,7 +7,7 @@ interface AudioConfig {
     turn_detection: { type: string; silence_duration_ms?: number };
     transcription: { model: string; language?: string };
   };
-  output: { format: { type: string; rate: number } };
+  output: { format: { type: string; rate: number }; voice: string };
 }
 
 function audioConfig(): AudioConfig {
@@ -36,5 +36,10 @@ describe("buildSessionConfig", () => {
     expect(AUDIO_RATE).toBe(24000);
     expect(audio.input.format).toEqual({ type: "audio/pcm", rate: AUDIO_RATE });
     expect(audio.output.format).toEqual({ type: "audio/pcm", rate: AUDIO_RATE });
+  });
+
+  it("uses the educational Eleanor preset for Mandarin practice", () => {
+    expect(OUTPUT_VOICE).toBe("eleanor");
+    expect(audioConfig().output.voice).toBe(OUTPUT_VOICE);
   });
 });
