@@ -41,7 +41,8 @@
               "zh",
               "ko",
               "fr",
-              "ja"
+              "ja",
+              "sr"
             ],
             "description": "The language the mistake was in."
           },
@@ -150,7 +151,8 @@
               "zh",
               "ko",
               "fr",
-              "ja"
+              "ja",
+              "sr"
             ],
             "description": "The language being spoken."
           },
@@ -199,7 +201,8 @@
               "zh",
               "ko",
               "fr",
-              "ja"
+              "ja",
+              "sr"
             ],
             "description": "The language the phrase is in."
           },
