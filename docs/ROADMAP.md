@@ -10,7 +10,7 @@ Update this table in the same PR that finishes a task or a phase.
 | --- | --- | --- | --- | --- |
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
 | 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
-| 2 | Depth and polish (levels, TTS replay, recap) | ⬜ not started | | |
+| 2 | Depth and polish (levels, TTS replay, recap) | 🟨 in progress | | |
 | 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
 | 5 | Demo video and submission | ⬜ not started | | |
@@ -114,7 +114,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24)
 - [ ] **D + C:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side, and a replay button on study cards. (#25, #26)
 - [ ] **C:** an end-of-session recap screen. (#27)
-- [ ] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28)
+- [x] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28) (@lanazgonjanin)
 
 **Exit criteria:** a beginner can hold a slow conversation, replay any saved phrase, and see a recap at the end.
 
@@ -193,3 +193,4 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-23 | Practice `level` is beginner / intermediate / advanced (adds advanced, per #13). A missing or unrecognised level is stored as beginner, and the tool's summary says the level aloud. Its `language` argument has no enum. | #13 asked for three levels. Defaulting rather than rejecting follows "schema enums are hints", and speaking the level means a wrong default is heard and corrected. With an en/zh enum, a live request for Korean came back as `en` and the tutor claimed to switch to Korean; as free text, the handler refuses it and the tutor says Korean isn't available yet. |
 | 2026-10-24 | Provisionally keep code-switching variant (a), "follow the switch and reply in the language they just used"; keep #6 open. | Probed live, 3 runs per variant of the same three spoken turns (English-first mixed, pure Mandarin, English request plus a sentence with a measure-word error). (a) replied in English to the pure-Mandarin turn in 2 of 3 runs. (b) "mostly target language" stayed in Mandarin there 3 of 3, but dropped English from the mixed correction turn 3 of 3. (c) "learner chooses" asked which language to use in 2 of 3 runs, which #6 rules out. `note_correction` fired on the error turn in only 1 of 9 runs, although the transcript showed the error in at least 7, so no variant meets #6 yet. |
 | 2026-10-24 | Code-switching uses an explicit mirror, "when they speak Mandarin, answer in Mandarin; when they speak English, answer in English", with corrections explained in English. Pinyin is asked for only in tool arguments. Supersedes the provisional 2026-10-24 entry; closes #6. | Earlier runs were skewed by a probe bug: when semantic VAD split a turn, the probe moved on before the reply to the rest of it, so the "1 of 9" `note_correction` figure was largely an artifact (fixed in `tools/probe.ts`). With the fix, 3 to 4 runs per variant of the same three spoken turns: (a) answered the pure-Mandarin turn in English 3 of 3; a "Mandarin by default" hybrid called `note_correction` 0 of 3 and spoke pinyin; the explicit mirror with the profile's unscoped "write … with pinyin" note removed answered Mandarin in characters 4 of 4, but went all-Mandarin on the correction turn; adding "explain corrections in English" and dropping "after answering" (which contradicted the tool's "call this FIRST") kept English there 3 of 4 and fired the tool 2 of 4 spoken, 4 of 4 typed. The spoken misses trace to input: TTS-synthesised Mandarin inside English is often mis-transcribed (我有三个狗 → "where your fingers go"), and VAD splits "Can you check this sentence?" from the sentence (#7). |
+| 2026-10-24 | Use the `eleanor` preset for Realtime output, provisionally pending a live Mandarin listening check. | Boson's voice library describes Eleanor as calm, articulate and designed for educational explanations, which fits a language tutor; named TTS presets are supported by `audio.output.voice`. |
