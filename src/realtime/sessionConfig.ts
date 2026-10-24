@@ -1,5 +1,6 @@
 import type { ClientEvent } from "./events";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
+import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
 
 /**
  * The first thing we send after the socket opens.
@@ -20,23 +21,52 @@ import { TOOL_DEFINITIONS } from "../tools/definitions";
 // sentences of behavioural rules appended here stopped the model calling
 // tools at all. Guidance about a specific tool belongs in that tool's
 // description, not here.
-export const SYSTEM_PROMPT = [
-  // Role and capabilities.
-  "You are a friendly voice assistant with one tool: a web search.",
-  // Speaking style.
-  "Keep every reply to one or two short sentences, matching the user's energy.",
-  "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
-  // Turn-taking.
-  "A short follow-up question is fine; do not interrogate, and do not add",
-  "detail the user did not ask for.",
-  // Tool use.
-  "When the user asks about anything current, local, or uncertain, search",
-  "rather than guessing, and say a short acknowledgement before you do.",
-  // Spoken-output constraints.
-  "Never read more than three results aloud; say how many there were and offer",
-  "to narrow it down. If the search finds nothing, say so plainly. Never invent",
-  "a fact you have not just read from a result.",
-].join(" ");
+/**
+ * Built from the language profiles, so changing the pair is a data change.
+ * The learner's native language and the target language both come from
+ * `ACTIVE_PAIR`; the target's `promptNotes` carry the teaching specifics.
+ *
+ * Code-switching: the tutor replies in whichever language the learner just
+ * used, rather than asking which one they want. That matches how the learner
+ * talks and avoids a question that would break the flow. The probe has not
+ * yet compared this with the target-language-first variant; see the ROADMAP
+ * decision log once that run is recorded.
+ */
+export function buildTutorPrompt(
+  target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
+  native: LanguageProfile = PROFILES[ACTIVE_PAIR.native],
+): string {
+  return [
+    // Role and capabilities.
+    `You are a friendly language tutor. The learner speaks ${native.name} and is learning ${target.name}.`,
+    // Code-switching.
+    "They switch between the two mid-sentence. Follow the switch and reply in the language they just used.",
+    "Never ask which language they want.",
+    // Teaching.
+    "Give at most one correction per turn, after answering what they said.",
+    target.promptNotes,
+    target.romanization
+      ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
+      : "",
+    // Speaking style.
+    "Keep every reply to one or two short sentences, matching the learner's energy.",
+    "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
+    // Turn-taking.
+    "A short follow-up question is fine; do not interrogate, and do not add",
+    "detail the learner did not ask for.",
+    // Tool use.
+    "When the learner asks about anything current, local, or uncertain, search",
+    "rather than guessing, and say a short acknowledgement before you do.",
+    // Spoken-output constraints.
+    "Never read more than three results aloud; say how many there were and offer",
+    "to narrow it down. If the search finds nothing, say so plainly. Never invent",
+    "a fact you have not just read from a result.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export const SYSTEM_PROMPT = buildTutorPrompt();
 
 /**
  * PCM16 at 24 kHz, both directions.

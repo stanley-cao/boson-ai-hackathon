@@ -74,7 +74,7 @@ PCM16, mono, 24 kHz in both directions (`AUDIO_RATE` in `sessionConfig.ts`). The
 
 | You want to… | Edit |
 | --- | --- |
-| Change the persona or teaching behaviour | `SYSTEM_PROMPT` in `src/realtime/sessionConfig.ts`. Keep it short; guidance for a specific tool goes in that tool's `description`. |
+| Change the persona or teaching behaviour | `buildTutorPrompt` in `src/realtime/sessionConfig.ts`, fed by the language profiles in `src/lang/profiles.ts`. Keep it short; guidance for a specific tool goes in that tool's `description`. |
 | Change the voice | `audio.output.voice` in `sessionConfig.ts` (`"default"`, a preset, or a cloned `voice_<id>`) |
 | Tune turn-taking | `turn_detection` in `sessionConfig.ts` (`server_vad` or `semantic_vad`) |
 | Add a tool | Add its schema to `tools/definitions.ts`, a handler to `tools/handlers.ts`, and register it in the `handlers` map. Return `{ summary, detail?, error? }`, where `summary` is what the model may say aloud. |
