@@ -8,7 +8,7 @@
 
 // BCP-47 base codes. Tool handlers normalise whatever the model sends
 // ("Mandarin", "zh-CN", "ZH") down to one of these.
-export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja" | "sr";
+export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja" | "sr" | "vi";
 
 export interface LanguageProfile {
   code: LanguageCode;
@@ -91,13 +91,24 @@ const sr: LanguageProfile = {
   ],
 };
 
-export const PROFILES = { en, zh, ko, fr, ja, sr } satisfies Partial<
+// Latin script with its diacritics kept: they carry the tones, so dropping
+// them would make tone corrections impossible to show in text.
+const vi: LanguageProfile = {
+  code: "vi",
+  name: "Vietnamese",
+  script: "Latn",
+  promptNotes:
+    "Write Vietnamese with full tone marks. Listen closely for its six tones, and help with classifiers and pronouns of address.",
+  sampleOpeners: ["Xin chào! Hôm nay bạn muốn luyện tập gì?", "Hôm nay của bạn thế nào?"],
+};
+
+export const PROFILES = { en, zh, ko, fr, ja, sr, vi } satisfies Partial<
   Record<LanguageCode, LanguageProfile>
 >;
 
 export type ProfileCode = keyof typeof PROFILES;
 export type TargetLanguageCode = Exclude<ProfileCode, "en">;
-export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja", "sr"] as const satisfies readonly TargetLanguageCode[];
+export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja", "sr", "vi"] as const satisfies readonly TargetLanguageCode[];
 
 export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;

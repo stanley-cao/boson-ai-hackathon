@@ -43,7 +43,8 @@
               "ko",
               "fr",
               "ja",
-              "sr"
+              "sr",
+              "vi"
             ],
             "description": "The language the mistake was in."
           },
@@ -153,7 +154,8 @@
               "ko",
               "fr",
               "ja",
-              "sr"
+              "sr",
+              "vi"
             ],
             "description": "The language being spoken."
           },
@@ -203,7 +205,8 @@
               "ko",
               "fr",
               "ja",
-              "sr"
+              "sr",
+              "vi"
             ],
             "description": "The language the phrase is in."
           },

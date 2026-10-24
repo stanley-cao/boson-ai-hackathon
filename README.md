@@ -67,4 +67,4 @@ The realtime client, audio pipeline, token server, probe and LiveKit agent are a
 
 - [ ] 2–3 min public demo video
 - [ ] Public repo, pin the commit SHA / tag for judging, no keys committed
-- [ ] Write-ups: project (≤200 words), how it was built (≤200 words), team and known limitations
+- [ ] Write-ups: project (≤200 words), how it was built (≤200 words), team and known limitations. Drafts of the first two are in [docs/SUBMISSION.md](docs/SUBMISSION.md).

@@ -65,6 +65,12 @@ describe("normalizeLanguage", () => {
     }
   });
 
+  it("maps Vietnamese names, with or without diacritics, and its locale tag to vi", () => {
+    for (const sent of ["vi", "vi-VN", "Vietnamese", "Tiếng Việt", "tieng viet"]) {
+      expect(normalizeLanguage(sent), sent).toBe("vi");
+    }
+  });
+
   it("returns null for values it does not know, rather than guessing", () => {
     for (const sent of ["Klingon", "", "  ", "de-DE", "Chinese (Simplified)"]) {
       expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();

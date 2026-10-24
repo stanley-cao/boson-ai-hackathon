@@ -40,6 +40,7 @@ from avatar_output import is_avatar_room, route_audio_to_avatar
 from dispatch import agent_name
 from language_switch import requested_language
 from loop_guard import strip_repeats
+from practised import PractisedPhrases, practised_phrase
 from session_config import (
     instructions_for,
     load_prompts,
@@ -79,6 +80,10 @@ class Tutor(Agent):
         # repeat is due to end, as RealtimeClient.ts tracks them.
         self.session_pace = "normal"
         self.revert_pace_on_next_turn = False
+        # The pace the instructions were last built with, so a practised
+        # phrase can be added without changing it.
+        self.pace = "normal"
+        self.practised = PractisedPhrases()
 
     async def after_tool(
         self, name: str, arguments: dict[str, Any], result: dict[str, Any], context: RunContext
@@ -111,7 +116,17 @@ class Tutor(Agent):
             await self.set_pace(pace)
 
     async def set_pace(self, pace: str) -> None:
-        await self.update_instructions(with_pace(self.base_instructions, pace, SLOW_NOTE))
+        self.pace = pace
+        instructions = with_pace(self.base_instructions, pace, SLOW_NOTE)
+        # Last, after the pace note, as it is the one part that grows.
+        note = self.practised.note(self.language)
+        await self.update_instructions(f"{instructions} {note}" if note else instructions)
+
+    async def mark_practised(self, phrase: str) -> None:
+        """Name a phrase the learner has said back as done, so it isn't offered again."""
+        if self.practised.add(self.language, phrase):
+            logger.info("practised %s phrase: %r", self.language, phrase)
+            await self.set_pace(self.pace)
 
     async def end_one_off_pace(self) -> None:
         """Back to the lasting pace once a one-off slow repeat has been said."""
@@ -219,6 +234,40 @@ def guard_against_loops(session: AgentSession) -> None:
         # A failed edit only leaves the repeat in context; log it, never raise.
         task.add_done_callback(
             lambda t: t.cancelled() or t.exception() is None or logger.warning("loop guard failed: %r", t.exception())
+        )
+
+    session.on("conversation_item_added", on_item)
+
+
+def track_practised_phrases(session: AgentSession, tutor: Tutor) -> None:
+    """Note each phrase the learner said back, so the tutor moves on from it.
+
+    See practised.py. The note goes into the instructions: the Boson plugin
+    drops system items from the chat context, and a user item would read as
+    the learner speaking, which the model is prone to echo. The reply to this
+    same turn may already be under way, so the note takes effect from the
+    next one; re-offers came a few turns later, live.
+    """
+
+    async def check(item_id: str) -> None:
+        messages = [m for m in session.current_agent.chat_ctx.items if m.type == "message"]
+        index = next((i for i, m in enumerate(messages) if m.id == item_id), None)
+        if index is None:
+            return
+        # The chat context is ordered by creation time, so this is the reply
+        # the learner was answering even when the transcript landed late.
+        reply = next((m.text_content for m in reversed(messages[:index]) if m.role == "assistant"), None)
+        phrase = practised_phrase(reply or "", messages[index].text_content or "")
+        if phrase is not None:
+            await tutor.mark_practised(phrase)
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        if getattr(event.item, "role", None) != "user":
+            return
+        task = asyncio.create_task(check(event.item.id))
+        # A missed phrase only means it may be offered again; never raise.
+        task.add_done_callback(
+            lambda t: t.cancelled() or t.exception() is None or logger.warning("practised phrase check failed: %r", t.exception())
         )
 
     session.on("conversation_item_added", on_item)
@@ -345,6 +394,7 @@ async def entrypoint(ctx: JobContext) -> None:
         route_audio_to_avatar(session, ctx.room)
     tutor = Tutor(instructions, *practice_choice(learner.metadata, PROMPTS))
     switch_language_on_request(session, tutor)
+    track_practised_phrases(session, tutor)
 
     def on_user_state(event: UserStateChangedEvent) -> None:
         # The learner's next turn starts after the slow repeat was said, and
