@@ -1,14 +1,21 @@
 import { useEffect, useRef } from "react";
 import { segmentByScript } from "../lang/scriptRuns";
+import { studyFromTranscript } from "../state/study";
 import {
   toList,
   toPlainText,
   type TranscriptItem,
   type TranscriptState,
 } from "../state/transcriptStore";
+import {
+  annotateWithRomanization,
+  romanizationsFromStudy,
+  type RomanizationEntry,
+} from "./romanization";
 
 export function TranscriptPanel({ state }: { state: TranscriptState }) {
   const items = toList(state);
+  const romanizations = romanizationsFromStudy(studyFromTranscript(state));
   const endRef = useRef<HTMLDivElement>(null);
 
   // Follow the conversation as it grows.
@@ -32,14 +39,20 @@ export function TranscriptPanel({ state }: { state: TranscriptState }) {
         </button>
       </div>
       {items.map((item) => (
-        <TurnBubble key={item.itemId} item={item} />
+        <TurnBubble key={item.itemId} item={item} romanizations={romanizations} />
       ))}
       <div ref={endRef} />
     </section>
   );
 }
 
-function TurnBubble({ item }: { item: TranscriptItem }) {
+function TurnBubble({
+  item,
+  romanizations,
+}: {
+  item: TranscriptItem;
+  romanizations: RomanizationEntry[];
+}) {
   if (item.kind === "system") {
     return <div className="turn system">— {item.text} —</div>;
   }
@@ -72,7 +85,7 @@ function TurnBubble({ item }: { item: TranscriptItem }) {
         {item.text === null ? (
           <span className="pending">transcribing…</span>
         ) : (
-          <ScriptText text={item.text} />
+          <ScriptText text={item.text} romanizations={romanizations} />
         )}
       </div>
     );
@@ -81,17 +94,37 @@ function TurnBubble({ item }: { item: TranscriptItem }) {
   return (
     <div className={`turn assistant ${item.status}`}>
       <span className="who">assistant</span>
-      <ScriptText text={item.text} />
+      <ScriptText text={item.text} romanizations={romanizations} />
       {item.status === "streaming" && <span className="caret" />}
       {item.status === "interrupted" && <span className="badge">interrupted</span>}
     </div>
   );
 }
 
-function ScriptText({ text }: { text: string }) {
-  return segmentByScript(text).map((run, index) => (
-    <span className={`script-${run.script}`} key={`${index}-${run.script}`}>
-      {run.text}
-    </span>
-  ));
+function ScriptText({
+  text,
+  romanizations,
+}: {
+  text: string;
+  romanizations: RomanizationEntry[];
+}) {
+  return annotateWithRomanization(text, romanizations).map((segment, segmentIndex) => {
+    if (segment.romanization) {
+      return (
+        <span className="romanized-text" key={`romanized-${segmentIndex}`}>
+          <span className="script-han">{segment.text}</span>
+          <span className="transcript-romanization">{segment.romanization}</span>
+        </span>
+      );
+    }
+
+    return segmentByScript(segment.text).map((run, runIndex) => (
+      <span
+        className={`script-${run.script}`}
+        key={`${segmentIndex}-${runIndex}-${run.script}`}
+      >
+        {run.text}
+      </span>
+    ));
+  });
 }

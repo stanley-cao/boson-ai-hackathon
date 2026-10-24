@@ -102,6 +102,17 @@ describe("StudyPanel", () => {
     expect(html.indexOf("再见")).toBeLessThan(html.indexOf("你好"));
   });
 
+  it("renders a Han phrase cleanly when no romanization was supplied", () => {
+    const state = addTool(emptyTranscript, "i1", "c1", "save_phrase", {
+      summary: "Phrase saved.",
+      detail: { type: "phrase", language: "zh", phrase: "谢谢", meaning: "thank you" },
+    });
+
+    const html = renderToStaticMarkup(<StudyPanel state={state} />);
+    expect(html).toContain("谢谢");
+    expect(html).not.toContain('class="romanization"');
+  });
+
   it("does not render failed or malformed tool results", () => {
     let state = emptyTranscript;
     state = addTool(state, "i1", "c1", "save_phrase", {
