@@ -5,6 +5,7 @@ import {
   normalizeLanguage,
   setPracticeLanguage,
   pronunciationFeedback,
+  savePhrase,
 } from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
@@ -275,6 +276,67 @@ describe("pronunciation_feedback", () => {
           issue: { enum: ["tone", "initial", "final", "other"] },
         },
         required: ["language", "target", "issue", "tip"],
+      },
+    });
+  });
+});
+
+describe("save_phrase", () => {
+  const args = {
+    language: "zh-CN",
+    phrase: " 加油 ",
+    meaning: "Keep going! / You can do it!",
+    romanization: "jiā yóu",
+    note: "Said to cheer someone on.",
+  };
+
+  it("saves a phrase with the language normalised and the text trimmed", () => {
+    const r = savePhrase(args);
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("加油");
+    expect(r.detail).toEqual({
+      type: "phrase",
+      language: "zh",
+      phrase: "加油",
+      meaning: "Keep going! / You can do it!",
+      romanization: "jiā yóu",
+      note: "Said to cheer someone on.",
+    });
+  });
+
+  it("leaves out a blank or missing romanization and note", () => {
+    const d = savePhrase({ ...args, romanization: " ", note: undefined }).detail as Phrase;
+    expect(d).not.toHaveProperty("romanization");
+    expect(d).not.toHaveProperty("note");
+  });
+
+  it("answers with an error, never a throw, when the language is unknown", () => {
+    for (const language of ["Klingon", undefined, ["zh"]]) {
+      const r = savePhrase({ ...args, language });
+      expect(r.error, String(language)).toBe("unknown_language");
+      expect(r.summary).toContain(Object.keys(PROFILES).join(", "));
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("answers with an error when the phrase or its meaning is missing", () => {
+    for (const missing of ["phrase", "meaning"]) {
+      const r = savePhrase({ ...args, [missing]: 42 });
+      expect(r.error, missing).toBe("missing_fields");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("save_phrase", args);
+    expect((r.detail as Phrase).type).toBe("phrase");
+  });
+
+  it("is offered with every profile language and the fields a card needs", () => {
+    expect(TOOL_DEFINITIONS.find((d) => d.name === "save_phrase")).toMatchObject({
+      parameters: {
+        properties: { language: { enum: Object.keys(PROFILES) } },
+        required: ["language", "phrase", "meaning"],
       },
     });
   });
