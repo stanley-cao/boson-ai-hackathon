@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { studyFromTranscript } from "../state/study";
 import type { TranscriptState } from "../state/transcriptStore";
 import type { Correction, Phrase, PronunciationNote } from "../tools/types";
+import { playReplay, REPLAY_MESSAGES, ReplayError } from "./ttsReplay";
 
 export interface StudyPanelProps {
   state: TranscriptState;
@@ -94,6 +95,49 @@ function CardMeta({ language, label }: { language: string; label: string }) {
   );
 }
 
+type ReplayStatus = "idle" | "loading" | "playing" | "error";
+
+// Button state is transient UI, not study data, so it lives here rather than in
+// the transcript reducer.
+function ReplayButton({ text }: { text: string }) {
+  const [status, setStatus] = useState<ReplayStatus>("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function replay() {
+    setStatus("loading");
+    setError(null);
+    try {
+      await playReplay(text, () => setStatus("playing"));
+      setStatus("idle");
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof ReplayError ? err.message : REPLAY_MESSAGES.generic);
+    }
+  }
+
+  const busy = status === "loading" || status === "playing";
+  return (
+    <div className="study-card-actions">
+      <button
+        className="replay-button"
+        type="button"
+        onClick={replay}
+        disabled={busy}
+        aria-busy={status === "loading"}
+        aria-label={`Replay ${text}`}
+      >
+        <span aria-hidden="true">▶</span>{" "}
+        {status === "loading" ? "Loading…" : status === "playing" ? "Playing…" : "Replay"}
+      </button>
+      {error && (
+        <span className="replay-error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function CorrectionCard({ item }: { item: Correction }) {
   return (
     <article className="study-card study-card--correction">
@@ -110,6 +154,7 @@ function CorrectionCard({ item }: { item: Correction }) {
         </div>
       </div>
       <p>{item.explanation}</p>
+      <ReplayButton text={item.correct} />
     </article>
   );
 }
@@ -122,6 +167,7 @@ function PhraseCard({ item }: { item: Phrase }) {
       {item.romanization && <span className="romanization">{item.romanization}</span>}
       <p className="study-meaning">{item.meaning}</p>
       {item.note && <p className="study-note">{item.note}</p>}
+      <ReplayButton text={item.phrase} />
     </article>
   );
 }
@@ -133,6 +179,7 @@ function PronunciationCard({ item }: { item: PronunciationNote }) {
       <strong className="study-target">{item.target}</strong>
       {item.romanization && <span className="romanization">{item.romanization}</span>}
       <p>{item.tip}</p>
+      <ReplayButton text={item.target} />
     </article>
   );
 }

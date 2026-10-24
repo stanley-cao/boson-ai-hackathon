@@ -88,6 +88,11 @@ describe("StudyPanel", () => {
     for (const text of ["两本书", "liǎng běn shū", "加油", "keep going", "hǎo", "pitch dip"]) {
       expect(html).toContain(text);
     }
+    // Each card replays its target-language text, not the learner's mistake.
+    for (const label of ["Replay 两本书", "Replay 加油", "Replay 好"]) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+    expect(html).not.toContain("Replay 两书");
   });
 
   it("renders the newest item first within a category", () => {
