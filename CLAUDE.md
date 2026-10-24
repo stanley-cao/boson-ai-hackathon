@@ -21,6 +21,7 @@ npm run typecheck        # tsc -b --noEmit
 npm run build
 npm run probe            # headless live session, prints every event (needs key)
 npm run probe -- --say "Can you check my Korean? 저는 학생이에요."   # TTS-synthesised spoken turn
+npm run export-config    # rewrite shared/session.json after changing the prompt or tools
 ```
 
 Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `test`, `typecheck` or `build`.

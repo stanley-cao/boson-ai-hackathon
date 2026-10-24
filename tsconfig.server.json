@@ -15,6 +15,7 @@
   "include": [
     "server",
     "tools",
+    "scripts/**/*.ts",
     "src/realtime/events.ts",
     "src/realtime/sessionConfig.ts",
     "src/realtime/pace.ts",
