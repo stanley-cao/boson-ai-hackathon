@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Polyglot — Hackathon Presentation</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f7f4ef;
+      --muted: #aaa5b5;
+      --panel: #1b1825;
+      --panel-2: #242030;
+      --line: rgba(255,255,255,.12);
+      --violet: #9c7cff;
+      --violet-soft: #d7ccff;
+      --coral: #ff8067;
+      --mint: #74d9bb;
+      --yellow: #f5ca69;
+      --bg: #0e0c13;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button { font: inherit; }
+
+    .deck { height: 100%; position: relative; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto 1fr auto;
+      gap: clamp(18px, 3vh, 34px);
+      padding: clamp(34px, 5vw, 76px) clamp(42px, 7vw, 112px) clamp(30px, 4vw, 58px);
+      background:
+        radial-gradient(circle at 86% 13%, rgba(156,124,255,.15), transparent 25%),
+        radial-gradient(circle at 8% 92%, rgba(116,217,187,.08), transparent 25%),
+        var(--bg);
+    }
+    .slide.active { display: grid; animation: enter .32s ease both; }
+    @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
+
+    .topline, .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: clamp(12px, 1.3vw, 16px);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; }
+    .brand-mark {
+      display: grid; place-items: center; width: 30px; height: 30px;
+      border-radius: 9px; background: var(--violet); color: #110d1d;
+      font-weight: 900; letter-spacing: 0;
+    }
+    .section-number { color: var(--violet-soft); }
+    .footer { text-transform: none; letter-spacing: 0; }
+    .progress { width: min(240px, 28vw); height: 3px; background: var(--line); border-radius: 99px; overflow: hidden; }
+    .progress > span { display: block; height: 100%; background: var(--violet); transition: width .25s ease; }
+
+    .content { align-self: center; min-height: 0; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(54px, 9vw, 128px); line-height: .88; letter-spacing: -.065em; margin-bottom: 32px; }
+    h2 { font-size: clamp(38px, 5.4vw, 78px); line-height: .98; letter-spacing: -.045em; max-width: 1050px; margin-bottom: 28px; }
+    h3 { font-size: clamp(19px, 2vw, 28px); margin-bottom: 10px; }
+    p { font-size: clamp(18px, 2vw, 29px); line-height: 1.42; color: var(--muted); max-width: 1050px; }
+    .lede { font-size: clamp(24px, 3vw, 42px); color: var(--ink); max-width: 1100px; line-height: 1.25; }
+    .accent { color: var(--violet-soft); }
+    .coral { color: var(--coral); }
+    .mint { color: var(--mint); }
+    .eyebrow { color: var(--mint); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; font-size: 14px; }
+    .subtitle { max-width: 820px; font-size: clamp(22px, 2.7vw, 36px); }
+
+    .title-layout { display: grid; grid-template-columns: 1.35fr .65fr; align-items: center; gap: 60px; }
+    .orb {
+      width: min(30vw, 390px); aspect-ratio: 1; justify-self: end; border-radius: 50%;
+      position: relative;
+      background: conic-gradient(from 210deg, var(--violet), var(--coral), var(--yellow), var(--mint), var(--violet));
+      box-shadow: 0 0 90px rgba(156,124,255,.22);
+    }
+    .orb::before { content: ""; position: absolute; inset: 18%; border-radius: inherit; background: var(--bg); }
+    .orb::after { content: "声"; position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(52px, 8vw, 112px); font-weight: 800; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px; }
+    .card {
+      background: linear-gradient(150deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+      border: 1px solid var(--line); border-radius: 22px; padding: clamp(20px, 2.5vw, 34px);
+    }
+    .card p { font-size: clamp(15px, 1.45vw, 21px); margin-bottom: 0; }
+    .card .icon { color: var(--violet-soft); font-size: 30px; margin-bottom: 18px; }
+    .problem-card strong { display: block; font-size: clamp(23px, 2.6vw, 36px); margin-bottom: 8px; }
+    .problem-card:nth-child(2) { transform: translateY(22px); }
+    .problem-card:nth-child(3) { transform: translateY(44px); }
+
+    .quote {
+      border-left: 4px solid var(--coral); padding-left: 28px;
+      font-size: clamp(28px, 4vw, 58px); line-height: 1.2; max-width: 1100px;
+      letter-spacing: -.025em;
+    }
+    .quote small { display: block; color: var(--muted); font-size: 18px; margin-top: 18px; }
+
+    .demo-flow { display: grid; grid-template-columns: 1.1fr .9fr; gap: 36px; align-items: center; }
+    .speech {
+      border: 1px solid var(--line); background: var(--panel); border-radius: 26px 26px 26px 6px;
+      padding: 28px 32px; font-size: clamp(24px, 3.2vw, 44px); line-height: 1.35;
+      box-shadow: 0 24px 80px rgba(0,0,0,.25);
+    }
+    .speech + .speech { margin: 22px 0 0 70px; border-radius: 26px 26px 6px 26px; background: #251f39; }
+    .label { display: block; color: var(--muted); text-transform: uppercase; font-size: 12px; letter-spacing: .12em; margin-bottom: 10px; }
+    .study-card { border-left: 4px solid var(--coral); }
+    .study-card .wrong { color: var(--muted); text-decoration: line-through; }
+    .study-card .right { color: var(--mint); font-size: clamp(28px, 3.6vw, 48px); font-weight: 750; }
+    .study-card .pinyin { color: var(--violet-soft); font-size: 19px; }
+
+    .loop { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: stretch; margin-top: 48px; }
+    .loop-step { position: relative; text-align: center; padding: 26px 16px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); }
+    .loop-step:not(:last-child)::after { content: "→"; position: absolute; right: -17px; top: 42%; z-index: 2; color: var(--violet); font-size: 24px; }
+    .loop-step b { display: block; font-size: clamp(17px, 1.6vw, 23px); margin-bottom: 8px; }
+    .loop-step span { color: var(--muted); font-size: 14px; line-height: 1.35; }
+    .loop-step:nth-child(3) { border-color: rgba(255,128,103,.65); }
+    .loop-step:nth-child(4) { border-color: rgba(116,217,187,.65); }
+
+    .architecture { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 15px; align-items: center; margin-top: 35px; }
+    .node { min-height: 160px; display: grid; align-content: center; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 20px; }
+    .node.feature { background: linear-gradient(145deg, #33265a, #1c1827); border-color: rgba(156,124,255,.6); }
+    .node b { font-size: clamp(20px, 2vw, 29px); margin-bottom: 7px; }
+    .node span { color: var(--muted); line-height: 1.35; }
+    .arrow { color: var(--violet); font-size: 32px; }
+    .architecture-note { text-align: center; margin: 24px auto 0; font-size: 17px; }
+
+    .model-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 34px; }
+    .model { min-height: 205px; }
+    .model .tag { color: var(--mint); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; }
+    .model h3 { margin-top: 18px; }
+
+    .metric { font-size: clamp(40px, 5vw, 72px); font-weight: 800; letter-spacing: -.05em; color: var(--violet-soft); }
+    .metric-label { color: var(--muted); font-size: 17px; line-height: 1.35; }
+    .proof-grid { align-items: stretch; margin-top: 36px; }
+
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+    .compare .card:first-child { opacity: .7; }
+    .compare ul, .clean-list { list-style: none; padding: 0; margin: 22px 0 0; }
+    .compare li, .clean-list li { color: var(--muted); font-size: clamp(17px, 1.7vw, 23px); margin: 14px 0; padding-left: 26px; position: relative; }
+    .compare li::before, .clean-list li::before { content: "•"; position: absolute; left: 5px; color: var(--violet); }
+    .compare .ours { border-color: rgba(116,217,187,.55); }
+    .compare .ours li::before { color: var(--mint); }
+
+    .roadmap { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .roadmap .card { padding: 22px 26px; }
+    .roadmap .card strong { color: var(--violet-soft); }
+
+    .closing { text-align: center; }
+    .closing h2 { margin-left: auto; margin-right: auto; max-width: 1100px; }
+    .closing p { margin-left: auto; margin-right: auto; }
+    .closing .pill { margin-top: 32px; }
+    .pill { display: inline-flex; padding: 10px 16px; border-radius: 999px; color: var(--mint); border: 1px solid rgba(116,217,187,.35); background: rgba(116,217,187,.08); font-size: 15px; }
+
+    .appendix-label { color: var(--yellow); }
+    .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .qa { padding: 19px 22px; }
+    .qa h3 { font-size: 19px; color: var(--violet-soft); }
+    .qa p { font-size: 16px; line-height: 1.35; }
+
+    .notes {
+      display: none; position: fixed; z-index: 20; left: 22px; right: 22px; bottom: 22px;
+      max-height: 35vh; overflow: auto; padding: 18px 22px; border: 1px solid rgba(245,202,105,.5);
+      border-radius: 16px; color: #1a1410; background: rgba(255,244,207,.96); box-shadow: 0 15px 60px rgba(0,0,0,.45);
+      font-size: 16px; line-height: 1.45;
+    }
+    .show-notes .active .notes { display: block; }
+    .notes strong { color: #8f431f; }
+
+    .controls { position: fixed; z-index: 30; right: 20px; bottom: 18px; display: flex; gap: 8px; }
+    .controls button { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: rgba(27,24,37,.88); cursor: pointer; }
+    .controls button:hover { border-color: var(--violet); }
+    .help { position: fixed; z-index: 30; left: 20px; bottom: 18px; color: #77717f; font-size: 12px; }
+
+    @media (max-width: 850px) {
+      .slide { overflow-y: auto; }
+      .title-layout, .demo-flow, .grid-2, .grid-3, .compare, .roadmap, .qa-grid { grid-template-columns: 1fr; }
+      .orb { display: none; }
+      .loop, .model-row { grid-template-columns: 1fr 1fr; }
+      .loop-step::after { display: none; }
+      .architecture { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); text-align: center; }
+      .problem-card:nth-child(n) { transform: none; }
+      .footer, .controls, .help { display: none; }
+    }
+
+    @media print {
+      @page { size: 13.333in 7.5in; margin: 0; }
+      body { overflow: visible; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .slide { position: relative; display: grid !important; width: 13.333in; height: 7.5in; page-break-after: always; }
+      .controls, .help, .notes { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active" data-title="Title">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Higgs Audio Hackathon</span></div>
+      <div class="content title-layout">
+        <div>
+          <div class="eyebrow">Conversation as the interface</div>
+          <h1>Speak.<br><span class="accent">Learn.</span><br>Keep it.</h1>
+          <p class="subtitle">A real-time multilingual tutor that turns natural conversation into study material.</p>
+        </div>
+        <div class="orb" aria-hidden="true"></div>
+      </div>
+      <div class="footer"><span>Your team names</span><span class="section-number">01</span></div>
+      <aside class="notes"><strong>Say:</strong> “Polyglot is a realtime multilingual tutor. You speak naturally, switch languages when you need to, and every useful correction or phrase becomes something you can review later.” Add team names before presenting.</aside>
+    </section>
+
+    <section class="slide" data-title="Problem">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>The problem</span></div>
+      <div class="content">
+        <h2>Real learners do not speak in neat, single-language exercises.</h2>
+        <div class="grid-3">
+          <article class="card problem-card"><strong>They hesitate.</strong><p>Beginner pauses are mistaken for the end of a turn.</p></article>
+          <article class="card problem-card"><strong>They code-switch.</strong><p>They fall back to English when they cannot find the target word.</p></article>
+          <article class="card problem-card"><strong>They forget.</strong><p>The best correction disappears when the conversation ends.</p></article>
+        </div>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">02</span></div>
+      <aside class="notes"><strong>Say:</strong> “Most apps separate speaking, corrections, vocabulary and review. Real conversation mixes all four. We built for that messy reality.”</aside>
+    </section>
+
+    <section class="slide" data-title="Promise">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Our promise</span></div>
+      <div class="content">
+        <div class="quote">“Talk naturally. We will follow the language, coach one useful thing at a time, and remember what matters.”<small>English scaffolding · six target languages · beginner and intermediate</small></div>
+        <div class="loop">
+          <div class="loop-step"><b>Speak</b><span>Use either language</span></div>
+          <div class="loop-step"><b>Understand</b><span>Realtime audio context</span></div>
+          <div class="loop-step"><b>Coach</b><span>One focused correction</span></div>
+          <div class="loop-step"><b>Save</b><span>Structured study card</span></div>
+          <div class="loop-step"><b>Replay</b><span>Hear it again later</span></div>
+        </div>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">03</span></div>
+      <aside class="notes"><strong>Languages:</strong> Mandarin, Korean, Japanese, French, Serbian and Vietnamese. Do not say “every language.” Advanced currently shares the intermediate prompt.</aside>
+    </section>
+
+    <section class="slide" data-title="Demo">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Live demo</span></div>
+      <div class="content demo-flow">
+        <div>
+          <div class="speech"><span class="label">You</span>I want to practise Chinese. <span class="coral">我有三本狗。</span></div>
+          <div class="speech"><span class="label">Tutor</span>狗 uses the measure word <span class="mint">只</span>: 我有三只狗。</div>
+        </div>
+        <article class="card study-card">
+          <span class="label">Correction saved automatically</span>
+          <p class="wrong">我有三本狗。</p>
+          <div class="right">我有三只狗。</div>
+          <p class="pinyin">wǒ yǒu sān zhī gǒu</p>
+          <p>Use 只 as the common measure word for dogs.</p>
+          <span class="pill">▶ Replay</span>
+        </article>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">04</span></div>
+      <aside class="notes"><strong>Demo order:</strong> (1) Say the mixed sentence. (2) Point to the correction and pinyin. (3) Ask “What does 加油 mean?” and show the saved phrase. (4) If time allows, ask “Say that again slowly.” Use voice-only mode for the dependable main demo.</aside>
+    </section>
+
+    <section class="slide" data-title="Architecture">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>How it works</span></div>
+      <div class="content">
+        <h2>One continuous realtime conversation.</h2>
+        <div class="architecture">
+          <div class="node"><b>Browser</b><span>Mic · transcript<br>study panel · replay</span></div>
+          <div class="arrow">→</div>
+          <div class="node feature"><b>Higgs Realtime</b><span>Hears · reasons · speaks<br>calls learning tools</span></div>
+          <div class="arrow">→</div>
+          <div class="node"><b>Learner</b><span>Streaming audio<br>focused feedback</span></div>
+        </div>
+        <p class="architecture-note">PCM16 at 24 kHz · server VAD · streaming WebSocket · sample-accurate interruption</p>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">05</span></div>
+      <aside class="notes"><strong>Say:</strong> “The permanent API key stays on our server. The browser gets a ten-minute ephemeral key, then streams audio directly to Higgs. Our server is not a bottleneck for direct voice.” If asked about avatar mode: learner + Python agent + Higgs Avatar meet in a LiveKit Cloud room.</aside>
+    </section>
+
+    <section class="slide" data-title="Boson stack">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Boson at the core</span></div>
+      <div class="content">
+        <h2>Not an LLM with speech bolted on.</h2>
+        <div class="model-row">
+          <article class="card model"><span class="tag">Core</span><h3>Higgs Realtime</h3><p>Understands live audio, maintains the conversation, speaks and calls tools.</p></article>
+          <article class="card model"><span class="tag">Captions</span><h3>Higgs STT 3.1</h3><p>Transcribes each learner turn with per-turn language handling.</p></article>
+          <article class="card model"><span class="tag">Review</span><h3>Higgs TTS 3</h3><p>Replays saved phrases and produces controlled slow repetitions.</p></article>
+          <article class="card model"><span class="tag">Presence</span><h3>Higgs Avatar</h3><p>Adds a lip-synced on-screen tutor through LiveKit.</p></article>
+        </div>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">06</span></div>
+      <aside class="notes"><strong>Judge answer:</strong> Boson is not final-stage TTS. Higgs Realtime is the conversational engine and hears the original audio, which matters for pronunciation and tone.</aside>
+    </section>
+
+    <section class="slide" data-title="Engineering">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Technical execution</span></div>
+      <div class="content">
+        <h2>We made probabilistic AI behavior dependable with deterministic systems.</h2>
+        <div class="grid-3 proof-grid">
+          <article class="card"><div class="metric">1.5s</div><div class="metric-label">Silence window gives learners time to search for a word.</div></article>
+          <article class="card"><div class="metric">24k</div><div class="metric-label">Samples per second, end to end, for exact interruption timing.</div></article>
+          <article class="card"><div class="metric">1×</div><div class="metric-label">Exactly one continuation after a batch of tool calls.</div></article>
+        </div>
+        <div class="grid-3 proof-grid">
+          <article class="card"><h3>Event reducer</h3><p>Late transcripts still update the correct turn.</p></article>
+          <article class="card"><h3>Validated tools</h3><p>Bad arguments return errors instead of breaking the session.</p></article>
+          <article class="card"><h3>Shared configuration</h3><p>Direct and avatar modes run the same tutor behavior.</p></article>
+        </div>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">07</span></div>
+      <aside class="notes"><strong>Hardest problem:</strong> synchronizing partial audio, delayed transcripts, model tool calls and interruptions. Mention call-id deduplication and the pure transcript reducer if the audience is technical.</aside>
+    </section>
+
+    <section class="slide" data-title="Differentiation">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Why it is different</span></div>
+      <div class="content compare">
+        <article class="card">
+          <h3>Generic voice chatbot</h3>
+          <ul><li>Produces a reply</li><li>Conversation disappears</li><li>Correction is unstructured</li><li>Usually expects one language</li></ul>
+        </article>
+        <article class="card ours">
+          <h3>Polyglot</h3>
+          <ul><li>Coaches without stopping the flow</li><li>Creates persistent learning artifacts</li><li>Replays phrases in the tutor’s voice</li><li>Designed around code-switching</li></ul>
+        </article>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">08</span></div>
+      <aside class="notes"><strong>Say:</strong> “The response is not the final product. The learning artifact created from that response is what compounds in value.”</aside>
+    </section>
+
+    <section class="slide" data-title="Roadmap">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Honest scope</span></div>
+      <div class="content">
+        <h2>We proved the loop. Next, we build the learning system around it.</h2>
+        <div class="roadmap">
+          <article class="card"><strong>Today</strong><p>Six target languages, English scaffolding, two levels, local study history, voice and avatar modes.</p></article>
+          <article class="card"><strong>Next</strong><p>Accounts, cross-device progress, spaced repetition and session goals.</p></article>
+          <article class="card"><strong>Deeper feedback</strong><p>Dedicated phoneme scoring and measurable pronunciation progress.</p></article>
+          <article class="card"><strong>Scale</strong><p>More native languages, classroom dashboards, observability and cost controls.</p></article>
+        </div>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">09</span></div>
+      <aside class="notes"><strong>Be candid:</strong> transcription is probabilistic; pronunciation guidance is qualitative, not certified phoneme scoring; notes are local to one browser; avatar mode depends on LiveKit and capacity.</aside>
+    </section>
+
+    <section class="slide" data-title="Closing">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span>Thank you</span></div>
+      <div class="content closing">
+        <div class="eyebrow">The conversation becomes the curriculum</div>
+        <h2>Every sentence is practice.<br><span class="accent">Every correction becomes progress.</span></h2>
+        <p>Polyglot turns realtime multilingual speech into learning that lasts beyond the call.</p>
+        <span class="pill">Questions?</span>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span class="section-number">10</span></div>
+      <aside class="notes"><strong>Close:</strong> “We set out to prove that a realtime audio model could do more than converse—it could recognize teachable moments and preserve them. Polyglot turns the conversation itself into the curriculum.”</aside>
+    </section>
+
+    <section class="slide" data-title="Q&A: product">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span class="appendix-label">Appendix · Product Q&amp;A</span></div>
+      <div class="content qa-grid">
+        <article class="card qa"><h3>Why not a normal voice chatbot?</h3><p>Polyglot turns moments into structured, persistent corrections, phrases and pronunciation cards.</p></article>
+        <article class="card qa"><h3>Does it support every language?</h3><p>No. It supports six targets today and uses profiles so responsible expansion is straightforward.</p></article>
+        <article class="card qa"><h3>Is pronunciation objectively scored?</h3><p>It is qualitative realtime guidance, not yet a dedicated phoneme-level scoring system.</p></article>
+        <article class="card qa"><h3>Where is progress stored?</h3><p>Versioned local browser storage today; accounts and cloud sync are next-stage product work.</p></article>
+        <article class="card qa"><h3>Who is it for?</h3><p>English-speaking beginners and intermediate learners who need low-pressure speaking practice.</p></article>
+        <article class="card qa"><h3>What is the business path?</h3><p>Consumer practice subscriptions, then teacher dashboards and institutional language programs.</p></article>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span>A1</span></div>
+      <aside class="notes">Appendix slides are not part of the timed talk. Jump here during Q&amp;A if useful.</aside>
+    </section>
+
+    <section class="slide" data-title="Q&A: technical">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span class="appendix-label">Appendix · Technical Q&amp;A</span></div>
+      <div class="content qa-grid">
+        <article class="card qa"><h3>Why Higgs?</h3><p>One realtime session combines original audio understanding, conversation, streaming speech and tool calling.</p></article>
+        <article class="card qa"><h3>How is the API key protected?</h3><p>The server mints ten-minute ephemeral keys; the permanent key never enters the browser.</p></article>
+        <article class="card qa"><h3>How do interruptions work?</h3><p>Playback counts heard samples, flushes queued audio and truncates model history to the audible point.</p></article>
+        <article class="card qa"><h3>How are duplicates prevented?</h3><p>Tool calls are deduplicated by call ID and one continuation is sent after the complete batch.</p></article>
+        <article class="card qa"><h3>Why the 1.5-second pause?</h3><p>Learners hesitate. The extra window reduces accidental turn splitting at the cost of modest latency.</p></article>
+        <article class="card qa"><h3>How does avatar mode differ?</h3><p>A Python agent owns the session in LiveKit and forwards tool calls to the same browser handlers over RPC.</p></article>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span>A2</span></div>
+      <aside class="notes">If asked about consistency: TypeScript exports prompts and schemas as JSON for the Python agent, so both modes use the same tutor contract.</aside>
+    </section>
+
+    <section class="slide" data-title="Demo backup">
+      <div class="topline"><span class="brand"><span class="brand-mark">P</span> Polyglot</span><span class="appendix-label">Appendix · Demo backup</span></div>
+      <div class="content">
+        <h2>Four prompts that show the complete product.</h2>
+        <ol class="clean-list">
+          <li><span class="accent">Correction:</span> “I want to practise Chinese. 我有三本狗。”</li>
+          <li><span class="accent">Phrase:</span> “What does 加油 mean?”</li>
+          <li><span class="accent">Slow replay:</span> “Can you say that again slowly?”</li>
+          <li><span class="accent">Language switch:</span> “Let’s practise French now.”</li>
+        </ol>
+        <p class="pill">If avatar fails, switch immediately to voice only—the fallback is part of the design.</p>
+      </div>
+      <div class="footer"><div class="progress"><span></span></div><span>A3</span></div>
+      <aside class="notes">Before the demo: quiet room, microphone tested, credits confirmed, old study notes cleared, exact phrases rehearsed once, and a prerecorded backup ready.</aside>
+    </section>
+  </main>
+
+  <div class="help">← → navigate · N notes · Home/End jump · print to PDF</div>
+  <div class="controls" aria-label="Slide controls"><button id="prev" aria-label="Previous slide">←</button><button id="next" aria-label="Next slide">→</button></div>
+
+  <script>
+    const deck = document.getElementById("deck");
+    const slides = [...document.querySelectorAll(".slide")];
+    let index = Math.max(0, Math.min(slides.length - 1, Number(location.hash.slice(1)) - 1 || 0));
+
+    function show(next) {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      slides.forEach((slide, i) => {
+        slide.classList.toggle("active", i === index);
+        const progress = slide.querySelector(".progress > span");
+        if (progress) progress.style.width = `${((Math.min(index, 9) + 1) / 10) * 100}%`;
+      });
+      document.title = `${slides[index].dataset.title} — Polyglot`;
+      history.replaceState(null, "", `#${index + 1}`);
+    }
+
+    document.getElementById("prev").addEventListener("click", () => show(index - 1));
+    document.getElementById("next").addEventListener("click", () => show(index + 1));
+    addEventListener("keydown", (event) => {
+      if (["ArrowRight", "PageDown", " "].includes(event.key)) { event.preventDefault(); show(index + 1); }
+      if (["ArrowLeft", "PageUp"].includes(event.key)) { event.preventDefault(); show(index - 1); }
+      if (event.key === "Home") show(0);
+      if (event.key === "End") show(slides.length - 1);
+      if (event.key.toLowerCase() === "n") document.body.classList.toggle("show-notes");
+    });
+    let touchX = null;
+    addEventListener("touchstart", (event) => { touchX = event.changedTouches[0].clientX; }, { passive: true });
+    addEventListener("touchend", (event) => {
+      if (touchX === null) return;
+      const delta = event.changedTouches[0].clientX - touchX;
+      if (Math.abs(delta) > 50) show(index + (delta < 0 ? 1 : -1));
+      touchX = null;
+    }, { passive: true });
+    show(index);
+  </script>
+</body>
+</html>
