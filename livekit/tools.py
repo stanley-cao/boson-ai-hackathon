@@ -34,6 +34,9 @@ STAND_IN_SUMMARY = "Done. Continue as the tool's description says."
 UNAVAILABLE_SUMMARY = "The study panel did not answer, so nothing was saved. Carry on the conversation."
 
 ToolHandler = Callable[[dict[str, Any], RunContext], Awaitable[dict[str, Any]]]
+# Runs after the browser answers and before the model gets the result, so a
+# session change it makes (new instructions) is in place for the reply.
+AfterTool = Callable[[str, dict[str, Any], RunContext], Awaitable[None]]
 
 
 def _as_tool_result(response: str) -> dict[str, Any] | None:
@@ -85,7 +88,7 @@ async def forward_tool_call(
     return result
 
 
-def forwarding_handler(name: str) -> ToolHandler:
+def forwarding_handler(name: str, after: AfterTool | None = None) -> ToolHandler:
     """A handler that forwards the call to the learner's browser."""
 
     async def handle(raw_arguments: dict[str, Any], context: RunContext) -> dict[str, Any]:
@@ -107,16 +110,22 @@ def forwarding_handler(name: str) -> ToolHandler:
             pass
         result = await forward_tool_call(local, identity, call_id, name, raw_arguments)
         logger.info("%s -> %s", name, result.get("summary"))
+        if after is not None:
+            try:
+                await after(name, result, context)
+            except Exception:
+                # The model still needs its answer, whatever went wrong here.
+                logger.exception("%s: after-tool hook failed", name)
         return result
 
     return handle
 
 
-def build_tools(session: dict[str, Any]) -> list[RawFunctionTool]:
+def build_tools(session: dict[str, Any], after: AfterTool | None = None) -> list[RawFunctionTool]:
     """One LiveKit tool per exported schema, with the schema passed through unchanged."""
     return [
         function_tool(
-            forwarding_handler(schema["name"]),
+            forwarding_handler(schema["name"], after),
             raw_schema={
                 "name": schema["name"],
                 "description": schema.get("description", ""),

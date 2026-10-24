@@ -15,13 +15,32 @@ Higgs Avatar only joins LiveKit Cloud rooms (Phase 4).
 
 import logging
 import os
+from typing import Any
 
 from dotenv import load_dotenv
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequest, cli
+from livekit.agents import (
+    Agent,
+    AgentServer,
+    AgentSession,
+    AgentStateChangedEvent,
+    ConversationItemAddedEvent,
+    JobContext,
+    JobRequest,
+    RunContext,
+    UserStateChangedEvent,
+    cli,
+)
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
-from session_config import instructions_for, load_prompts, load_session, model_kwargs
+from session_config import (
+    auto_detect_transcription,
+    instructions_for,
+    load_prompts,
+    load_session,
+    model_kwargs,
+    practice_change,
+)
 from tools import build_tools
 
 logger = logging.getLogger("polyglot")
@@ -39,12 +58,68 @@ AGENT_IDENTITY = "polyglot-tutor"
 
 class Tutor(Agent):
     def __init__(self, instructions: str) -> None:
-        super().__init__(instructions=instructions, tools=build_tools(SESSION))
+        super().__init__(instructions=instructions, tools=build_tools(SESSION, self.after_tool))
+
+    async def after_tool(self, name: str, result: dict[str, Any], context: RunContext) -> None:
+        # The browser's study panel follows set_practice_language on its own,
+        # but the prompt carries the language's teaching notes, so a switch
+        # needs new instructions here too, as RealtimeClient.ts sends in
+        # direct mode. Awaited before the result goes back, so the reply
+        # already uses them.
+        instructions = practice_change(name, result, PROMPTS)
+        if instructions is not None and instructions != self.instructions:
+            detail = result.get("detail", {})
+            logger.info("now practising %s at %s level", detail.get("language"), detail.get("level"))
+            await self.update_instructions(instructions)
 
     async def on_enter(self) -> None:
         # The model answers when the learner stops speaking. Speak first instead,
         # which is also what probe.py waits for.
         self.session.generate_reply(instructions="Greet the learner in one short sentence.")
+
+
+def reset_transcription_language_each_turn(
+    session: AgentSession, model: boson.realtime.RealtimeModel
+) -> None:
+    """Keep STT auto-detecting, so captions show the language actually spoken.
+
+    Boson otherwise lets transcription follow the tutor's language after its
+    first reply: with Serbian picked, the learner's English came back as
+    Serbian. Mirrors RealtimeClient.ts: reset once the tutor's reply is over
+    and again as the learner starts speaking. The model-level update reaches
+    every open session; the prompt and target language are left alone.
+    """
+    reset = auto_detect_transcription(SESSION)
+
+    def on_agent_state(event: AgentStateChangedEvent) -> None:
+        if event.old_state == "speaking":
+            model.update_options(input_audio_transcription=reset)
+
+    def on_user_state(event: UserStateChangedEvent) -> None:
+        if event.new_state == "speaking":
+            model.update_options(input_audio_transcription=reset)
+
+    session.on("agent_state_changed", on_agent_state)
+    session.on("user_state_changed", on_user_state)
+
+
+def log_conversation(session: AgentSession) -> None:
+    """Log each turn as it lands in the chat context, for debugging live sessions.
+
+    The browser's transcript is gone once the room closes; this keeps what the
+    model actually saw (including interrupted, truncated replies) in the
+    agent's log.
+    """
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        item = event.item
+        role = getattr(item, "role", None)
+        if role is None:
+            return
+        interrupted = " (interrupted)" if getattr(item, "interrupted", False) else ""
+        logger.info("%s%s: %s", role, interrupted, getattr(item, "text_content", None))
+
+    session.on("conversation_item_added", on_item)
 
 
 server = AgentServer()
@@ -68,13 +143,14 @@ async def entrypoint(ctx: JobContext) -> None:
     # Environment overrides, as upstream has, for trying another model or voice.
     options["model"] = os.getenv("BOSON_REALTIME_MODEL", options["model"])
     options["voice"] = os.getenv("BOSON_VOICE", options["voice"])
-    session = AgentSession(
-        llm=boson.realtime.RealtimeModel(
-            url=os.getenv("BOSON_REALTIME_URL", "wss://api.boson.ai/v1/realtime/"),
-            api_key=os.environ["BOSON_API_KEY"],
-            **options,
-        ),
+    model = boson.realtime.RealtimeModel(
+        url=os.getenv("BOSON_REALTIME_URL", "wss://api.boson.ai/v1/realtime/"),
+        api_key=os.environ["BOSON_API_KEY"],
+        **options,
     )
+    session = AgentSession(llm=model)
+    reset_transcription_language_each_turn(session, model)
+    log_conversation(session)
     if is_avatar_room(ctx.room.name):
         # Set this before start(): RoomIO sees an existing output and does not
         # publish the agent's normal audio track. Realtime PCM goes to the

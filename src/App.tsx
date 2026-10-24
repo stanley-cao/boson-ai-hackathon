@@ -150,6 +150,12 @@ export default function App() {
     const stored = study.practiceLanguage?.language;
     return stored && isTargetLanguage(stored) ? stored : ACTIVE_PAIR.target;
   });
+  // A spoken switch ("let's do French") reaches the transcript through
+  // set_practice_language; follow it so the badge and the next session match.
+  const practisedLanguage = study.practiceLanguage?.language;
+  useEffect(() => {
+    if (practisedLanguage && isTargetLanguage(practisedLanguage)) setTargetLanguage(practisedLanguage);
+  }, [practisedLanguage]);
   // The stored level, restored from localStorage or set earlier this session.
   const storedLevel = study.practiceLanguage?.level;
 
