@@ -6,6 +6,7 @@ import {
   setPracticeLanguage,
   pronunciationFeedback,
   savePhrase,
+  targetLanguageNames,
 } from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
@@ -71,8 +72,34 @@ describe("normalizeLanguage", () => {
     }
   });
 
+  it("maps the names and locale tags of Boson's other languages", () => {
+    const cases = [
+      ["German", "de"],
+      ["de-DE", "de"],
+      ["pt_BR", "pt"],
+      ["Māori", "mi"],
+      ["maori", "mi"],
+      ["Farsi", "fa"],
+      ["Haitian Creole", "ht"],
+      ["Slovenian", "sl"],
+      ["español", "es"],
+      ["espanol", "es"],
+      ["ceb", "ceb"],
+    ] as const;
+    for (const [sent, expected] of cases) expect(normalizeLanguage(sent), sent).toBe(expected);
+  });
+
+  it("exports names but not codes for the agent, which matches them in speech", () => {
+    const names = targetLanguageNames();
+    expect(Object.keys(names)).not.toContain("en");
+    expect(names.it).toEqual(["italian"]);
+    expect(names.mi).toEqual(["māori", "maori"]);
+    expect(Object.values(names).flat()).not.toContain("no");
+  });
+
   it("returns null for values it does not know, rather than guessing", () => {
-    for (const sent of ["Klingon", "", "  ", "de-DE", "Chinese (Simplified)"]) {
+    // Welsh is one of the languages Boson rates below its top tier, left out on purpose.
+    for (const sent of ["Klingon", "Welsh", "", "  ", "Chinese (Simplified)"]) {
       expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();
     }
   });
@@ -179,6 +206,22 @@ describe("note_correction", () => {
     }
   });
 
+  it("refuses a correction in Latin letters for the newer non-Latin scripts", () => {
+    const cases = [
+      ["ru", "Я студент", "Ya student", "Cyrillic"],
+      ["hi", "मैं छात्र हूँ", "main chhatra hoon", "Devanagari"],
+      ["ar", "أنا طالب", "ana talib", "Arabic script"],
+      ["th", "ฉันเป็นนักเรียน", "chan pen nakrian", "Thai script"],
+    ] as const;
+    for (const [language, said, correct, name] of cases) {
+      const wrong = noteCorrection({ ...args, language, said, correct });
+      expect(wrong.error, language).toBe("wrong_script");
+      expect(wrong.summary).toContain(name);
+      // The same fix in the language's own script is saved.
+      expect(noteCorrection({ ...args, language, said: correct, correct: said }).detail, language).toBeDefined();
+    }
+  });
+
   it("still saves a mixed-language Mandarin fix, and an English one in Latin letters", () => {
     expect(noteCorrection({ ...args, said: "I have 三本狗", correct: "I have 三只狗" }).detail).toBeDefined();
     expect(
@@ -244,10 +287,12 @@ describe("set_practice_language", () => {
   });
 
   it("answers with an error, never a throw, for a language without a profile", () => {
-    for (const language of ["Klingon", "de-DE", "", undefined, { code: "zh" }]) {
+    for (const language of ["Klingon", "Welsh", "", undefined, { code: "zh" }]) {
       const r = setPracticeLanguage({ language, level: "beginner" });
       expect(r.error, String(language)).toBe("unknown_language");
-      for (const p of Object.values(PROFILES)) expect(r.summary).toContain(p.name);
+      // Spoken, so it must not read out all 85 language names.
+      expect(r.summary).not.toContain(PROFILES.ru.name);
+      expect(r.summary.length).toBeLessThan(160);
       expect(r.detail).toBeUndefined();
     }
   });
@@ -430,6 +475,10 @@ describe("pronunciation_feedback", () => {
       ["vi", "tone", "tone"],
       ["vi", "pitch", "tone"],
       ["vi", "final", "vowel"],
+      ["th", "pitch", "tone"],
+      ["zu", "pitch", "tone"],
+      ["de", "tone", "pitch"],
+      ["ru", "final", "vowel"],
     ];
     for (const [language, sent, issue] of cases) {
       const d = pronunciationFeedback({ ...args, language, issue: sent }).detail as PronunciationNote;

@@ -105,7 +105,10 @@ describe("tutor prompt", () => {
     // the model may stop calling tools. Checked per level because the
     // intermediate note is the longer one, and the default is beginner.
     for (const level of Object.values(LEARNER_LEVELS)) {
-      expect(buildTutorPrompt(PROFILES.zh, PROFILES.en, level).length, level.code).toBeLessThanOrEqual(1200);
+      for (const target of Object.values(PROFILES)) {
+        const prompt = buildTutorPrompt(target, PROFILES.en, level);
+        expect(prompt.length, `${target.code} ${level.code}`).toBeLessThanOrEqual(1200);
+      }
     }
   });
 

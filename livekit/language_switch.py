@@ -10,21 +10,21 @@ model may still call the tool): a negated request or a remark about the
 learner's studies must not count.
 """
 
+import json
 import re
 
-# Names a learner says for each target language (the codes in prompts.json).
-LANGUAGE_NAMES = {
-    "zh": ("mandarin", "chinese"),
-    "ko": ("korean",),
-    "fr": ("french",),
-    "ja": ("japanese",),
-    "sr": ("serbian",),
-    "vi": ("vietnamese",),
-}
+from session_config import SHARED
 
-# The same names in the languages taught, for a request made in one of them
-# ("Parlons japonais", "日本語で話しましょう"). Lowercase and as transcribed;
-# Serbian in Latin script, as the tutor writes it.
+# Names a learner says for each target language (the codes in prompts.json),
+# exported from src/tools/handlers.ts by `npm run export-config`. Raises if
+# missing, like load_prompts.
+LANGUAGE_NAMES: dict[str, list[str]] = json.loads((SHARED / "languages.json").read_text(encoding="utf-8"))
+
+# The same names in the languages first taught (French, Mandarin, Korean,
+# Japanese, Serbian, Vietnamese), for a request made in one of them ("Parlons
+# japonais", "日本語で話しましょう"). Lowercase and as transcribed; Serbian in
+# Latin script, as the tutor writes it. Only the most studied of the other
+# languages are here; the rest are matched by their English names.
 NATIVE_NAMES = {
     "zh": ("chinois", "中文", "汉语", "普通话", "중국어", "中国語", "kineski", "kineskom", "tiếng trung"),
     "ko": ("coréen", "coreen", "韩语", "한국어", "韓国語", "korejski", "korejskom", "tiếng hàn"),
@@ -32,6 +32,18 @@ NATIVE_NAMES = {
     "ja": ("japonais", "日语", "日本語", "일본어", "japanski", "japanskom", "tiếng nhật"),
     "sr": ("serbe", "塞尔维亚语", "세르비아어", "セルビア語", "srpski", "srpskom", "tiếng serbia"),
     "vi": ("vietnamien", "越南语", "베트남어", "ベトナム語", "vijetnamski", "vijetnamskom", "tiếng việt"),
+    "de": ("allemand", "德语", "독일어", "ドイツ語", "nemački", "nemačkom", "tiếng đức"),
+    "es": ("espagnol", "西班牙语", "스페인어", "スペイン語", "španski", "španskom", "tiếng tây ban nha"),
+    "it": ("italien", "意大利语", "이탈리아어", "イタリア語", "italijanski", "italijanskom", "tiếng ý"),
+    "pt": ("portugais", "葡萄牙语", "포르투갈어", "ポルトガル語", "portugalski", "portugalskom", "tiếng bồ đào nha"),
+    "ru": ("russe", "俄语", "러시아어", "ロシア語", "ruski", "ruskom", "tiếng nga"),
+    "ar": ("arabe", "阿拉伯语", "아랍어", "アラビア語", "arapski", "arapskom", "tiếng ả rập"),
+    "hi": ("hindi", "印地语", "힌디어", "ヒンディー語", "hindi", "tiếng hindi"),
+    "nl": ("néerlandais", "neerlandais", "荷兰语", "네덜란드어", "オランダ語", "holandski", "holandskom", "tiếng hà lan"),
+    "tr": ("turc", "土耳其语", "터키어", "トルコ語", "turski", "turskom", "tiếng thổ nhĩ kỳ"),
+    "pl": ("polonais", "波兰语", "폴란드어", "ポーランド語", "poljski", "poljskom", "tiếng ba lan"),
+    "th": ("thaï", "泰语", "태국어", "タイ語", "tajlandski", "tajlandskom", "tiếng thái"),
+    "id": ("indonésien", "indonesien", "印尼语", "인도네시아어", "インドネシア語", "indonežanski", "indonežanskom", "tiếng indonesia"),
 }
 
 _CODE_FOR = {

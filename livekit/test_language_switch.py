@@ -43,6 +43,16 @@ def test_every_target_language_can_be_asked_for() -> None:
     assert requested_language("practice Serbian", "fr") == "sr"
     assert requested_language("let's do Vietnamese", "fr") == "vi"
     assert requested_language("go back to French", "ja") == "fr"
+    assert requested_language("let's do German", "fr") == "de"
+    assert requested_language("practice Haitian Creole", "fr") == "ht"
+    assert requested_language("switch to Māori", "fr") == "mi"
+    assert requested_language("can we speak Farsi?", "fr") == "fa"
+
+
+def test_codes_are_not_names() -> None:
+    # "it" and "no" are Italian's and Norwegian's codes, and ordinary words.
+    assert requested_language("let's do it", "fr") is None
+    assert requested_language("I want no more", "fr") is None
 
 
 def test_every_exported_prompt_language_has_a_name() -> None:
@@ -151,9 +161,28 @@ def test_refusals_and_questions_in_the_languages_taught_are_not_a_switch(turn: s
     assert requested_language(turn, "sr") is None
 
 
-def test_every_exported_prompt_language_has_native_names() -> None:
+def test_native_names_are_for_exported_prompt_languages() -> None:
+    # Native names cover the first six languages and the most studied others,
+    # not all 84: the rest are matched by their English names.
     from session_config import load_prompts
 
     from language_switch import NATIVE_NAMES
 
-    assert set(load_prompts()) == set(NATIVE_NAMES)
+    prompts = set(load_prompts())
+    assert set(NATIVE_NAMES) <= prompts
+    assert {"zh", "ko", "fr", "ja", "sr", "vi"} <= set(NATIVE_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("turn", "code"),
+    [
+        ("Parlons allemand", "de"),
+        ("我想学西班牙语", "es"),
+        ("러시아어로 바꿔 주세요", "ru"),
+        ("イタリア語で話しましょう", "it"),
+        ("Pričajmo nemački", "de"),
+        ("Chuyển sang tiếng Thái nhé", "th"),
+    ],
+)
+def test_requests_for_the_most_studied_other_languages(turn: str, code: str) -> None:
+    assert requested_language(turn, "fr") == code

@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSessionConfig, buildTutorPrompts, SLOW_PACE_NOTE, SLOWER_PACE_NOTE } from "../src/realtime/sessionConfig";
+import { targetLanguageNames } from "../src/tools/handlers";
 
 const shared = resolve(dirname(fileURLToPath(import.meta.url)), "../shared");
 
@@ -27,3 +28,6 @@ write("prompts.json", buildTutorPrompts());
 // The sentence each slow pace appends to any of those prompts, so the agent
 // can slow down for "speak more slowly" as the browser does (set_speaking_pace).
 write("pace.json", { slow_note: SLOW_PACE_NOTE, slower_note: SLOWER_PACE_NOTE });
+// The names a learner may say for each of those languages, so the agent can
+// spot "let's do German" when the model doesn't call set_practice_language.
+write("languages.json", targetLanguageNames());

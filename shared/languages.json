@@ -1,0 +1,290 @@
+{
+  "af": [
+    "afrikaans"
+  ],
+  "ar": [
+    "arabic"
+  ],
+  "hy": [
+    "armenian"
+  ],
+  "as": [
+    "assamese"
+  ],
+  "ast": [
+    "asturian"
+  ],
+  "az": [
+    "azerbaijani"
+  ],
+  "ba": [
+    "bashkir"
+  ],
+  "eu": [
+    "basque"
+  ],
+  "be": [
+    "belarusian"
+  ],
+  "bn": [
+    "bengali"
+  ],
+  "bs": [
+    "bosnian"
+  ],
+  "bg": [
+    "bulgarian"
+  ],
+  "ca": [
+    "catalan"
+  ],
+  "ceb": [
+    "cebuano"
+  ],
+  "ckb": [
+    "central kurdish",
+    "kurdish",
+    "sorani"
+  ],
+  "hr": [
+    "croatian"
+  ],
+  "cs": [
+    "czech"
+  ],
+  "da": [
+    "danish"
+  ],
+  "nl": [
+    "dutch"
+  ],
+  "mhr": [
+    "eastern mari",
+    "meadow mari"
+  ],
+  "eo": [
+    "esperanto"
+  ],
+  "et": [
+    "estonian"
+  ],
+  "fi": [
+    "finnish"
+  ],
+  "fr": [
+    "french",
+    "français",
+    "francais"
+  ],
+  "gl": [
+    "galician"
+  ],
+  "ka": [
+    "georgian"
+  ],
+  "de": [
+    "german",
+    "deutsch"
+  ],
+  "el": [
+    "greek"
+  ],
+  "gu": [
+    "gujarati"
+  ],
+  "ht": [
+    "haitian creole",
+    "haitian",
+    "kreyòl",
+    "kreyol"
+  ],
+  "ha": [
+    "hausa"
+  ],
+  "he": [
+    "hebrew"
+  ],
+  "hi": [
+    "hindi"
+  ],
+  "hu": [
+    "hungarian"
+  ],
+  "id": [
+    "indonesian",
+    "bahasa indonesia"
+  ],
+  "it": [
+    "italian"
+  ],
+  "ja": [
+    "japanese",
+    "nihongo"
+  ],
+  "jv": [
+    "javanese"
+  ],
+  "kn": [
+    "kannada"
+  ],
+  "kk": [
+    "kazakh"
+  ],
+  "rw": [
+    "kinyarwanda"
+  ],
+  "ko": [
+    "korean"
+  ],
+  "ky": [
+    "kyrgyz",
+    "kirghiz"
+  ],
+  "lv": [
+    "latvian"
+  ],
+  "ln": [
+    "lingala"
+  ],
+  "lt": [
+    "lithuanian"
+  ],
+  "luo": [
+    "luo",
+    "dholuo"
+  ],
+  "mk": [
+    "macedonian"
+  ],
+  "ms": [
+    "malay",
+    "bahasa melayu"
+  ],
+  "ml": [
+    "malayalam"
+  ],
+  "mt": [
+    "maltese"
+  ],
+  "zh": [
+    "mandarin chinese",
+    "mandarin",
+    "chinese"
+  ],
+  "mi": [
+    "māori",
+    "maori"
+  ],
+  "mr": [
+    "marathi"
+  ],
+  "mn": [
+    "mongolian"
+  ],
+  "ne": [
+    "nepali"
+  ],
+  "no": [
+    "norwegian",
+    "norsk",
+    "bokmål",
+    "bokmal"
+  ],
+  "oc": [
+    "occitan"
+  ],
+  "fa": [
+    "persian",
+    "farsi"
+  ],
+  "pl": [
+    "polish"
+  ],
+  "pt": [
+    "portuguese",
+    "português",
+    "portugues"
+  ],
+  "ro": [
+    "romanian"
+  ],
+  "ru": [
+    "russian"
+  ],
+  "nso": [
+    "sepedi",
+    "northern sotho"
+  ],
+  "sr": [
+    "serbian",
+    "srpski"
+  ],
+  "sn": [
+    "shona"
+  ],
+  "sk": [
+    "slovak"
+  ],
+  "sl": [
+    "slovene",
+    "slovenian"
+  ],
+  "es": [
+    "spanish",
+    "español",
+    "espanol",
+    "castilian"
+  ],
+  "sw": [
+    "swahili",
+    "kiswahili"
+  ],
+  "sv": [
+    "swedish"
+  ],
+  "tl": [
+    "tagalog",
+    "filipino"
+  ],
+  "tg": [
+    "tajik"
+  ],
+  "ta": [
+    "tamil"
+  ],
+  "te": [
+    "telugu"
+  ],
+  "th": [
+    "thai"
+  ],
+  "tr": [
+    "turkish"
+  ],
+  "uk": [
+    "ukrainian"
+  ],
+  "ur": [
+    "urdu"
+  ],
+  "ug": [
+    "uyghur",
+    "uighur"
+  ],
+  "uz": [
+    "uzbek"
+  ],
+  "vi": [
+    "vietnamese",
+    "tiếng việt",
+    "tieng viet"
+  ],
+  "xh": [
+    "xhosa",
+    "isixhosa"
+  ],
+  "zu": [
+    "zulu",
+    "isizulu"
+  ]
+}
