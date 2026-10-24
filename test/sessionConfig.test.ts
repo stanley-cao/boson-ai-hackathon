@@ -4,7 +4,7 @@ import { AUDIO_RATE, buildSessionConfig } from "../src/realtime/sessionConfig";
 interface AudioConfig {
   input: {
     format: { type: string; rate: number };
-    turn_detection: { type: string };
+    turn_detection: { type: string; silence_duration_ms?: number };
     transcription: { model: string; language?: string };
   };
   output: { format: { type: string; rate: number } };
@@ -17,8 +17,13 @@ function audioConfig(): AudioConfig {
 }
 
 describe("buildSessionConfig", () => {
-  it("uses semantic VAD so learner pauses are not ended by a fixed silence window", () => {
-    expect(audioConfig().input.turn_detection).toEqual({ type: "semantic_vad" });
+  it("waits out learner word-search pauses before ending a turn", () => {
+    // #7: the 500 ms default, and semantic_vad at any window, cut a learner
+    // pausing mid-sentence into two turns.
+    expect(audioConfig().input.turn_detection).toEqual({
+      type: "server_vad",
+      silence_duration_ms: 1500,
+    });
   });
 
   it("keeps transcription language unset for code-switched speech", () => {

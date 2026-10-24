@@ -26,11 +26,13 @@ import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
  * The learner's native language and the target language both come from
  * `ACTIVE_PAIR`; the target's `promptNotes` carry the teaching specifics.
  *
- * Code-switching: the tutor replies in whichever language the learner just
- * used, rather than asking which one they want. That matches how the learner
- * talks and avoids a question that would break the flow. The probe has not
- * yet compared this with the target-language-first variant; see the ROADMAP
- * decision log once that run is recorded.
+ * Code-switching: an explicit "target → target, native → native" mirror,
+ * with corrections explained in the native language. Probed 2026-10-24 (see
+ * the ROADMAP decision log): plain "reply in the language they just used"
+ * answered Mandarin in English, "mostly the target language" dropped English
+ * from corrections and stopped tool calls, and "learner chooses" asked them
+ * to pick. Pinyin is confined to tool arguments; an unscoped "write with
+ * pinyin" made the tutor speak pinyin instead of characters.
  */
 export function buildTutorPrompt(
   target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
@@ -40,10 +42,10 @@ export function buildTutorPrompt(
     // Role and capabilities.
     `You are a friendly language tutor. The learner speaks ${native.name} and is learning ${target.name}.`,
     // Code-switching.
-    "They switch between the two mid-sentence. Follow the switch and reply in the language they just used.",
-    "Never ask which language they want.",
+    "They switch between the two mid-sentence; never ask which language they want.",
+    `When they speak ${target.name}, answer in ${target.name}; when they speak ${native.name}, answer in ${native.name}.`,
     // Teaching.
-    "Give at most one correction per turn, after answering what they said.",
+    `Give at most one correction per turn, and explain it in ${native.name}.`,
     "After note_correction returns, say its correct text clearly exactly once. After pronunciation_feedback returns, say its target clearly exactly once.",
     target.promptNotes,
     target.romanization
@@ -93,12 +95,14 @@ export function buildSessionConfig(): ClientEvent {
       audio: {
         input: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
-          // Language learners pause while searching for words. Semantic VAD
-          // combines speech detection with an end-of-turn judgement, making it
-          // less likely to cut those pauses into separate turns than a fixed
-          // silence window. Keep the documented defaults until issue #7's live
-          // English, Mandarin and code-switching comparison is complete.
-          turn_detection: { type: "semantic_vad" },
+          // Language learners pause while searching for words, so the turn
+          // only ends after 1.5 s of silence (the default is 500 ms). Probed
+          // 2026-10-24 (#7, ROADMAP decision log): semantic_vad committed
+          // "I went to the…" at its default window, and at equal windows it
+          // held no more pauses than server_vad; its only accepted eagerness
+          // is "auto". server_vad holds any pause shorter than this window
+          // and splits longer ones; the cost is a ~1.3 s wait after every turn.
+          turn_detection: { type: "server_vad", silence_duration_ms: 1500 },
           // PART 3: transcribe the user's speech.
           //
           // Off by default — the ack shows `model: ""` if you omit this — and
