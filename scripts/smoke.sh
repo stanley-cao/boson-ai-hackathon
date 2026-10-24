@@ -17,14 +17,19 @@ CAPTURES=captures
 FIXTURES=test/fixtures
 mkdir -p "$CAPTURES" "$FIXTURES"
 
-# name | spoken utterance | required tools | argument field | required substring | forbidden tools
+# name | spoken utterance | required tools | argument field | required substring | forbidden tools | spoken echo
 # Use "-" for none. "*" in the forbidden column means no tool may fire.
+# "Spoken echo" names an argument of the required tool that the reply after
+# the call must put into words, so a tutor that saves a phrase and then only
+# says "saved!" still fails (#23). The explain case uses 好久不见 because the
+# model heard a synthesised 没关系 as 没关机 ("not switched off").
 CASES=(
-  "english|Hi! Can you check my sentence? I went to the shop yesterday.|-|-|-|*"
-  "mandarin|我想练习中文。你觉得我的发音怎么样？|-|-|-|set_practice_language"
-  "mixed|What does 加油 mean?|save_phrase|phrase|加油|set_practice_language"
-  "correction|我有三本狗。|note_correction|-|-|set_practice_language"
-  "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback|-|-|set_practice_language"
+  "english|Hi! Can you check my sentence? I went to the shop yesterday.|-|-|-|*|-"
+  "mandarin|我想练习中文。你觉得我的发音怎么样？|-|-|-|set_practice_language|-"
+  "mixed|What does 加油 mean?|save_phrase|phrase|加油|set_practice_language|meaning"
+  "explain|I keep hearing people say 好久不见. What does that mean?|save_phrase|phrase|好久不见|set_practice_language|meaning"
+  "correction|我有三本狗。|note_correction|-|-|set_practice_language|-"
+  "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback|-|-|set_practice_language|-"
 )
 
 # Probe output for these cases is kept as fixtures for offline tests.
@@ -73,10 +78,38 @@ call_argument_contains() {
   ' "$1" "$2" "$3" "$4"
 }
 
+# Succeeds when the tutor's speech after the first call to `tool` shares a
+# word with that call's argument `field`. Shared words rather than an exact
+# match because the reply paraphrases: "cheer on, keep going" came back as
+# "it means keep going". Words under four letters are skipped so "you" or
+# "the" can't pass a reply that never explained anything; if the argument has
+# none left, any speech at all passes.
+reply_echoes_argument() {
+  node -e '
+    const [file, tool, field] = process.argv.slice(1);
+    const events = JSON.parse(require("fs").readFileSync(file, "utf8"));
+    const at = events.findIndex((e) => e.type === "response.function_call_arguments.done" && e.name === tool);
+    if (at < 0) process.exit(1);
+    let value = "";
+    try {
+      value = String(JSON.parse(events[at].arguments)[field] ?? "");
+    } catch {}
+    const said = events
+      .slice(at + 1)
+      .filter((e) => e.type === "response.output_audio_transcript.done")
+      .map((e) => String(e.transcript ?? ""))
+      .join(" ")
+      .toLowerCase();
+    const words = value.toLowerCase().match(/\p{L}{4,}/gu) ?? [];
+    const ok = words.length > 0 ? words.some((w) => said.includes(w)) : said.trim() !== "";
+    process.exit(ok ? 0 : 1);
+  ' "$1" "$2" "$3"
+}
+
 failures=0
 
 for case in "${CASES[@]}"; do
-  IFS='|' read -r name utterance expected arg_field arg_contains forbidden <<< "$case"
+  IFS='|' read -r name utterance expected arg_field arg_contains forbidden echo_field <<< "$case"
   out="$CAPTURES/smoke-$name.json"
   log="$CAPTURES/smoke-$name.log"
   echo "== $name: $utterance"
@@ -101,6 +134,12 @@ for case in "${CASES[@]}"; do
           case_ok=0
         elif [ "$arg_field" != "-" ]; then
           echo "   ok: $tool.$arg_field contains '$arg_contains'"
+        fi
+        if [ "$echo_field" != "-" ] && ! reply_echoes_argument "$out" "$tool" "$echo_field"; then
+          echo "   FAIL: the reply after $tool did not explain its $echo_field"
+          case_ok=0
+        elif [ "$echo_field" != "-" ]; then
+          echo "   ok: the reply after $tool explained its $echo_field"
         fi
       else
         echo "   FAIL: $tool did not fire (calls: ${calls:-none})"
