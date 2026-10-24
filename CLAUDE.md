@@ -8,7 +8,7 @@ Onboarding notes for coding agents working in this repo. For humans, start with 
 
 It is built on **Higgs Realtime** (`wss://api.boson.ai/v1/realtime`, model `higgs-realtime`), which speaks the OpenAI Realtime GA event protocol.
 
-**Status: template.** The app is Boson's higgs-realtime-tutorial with minimal changes. The only tool is the starter's dummy `web_search`, and the system prompt is still the tutorial's generic assistant prompt. The Polyglot features haven't been built yet.
+**Status: Phase 1 in progress** (see the status table in `docs/ROADMAP.md`). The tutor prompt is built from the language profiles in `src/lang/profiles.ts`, and the tutorial's dummy `web_search` tool has been removed in favour of the learning tools listed in the roadmap.
 
 ## Commands
 
@@ -59,7 +59,7 @@ The project is built in phases (0–5) across four tracks (A: conversation and m
 - **Audio is PCM16 mono at 24 kHz both ways** (`AUDIO_RATE`). The playback `AudioContext` runs at the same rate, and the barge-in truncation timing (`conversation.item.truncate`) depends on that.
 - **Keep the system prompt short.** Upstream found that extra rules stopped the model calling tools. Guidance for a specific tool goes in that tool's `description`.
 - **Tools never throw.** Handlers return `{ summary, detail?, error? }`. `summary` is what the model may say aloud. `registry.dispatch` answers even for unknown tools, because the model hangs if a `call_id` never gets a `function_call_output`.
-- **Schema enums are hints.** Normalise model arguments (case, plurals, `ko-KR` → `ko`), as `normalizeTopic` in `handlers.ts` does.
+- **Schema enums are hints.** Normalise model arguments (case, plurals, `ko-KR` → `ko`), as `normalizeLanguage` in `handlers.ts` does.
 - **One transcript source of truth.** Derive UI views from the transcript reducer, not from parallel stores. Local results enter it as the synthetic `client.tool_result` event. Keep the reducer pure so it stays testable against `test/fixtures/`.
 - **Unknown server events are logged and ignored**, never thrown on.
 - **Leave React StrictMode on.** It catches double-socket bugs in development.

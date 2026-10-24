@@ -89,10 +89,10 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **A:** compare `semantic_vad` with `server_vad` for learners who pause mid-sentence, and record the choice. (#7)
 - [x] **B:** `src/tools/types.ts` with the `detail` types. (#8)
 - [ ] **B:** replace `web_search` with (#10, #11, #12, #13):
-  - `note_correction {language, said, correct, explanation, kind, romanization}`
-  - `save_phrase {language, phrase, meaning, romanization, note}`
-  - `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase.
-  - `set_practice_language {language, level}`
+  - [x] `note_correction {language, said, correct, explanation, kind, romanization}` (#10)
+  - [ ] `save_phrase {language, phrase, meaning, romanization, note}` (#11)
+  - [ ] `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase. (#12)
+  - [ ] `set_practice_language {language, level}` (#13)
 - [x] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9) (@KyleDong03)
 - [x] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14) (@dorsa-molaverdikhani)
 - [ ] **C:** a language-tagged transcript that colours Han versus Latin runs, with pinyin shown under Han text when a tool supplied it. (#15, #16)
@@ -187,3 +187,5 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-23 | Transcription uses no fixed language. | A fixed language breaks transcription of code-switched speech. |
 | 2026-10-23 | Tool `detail` types live in `src/tools/types.ts`, each with a `type` discriminant; `LanguageCode` is defined there for `src/lang/profiles.ts` to import. Correction `kind`: grammar / vocabulary / other. Practice `level`: beginner / intermediate. | Lets `study.ts` and the UI narrow details safely, and keeps one language-code union. |
 | 2026-10-23 | Provisionally use `semantic_vad` with Boson's default parameters; keep #7 open pending a live comparison. | Semantic end-of-turn judgement is designed to preserve natural pauses while learners search for words. Validate it against `server_vad` with English, Mandarin and code-switched speech before considering the decision final. |
+| 2026-10-23 | `LanguageCode` is declared once, in `src/lang/profiles.ts`; `src/tools/types.ts` re-exports it, and `ToolResult.detail` is typed as `ToolDetail`. Supersedes the 2026-10-23 entry that put the union in `types.ts`. | The profiles landed with their own copy of the union, and two copies drift. Typing `detail` means a handler can only hand the study panel a shape it renders. |
+| 2026-10-23 | Learning tools are described as "call this FIRST, before you say anything", and their `summary` tells the model what to say next. | Probed live with the tutor prompt: "call this in the same turn as you correct" got `note_correction` called in 9 of 37 runs; "call this first" got it called in 24 of 24. |

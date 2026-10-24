@@ -8,7 +8,7 @@ Onboarding notes for coding agents working in this repository. For human-facing 
 
 It is built on **Higgs Realtime** (`wss://api.boson.ai/v1/realtime`, model `higgs-realtime`), which speaks the OpenAI Realtime GA event protocol.
 
-**Status: template.** The app is Boson's `higgs-realtime-tutorial` with minimal changes. The only tool is the starter's dummy `web_search`, and the system prompt is still the tutorial's generic assistant prompt. The Polyglot features have not been built yet.
+**Status: Phase 1 in progress** (see the status table in `docs/ROADMAP.md`). The tutor prompt is built from the language profiles in `src/lang/profiles.ts`, and the tutorial's dummy `web_search` tool has been removed in favour of the learning tools listed in the roadmap.
 
 ## Commands
 
@@ -62,7 +62,7 @@ Respect the track ownership defined there. Shared files—especially `src/realti
 - **Audio is PCM16 mono at 24 kHz in both directions** (`AUDIO_RATE`). The playback `AudioContext` runs at the same rate, and barge-in truncation timing (`conversation.item.truncate`) depends on it.
 - **Keep the system prompt short.** Upstream found that additional rules could prevent the model from calling tools. Put tool-specific guidance in the tool's `description`.
 - **Tools never throw.** Handlers return `{ summary, detail?, error? }`. `summary` is suitable for speech. `registry.dispatch` must answer even for unknown tools because the model hangs if a `call_id` never receives a `function_call_output`.
-- **Schema enums are hints.** Normalize model arguments such as case, plurals, and `ko-KR` to `ko`, following `normalizeTopic` in `src/tools/handlers.ts`.
+- **Schema enums are hints.** Normalize model arguments such as case, plurals, and `ko-KR` to `ko`, following `normalizeLanguage` in `src/tools/handlers.ts`.
 - **The transcript is the single source of truth.** Derive UI views from the transcript reducer instead of creating parallel stores. Local results enter through the synthetic `client.tool_result` event. Keep the reducer pure so it remains testable against `test/fixtures/`.
 - **Unknown server events are logged and ignored**, never treated as fatal errors.
 - **Leave React StrictMode enabled.** It helps expose duplicate WebSocket connection bugs during development.

@@ -43,9 +43,8 @@ src/
     transcriptStore.ts       Pure reducer: server events → ordered transcript
   tools/
     definitions.ts           ★ Tool JSON schemas sent to the model
-    handlers.ts              ★ Tool implementations (currently a dummy web search)
+    handlers.ts              ★ Tool implementations (the learning tools)
     registry.ts              dispatch(name, args): one entry point, never throws
-    searchIndex.json         Fake "web" for the dummy search tool
   ui/                        Presentational components: StatusBar, MicButton,
                              TranscriptPanel, DebugDrawer (every event, sent and received)
 tools/probe.ts               Headless CLI client for protocol debugging
