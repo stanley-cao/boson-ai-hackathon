@@ -54,6 +54,8 @@ const CHUNK_SAMPLES = AUDIO_RATE / 10;
 // silence to decide your turn is over — silence_duration_ms defaults to 500,
 // so a comfortable margin over that ends the turn promptly.
 const TRAILING_SILENCE_MS = 900;
+// How long nothing may be in flight before a turn counts as finished.
+const IDLE_HOLD_MS = 1500;
 
 /**
  * `barge` is `say` that does not wait its turn: it starts talking 1.5 s into
@@ -330,6 +332,22 @@ async function main() {
 
   await ready;
 
+  /**
+   * Resolves once no reply is in flight or owed after a tool call, and that
+   * has held for IDLE_HOLD_MS. The hold covers the short gap between a commit
+   * and its response.created, and between a tool result and the reply to it.
+   */
+  const waitUntilIdle = async (): Promise<void> => {
+    const deadline = Date.now() + 45_000;
+    let idleSince = Date.now();
+    while (Date.now() < deadline) {
+      const busy = responsesCreated > responsesDone || extraResponsesExpected > 0;
+      if (busy) idleSince = Date.now();
+      else if (Date.now() - idleSince >= IDLE_HOLD_MS) return;
+      await sleep(50);
+    }
+  };
+
   for (let ti = 0; ti < turns.length; ti++) {
     const turn = turns[ti];
     if (turn.kind === "barge") {
@@ -378,6 +396,13 @@ async function main() {
     // there would be nothing left to interrupt.
     if (turns[ti + 1]?.kind === "barge") continue;
     await Promise.race([waitForReply, sleep(45_000)]);
+    // One spoken turn can produce several replies: semantic VAD may cut it at
+    // a pause (seen 2026-10-24: "Can you check this sentence?" got "Sure!"
+    // before the sentence itself had been streamed), and that early reply
+    // resolves waitForReply. Without this the probe moved on, or closed,
+    // while the reply to the rest of the turn, or the reply after its tool
+    // call, was still coming.
+    await waitUntilIdle();
   }
 
   // Let any trailing events land before closing.
