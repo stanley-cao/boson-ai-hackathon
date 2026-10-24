@@ -49,8 +49,7 @@ const zh: LanguageProfile = {
   script: "Hans",
   romanization: "pinyin",
   promptNotes:
-    "Write Simplified characters with pinyin using tone marks (nǐ hǎo, not ni3 hao3). " +
-    "Listen closely for tone errors and missing or wrong measure words.",
+    "Speak in Simplified characters. Listen closely for tone errors and missing or wrong measure words.",
   sampleOpeners: ["你好！今天想聊什么？", "你今天过得怎么样？", "我们用中文聊聊天吧！"],
 };
 

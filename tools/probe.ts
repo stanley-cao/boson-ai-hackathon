@@ -24,6 +24,10 @@
  *   npm run probe -- --say "a" --say "b"           several spoken turns in order
  *   npm run probe -- --audio recording.wav         stream a WAV file you already have
  *   npm run probe -- --say "hi" --out captures/x.json
+ *   npm run probe -- --say "I went to the [pause 1500] market"
+ *                                                  a spoken turn with a silent gap
+ *   npm run probe -- --turn-detection '{"type":"server_vad","silence_duration_ms":1000}' --say "hi"
+ *                                                  override the session's turn detection
  *
  * `--say` uses the text-to-speech API to synthesise the utterance, then feeds it
  * to the Realtime session the same way the browser feeds microphone audio:
@@ -50,10 +54,19 @@ const WS_URL = "wss://api.boson.ai/v1/realtime?model=higgs-realtime";
 
 // ~100 ms per chunk, matching what the browser sends.
 const CHUNK_SAMPLES = AUDIO_RATE / 10;
-// Trailing silence after each utterance. The server's VAD needs to *hear*
-// silence to decide your turn is over — silence_duration_ms defaults to 500,
-// so a comfortable margin over that ends the turn promptly.
+// Minimum trailing silence after each utterance. The server's VAD needs to
+// *hear* silence to decide your turn is over; a spoken turn keeps streaming
+// it past this until a reply starts, so a long silence_duration_ms still works.
 const TRAILING_SILENCE_MS = 900;
+// A microphone keeps sending silence until the user speaks again, so after a
+// spoken turn we keep streaming it until a reply starts. The cap only stops a
+// session whose VAD never closes the turn from hanging the probe.
+const MAX_TRAILING_SILENCE_MS = 8000;
+// `[pause 1500]` inside a --say utterance: synthesise the parts separately and
+// join them with that much silence, to imitate a learner searching for a word.
+const PAUSE_MARK = /\[pause (\d+)\]/;
+// How long nothing may be in flight before a turn counts as finished.
+const IDLE_HOLD_MS = 1500;
 
 /**
  * `barge` is `say` that does not wait its turn: it starts talking 1.5 s into
@@ -67,9 +80,17 @@ type Turn =
   | { kind: "barge"; value: string }
   | { kind: "audio"; value: string };
 
-function parseArgs(argv: string[]): { turns: Turn[]; out: string | null } {
+interface ProbeArgs {
+  turns: Turn[];
+  out: string | null;
+  /** Replaces session.audio.input.turn_detection, for comparing VAD settings. */
+  turnDetection: Record<string, unknown> | null;
+}
+
+function parseArgs(argv: string[]): ProbeArgs {
   const turns: Turn[] = [];
   let out: string | null = null;
+  let turnDetection: Record<string, unknown> | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--text") turns.push({ kind: "text", value: argv[++i] });
@@ -77,12 +98,13 @@ function parseArgs(argv: string[]): { turns: Turn[]; out: string | null } {
     else if (a === "--barge") turns.push({ kind: "barge", value: argv[++i] });
     else if (a === "--audio") turns.push({ kind: "audio", value: argv[++i] });
     else if (a === "--out") out = argv[++i];
+    else if (a === "--turn-detection") turnDetection = JSON.parse(argv[++i]);
     else if (!a.startsWith("--")) turns.push({ kind: "text", value: a });
   }
   if (turns.length === 0) {
     turns.push({ kind: "text", value: "In one short sentence, what is a sample rate?" });
   }
-  return { turns, out };
+  return { turns, out, turnDetection };
 }
 
 function loadApiKey(): string {
@@ -162,6 +184,24 @@ async function synthesize(apiKey: string, text: string): Promise<Int16Array> {
   return samples;
 }
 
+/** Synthesise an utterance, turning each `[pause N]` mark into N ms of silence. */
+async function synthesizeWithPauses(apiKey: string, text: string): Promise<Int16Array> {
+  // split() with a capture group interleaves the text parts and pause lengths.
+  const parts = text.split(new RegExp(PAUSE_MARK.source, "g"));
+  const pieces: Int16Array[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) pieces.push(new Int16Array(Math.round((Number(parts[i]) / 1000) * AUDIO_RATE)));
+    else if (parts[i].trim()) pieces.push(await synthesize(apiKey, parts[i].trim()));
+  }
+  const joined = new Int16Array(pieces.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of pieces) {
+    joined.set(p, at);
+    at += p.length;
+  }
+  return joined;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -175,17 +215,29 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function streamSamples(
   send: (evt: unknown) => void,
   samples: Int16Array,
+  replyStartedSince?: (t: number) => boolean,
+  log?: (msg: string) => void,
 ): Promise<void> {
-  const silence = new Int16Array(CHUNK_SAMPLES);
-  const chunks: Int16Array[] = [];
-  for (let i = 0; i < samples.length; i += CHUNK_SAMPLES) {
-    chunks.push(samples.subarray(i, Math.min(i + CHUNK_SAMPLES, samples.length)));
-  }
-  for (let i = 0; i < Math.round(TRAILING_SILENCE_MS / 100); i++) chunks.push(silence);
-
-  for (const chunk of chunks) {
+  const sendChunk = (chunk: Int16Array) => {
     const bytes = Buffer.from(chunk.buffer, chunk.byteOffset, chunk.length * 2);
     send(inputAudioAppend(bytes.toString("base64")));
+  };
+  for (let i = 0; i < samples.length; i += CHUNK_SAMPLES) {
+    sendChunk(samples.subarray(i, Math.min(i + CHUNK_SAMPLES, samples.length)));
+    await sleep(100);
+  }
+  // Logged so end-of-turn latency can be read off against response.created.
+  log?.("speech audio ended");
+  const speechEndedAt = Date.now();
+
+  const silence = new Int16Array(CHUNK_SAMPLES);
+  // Without a reply check (barge-in), send the fixed margin only. A reply to
+  // an earlier fragment of the turn does not count: the turn's end has not
+  // been heard until a reply starts after the speech is over.
+  const maxMs = replyStartedSince ? MAX_TRAILING_SILENCE_MS : TRAILING_SILENCE_MS;
+  for (let ms = 0; ms < maxMs; ms += 100) {
+    if (ms >= TRAILING_SILENCE_MS && replyStartedSince?.(speechEndedAt)) break;
+    sendChunk(silence);
     await sleep(100);
   }
 }
@@ -210,7 +262,7 @@ function summarize(evt: Record<string, unknown>): string {
 }
 
 async function main() {
-  const { turns, out } = parseArgs(process.argv.slice(2));
+  const { turns, out, turnDetection } = parseArgs(process.argv.slice(2));
   const apiKey = loadApiKey();
   const key = await mintEphemeralKey(apiKey);
   console.log(`minted ${key.slice(0, 12)}…\nconnecting to ${WS_URL}\n`);
@@ -238,13 +290,18 @@ async function main() {
    * network, and the probe would stop one reply too early.
    */
   let extraResponsesExpected = 0;
+  let lastResponseCreatedAt = 0;
 
   const ws = new WebSocket(WS_URL, ["realtime", `bai-client-secret.${key}`]);
   const send = (evt: unknown) => ws.send(JSON.stringify(evt));
 
   ws.addEventListener("open", () => {
     console.log("open — sending session.update\n");
-    send(buildSessionConfig());
+    const config = buildSessionConfig() as unknown as {
+      session: { audio: { input: { turn_detection: unknown } } };
+    };
+    if (turnDetection) config.session.audio.input.turn_detection = turnDetection;
+    send(config);
   });
 
   ws.addEventListener("message", (ev) => {
@@ -268,7 +325,10 @@ async function main() {
       console.log("---\n");
       sessionReady();
     }
-    if (evt.type === "response.created") responsesCreated++;
+    if (evt.type === "response.created") {
+      responsesCreated++;
+      lastResponseCreatedAt = Date.now();
+    }
 
     // Run tools, the same way the browser does — same registry, same
     // handled-call_id guard. Without this the probe would stop at the tool
@@ -330,6 +390,22 @@ async function main() {
 
   await ready;
 
+  /**
+   * Resolves once no reply is in flight or owed after a tool call, and that
+   * has held for IDLE_HOLD_MS. The hold covers the short gap between a commit
+   * and its response.created, and between a tool result and the reply to it.
+   */
+  const waitUntilIdle = async (): Promise<void> => {
+    const deadline = Date.now() + 45_000;
+    let idleSince = Date.now();
+    while (Date.now() < deadline) {
+      const busy = responsesCreated > responsesDone || extraResponsesExpected > 0;
+      if (busy) idleSince = Date.now();
+      else if (Date.now() - idleSince >= IDLE_HOLD_MS) return;
+      await sleep(50);
+    }
+  };
+
   for (let ti = 0; ti < turns.length; ti++) {
     const turn = turns[ti];
     if (turn.kind === "barge") {
@@ -365,19 +441,31 @@ async function main() {
     } else {
       const samples =
         turn.kind === "say"
-          ? await synthesize(apiKey, turn.value)
+          ? await synthesizeWithPauses(apiKey, turn.value)
           : decodeWav(readFileSync(turn.value)).samples;
       console.log(
         `\n>>> speaking (${(samples.length / AUDIO_RATE).toFixed(1)}s): ${JSON.stringify(turn.value)}\n`,
       );
       // No response.create here: turn detection starts the reply itself.
-      await streamSamples(send, samples);
+      await streamSamples(
+        send,
+        samples,
+        (t) => lastResponseCreatedAt >= t,
+        (msg) => console.log(`[${String(Date.now() - startedAt).padStart(6)}ms] probe: ${msg}`),
+      );
     }
 
     // If the next turn is a barge-in, do NOT wait for this reply to finish —
     // there would be nothing left to interrupt.
     if (turns[ti + 1]?.kind === "barge") continue;
     await Promise.race([waitForReply, sleep(45_000)]);
+    // One spoken turn can produce several replies: the VAD may cut it at
+    // a pause (seen 2026-10-24: "Can you check this sentence?" got "Sure!"
+    // before the sentence itself had been streamed), and that early reply
+    // resolves waitForReply. Without this the probe moved on, or closed,
+    // while the reply to the rest of the turn, or the reply after its tool
+    // call, was still coming.
+    await waitUntilIdle();
   }
 
   // Let any trailing events land before closing.
