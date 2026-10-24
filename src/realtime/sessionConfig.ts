@@ -67,18 +67,12 @@ export function buildSessionConfig(): ClientEvent {
       audio: {
         input: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
-          // PART 2: switch on turn detection.
-          //
-          // This is not optional-but-nice. The server's default is `null`,
-          // meaning no turn detection at all — you would stream audio forever
-          // and the model would never decide you had finished speaking.
-          //
-          // We send the bare type and take the documented defaults: threshold
-          // 0.55, prefix_padding_ms 300, silence_duration_ms 500,
-          // min_speech_duration 0.125. All four are honoured if you do set
-          // them; see the ack discussion in docs/part-2.md before you tune
-          // anything.
-          turn_detection: { type: "server_vad" },
+          // Language learners pause while searching for words. Semantic VAD
+          // combines speech detection with an end-of-turn judgement, making it
+          // less likely to cut those pauses into separate turns than a fixed
+          // silence window. Keep the documented defaults until issue #7's live
+          // English, Mandarin and code-switching comparison is complete.
+          turn_detection: { type: "semantic_vad" },
           // PART 3: transcribe the user's speech.
           //
           // Off by default — the ack shows `model: ""` if you omit this — and
