@@ -21,7 +21,7 @@ Status values: ⬜ not started · 🟨 in progress · ✅ done · ⛔ blocked (s
 
 1. Read `CLAUDE.md` (commands, invariants) and `docs/ARCHITECTURE.md` (event flow).
 2. Find the earliest phase that isn't ✅, and pick an unclaimed `[ ]` task **in your track**. Tasks in later phases are fair game only if they're marked *parallel*.
-3. Claim it by **assigning yourself on the linked GitHub issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/boson-ai-hackathon/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first.
+3. Feature tasks have a GitHub issue (`#N`): claim one by **assigning yourself on the issue** (`#N` on each task). Filter the [issues](https://github.com/stanley-cao/boson-ai-hackathon/issues) by `phase-N`, `track:*` and `size:*` labels, or by milestone. Check the issue's "Depends on" section first. Tasks with no issue number (research, testing, submission) are claimed in the team chat.
 4. Branch as `phase<N>/<track>-<topic>`, for example `phase1/b-correction-tool`.
 5. Before opening a PR, run that phase's **Verification** steps. Paste the results into the PR description.
 6. Put `Closes #N` in the PR description. In the same PR, tick the box (`[x]`) and update the status table. Get one review from someone on a different track.
@@ -69,14 +69,14 @@ Agree on these first. Changing them requires a decision-log entry.
 
 *About half a day. Every track does its task.*
 
-- [ ] **All:** add `BOSON_API_KEY` to `.env`, run `npm run dev`, and have a short conversation with the template. (#4)
-- [ ] **D:** run `npm run probe -- --say "我想练习中文, can you help me?"` and a pure-Mandarin and a pure-English utterance, and save the output as fixtures in `test/fixtures/`. Record in `docs/FINDINGS.md` (#1):
+- [ ] **All:** add `BOSON_API_KEY` to `.env`, run `npm run dev`, and have a short conversation with the template.
+- [ ] **D:** run `npm run probe -- --say "我想练习中文, can you help me?"` and a pure-Mandarin and a pure-English utterance, and save the output as fixtures in `test/fixtures/`. Record in `docs/FINDINGS.md`:
   - Does `higgs-stt-3.1` transcribe Mandarin, and mixed English/Mandarin?
   - Does the server report a detected language?
   - Is the output in Simplified or Traditional characters?
   - Roughly how long is the response latency?
-- [ ] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log. (#2)
-- [ ] **C:** do a UI sketch (transcript, study panel, practice-language badge, and space reserved for the avatar video). Put a screenshot or ASCII sketch in the PR. (#3)
+- [ ] **A:** compare 3 code-switching prompt variants with the probe: (a) mirror the learner's mix, (b) mostly the target language with English scaffolding, (c) the learner chooses. Record the winner in the decision log.
+- [ ] **C:** do a UI sketch (transcript, study panel, practice-language badge, and space reserved for the avatar video). Put a screenshot or ASCII sketch in the PR.
 
 **Exit criteria:** `FINDINGS.md` gives a go or no-go on Mandarin transcription. If transcription is weak, we still go ahead: the model understands the audio regardless. We show the model's own text and label user transcripts "approximate".
 
@@ -98,7 +98,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **C:** a language-tagged transcript that colours Han versus Latin runs, with pinyin shown under Han text when a tool supplied it. (#15, #16)
 - [ ] **C:** a study panel with correction, phrase and pronunciation cards, plus a "practising: 中文" badge. It must work at phone width. (#17, #18)
 - [ ] **D:** `scripts/smoke.sh`, which runs probe utterances (English, Mandarin, mixed, and a request for tone feedback) and asserts that the expected tool calls fire. Add it to the "done" checklist in `CLAUDE.md`. (#19)
-- [ ] **All:** Phase 1 live acceptance session with a Mandarin speaker, against the exit criteria below (#20)
+- [ ] **All:** Phase 1 live acceptance session with a Mandarin speaker, against the exit criteria below
 
 **Exit criteria:** a live conversation of about 3 minutes, mixing English and Mandarin, in which the tutor (1) corrects at least one mistake, (2) gives tone feedback, (3) saves a phrase, and (4) is never derailed by a mid-sentence switch.
 
@@ -157,12 +157,12 @@ Realtime Higgs Avatar runs only inside a **LiveKit Cloud** room. Our agent relay
 
 Track D leads, and everyone contributes.
 
-- [ ] Script the 2–3 minute demo: English → Mandarin mid-sentence → correction and tone feedback → saved phrase and TTS replay → switch to Korean → avatar on screen. (#36)
-- [ ] Record the video and upload it publicly, with no request-access step. (#36)
-- [ ] Update `README.md` with full setup (including LiveKit), and add a known-limitations section. (#36)
-- [ ] Write the two write-ups of up to 200 words each: (1) what Polyglot is, (2) how each Higgs model is used and what is technically hard. Add team info with GitHub handles. (#36)
-- [ ] Check that no keys are anywhere in the git history (`git log -p | grep -i "bai-"`). (#36)
-- [ ] Tag the judged commit, `git tag v1.0-submission && git push --tags`, and put the SHA in the form. (#36)
+- [ ] Script the 2–3 minute demo: English → Mandarin mid-sentence → correction and tone feedback → saved phrase and TTS replay → switch to Korean → avatar on screen.
+- [ ] Record the video and upload it publicly, with no request-access step.
+- [ ] Update `README.md` with full setup (including LiveKit), and add a known-limitations section.
+- [ ] Write the two write-ups of up to 200 words each: (1) what Polyglot is, (2) how each Higgs model is used and what is technically hard. Add team info with GitHub handles.
+- [ ] Check that no keys are anywhere in the git history (`git log -p | grep -i "bai-"`).
+- [ ] Tag the judged commit, `git tag v1.0-submission && git push --tags`, and put the SHA in the form.
 
 Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switching, tools during speech, TTS replay, avatar), **UX 25%**, **innovation 25%**, **technical execution 20%**.
 
