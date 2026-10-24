@@ -36,16 +36,21 @@ import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { LanguagePicker } from "./ui/LanguagePicker";
 import { ModeToggle, loadStoredMode, saveStoredMode, type SessionMode } from "./ui/ModeToggle";
+import { ActivityToggle } from "./ui/ActivityToggle";
 import { PracticeBadge } from "./ui/PracticeBadge";
 import {
   INITIAL_RECAP_VISIBILITY,
   SessionRecap,
   recapVisibilityAfterConnection,
+  sessionTranscript,
 } from "./ui/SessionRecap";
 import { StatusBar } from "./ui/StatusBar";
 import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
 import { playReplay, stopReplay } from "./ui/ttsReplay";
+import { QuizProgress } from "./ui/QuizResults";
+import { quizFromTranscript } from "./state/quiz";
+import { quizReviewFromStudy, type SessionActivity, type SessionIntent } from "./quiz/session";
 
 /**
  * "Say that again slowly": the tutor's line through /api/tts, slowed with
@@ -86,12 +91,16 @@ export default function App() {
   const [micError, setMicError] = useState<string | null>(null);
   const [recapVisibility, setRecapVisibility] = useState(INITIAL_RECAP_VISIBILITY);
   const [mode, setMode] = useState<SessionMode>(loadStoredMode);
+  const [sessionActivity, setSessionActivity] = useState<SessionActivity>("conversation");
+  const [recapActivity, setRecapActivity] = useState<SessionActivity>("conversation");
+  const activeActivity = useRef<SessionActivity>("conversation");
   const [avatarVideo, setAvatarVideo] = useState<RemoteVideoTrack | null>(null);
 
   // A failed connection attempt is not a session. Remember that the socket
   // actually opened before treating a later close as the end of one.
   const handleConnectionState = useCallback((next: ConnectionState) => {
     setConnection(next);
+    if (next === "open") setRecapActivity(activeActivity.current);
     // Read the clock outside the updater, which StrictMode runs twice.
     const now = Date.now();
     setRecapVisibility((current) => recapVisibilityAfterConnection(current, next, now));
@@ -152,17 +161,26 @@ export default function App() {
   });
   // The stored level, restored from localStorage or set earlier this session.
   const storedLevel = study.practiceLanguage?.level;
+  const currentQuiz = useMemo(
+    () => quizFromTranscript(sessionTranscript(transcript, recapVisibility.openedAt)),
+    [transcript, recapVisibility.openedAt],
+  );
 
   const connect = useCallback(async () => {
     setCloseMessage(null);
+    const intent: SessionIntent = {
+      activity: sessionActivity,
+      reviewItems: sessionActivity === "quiz" ? quizReviewFromStudy(study, targetLanguage) : [],
+    };
+    activeActivity.current = sessionActivity;
     // Each session starts with a clean chat; saved study items stay.
     setTranscript((s) => freshSessionTranscript(s));
     if (mode === "direct") {
-      await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage);
+      await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage, intent);
       return;
     }
     try {
-      await avatarRef.current!.connect(targetLanguage, learnerLevelFor(storedLevel));
+      await avatarRef.current!.connect(targetLanguage, learnerLevelFor(storedLevel), intent);
     } catch (e) {
       // The fallback (#35): no capacity, no LiveKit, or no room. Not saved, so
       // the next visit tries the avatar again.
@@ -174,7 +192,7 @@ export default function App() {
           : `Avatar unavailable (${code}). Switched to voice only: press Connect.`,
       );
     }
-  }, [mode, storedLevel, targetLanguage]);
+  }, [mode, sessionActivity, storedLevel, study, targetLanguage]);
 
   const send = useCallback(() => {
     if (!text.trim()) return;
@@ -238,6 +256,7 @@ export default function App() {
           onContinue={() =>
             setRecapVisibility((current) => ({ ...current, visible: false }))
           }
+          activity={recapActivity}
         />
       ) : (
         <>
@@ -278,7 +297,13 @@ export default function App() {
                   <span>Experience</span>
                   <ModeToggle value={mode} disabled={busy} onChange={changeMode} />
                 </div>
+                <div className="mode-field">
+                  <span>Activity</span>
+                  <ActivityToggle value={sessionActivity} disabled={busy} onChange={setSessionActivity} />
+                </div>
               </div>
+
+              {sessionActivity === "quiz" && isOpen && <QuizProgress quiz={currentQuiz} />}
 
               <div className="connection-actions">
                 <button className="primary-action" onClick={connect} disabled={busy}>
@@ -291,7 +316,7 @@ export default function App() {
                   onClick={() => session().disconnect()}
                   disabled={!(isOpen || (mode === "avatar" && connection === "connecting"))}
                 >
-                  End
+                  {sessionActivity === "quiz" && currentQuiz.complete ? "Finish & view score" : "End"}
                 </button>
               </div>
 

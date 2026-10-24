@@ -802,6 +802,28 @@ code {
   border-color: var(--accent);
 }
 
+.quiz-progress {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(139, 120, 255, 0.35);
+  border-radius: 0.75rem;
+  color: var(--ink, #f7f5ff);
+  background: rgba(108, 88, 220, 0.12);
+}
+
+.quiz-results {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(139, 120, 255, 0.4);
+  border-radius: 1rem;
+  background: rgba(108, 88, 220, 0.12);
+}
+
+.quiz-results h2 { margin: 0.35rem 0; }
+.quiz-answer-list { display: grid; gap: 0.75rem; margin: 1rem 0 0; padding-left: 1.4rem; }
+.quiz-answer { padding: 0.9rem; border-radius: 0.75rem; background: rgba(0, 0, 0, 0.16); }
+.quiz-answer p { margin: 0.45rem 0 0; }
+
 @media (max-width: 44rem) {
   .app {
     padding: 1.5rem 1rem 5rem;
@@ -1217,6 +1239,10 @@ summary:focus-visible {
   margin-bottom: 1rem;
 }
 
+.session-options > .language-picker {
+  grid-column: 1 / -1;
+}
+
 .language-picker,
 .mode-field {
   display: flex;
@@ -1604,6 +1630,10 @@ summary:focus-visible {
 
   .session-options {
     grid-template-columns: 1fr;
+  }
+
+  .session-options > .language-picker {
+    grid-column: auto;
   }
 
   .connection-actions {

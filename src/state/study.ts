@@ -5,6 +5,7 @@ import type {
   Phrase,
   PracticeLanguage,
   PronunciationNote,
+  QuizAnswer,
   ToolDetail,
 } from "../tools/types";
 import { PROFILES } from "../lang/profiles";
@@ -27,13 +28,15 @@ const PRONUNCIATION_ISSUES = new Set<PronunciationNote["issue"]>([
 ]);
 const LEVELS = new Set<PracticeLanguage["level"]>(["beginner", "intermediate", "advanced"]);
 
-const DETAIL_TYPE_BY_TOOL: Record<string, ToolDetail["type"]> = {
+type StudyDetail = Exclude<ToolDetail, QuizAnswer>;
+
+const DETAIL_TYPE_BY_TOOL: Record<string, StudyDetail["type"]> = {
   note_correction: "correction",
   save_phrase: "phrase",
   pronunciation_feedback: "pronunciation",
   set_practice_language: "practice_language",
 };
-const TOOL_BY_DETAIL_TYPE: Record<ToolDetail["type"], string> = {
+const TOOL_BY_DETAIL_TYPE: Record<StudyDetail["type"], string> = {
   correction: "note_correction",
   phrase: "save_phrase",
   pronunciation: "pronunciation_feedback",
@@ -57,7 +60,7 @@ function isLanguage(value: unknown): value is LanguageCode {
   return isString(value) && LANGUAGES.has(value as LanguageCode);
 }
 
-export function isToolDetail(value: unknown): value is ToolDetail {
+export function isToolDetail(value: unknown): value is StudyDetail {
   if (!isRecord(value) || !isLanguage(value.language)) return false;
 
   switch (value.type) {
@@ -103,7 +106,7 @@ export function emptyStudyState(): StudyState {
 
 /** Rehydrate saved details as hidden tool items, keeping one transcript store. */
 export function transcriptFromStudy(study: StudyState): TranscriptState {
-  const details: ToolDetail[] = [
+  const details: StudyDetail[] = [
     ...study.corrections,
     ...study.phrases,
     ...study.pronunciationNotes,
@@ -153,7 +156,7 @@ export function withoutStudyItems(state: TranscriptState): TranscriptState {
   return { order, items };
 }
 
-function detailFrom(item: ToolItem): ToolDetail | null {
+function detailFrom(item: ToolItem): StudyDetail | null {
   if (item.status !== "ok" || !isRecord(item.result)) return null;
   const detail = item.result.detail;
   if (!isToolDetail(detail)) return null;

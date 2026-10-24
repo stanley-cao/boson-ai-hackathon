@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
+import { buildQuizPrompts, buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
 
 // The LiveKit agent reads this file instead of the TypeScript, so a stale copy
 // silently runs an old prompt or tool list there (#30).
@@ -20,6 +20,14 @@ describe("shared/session.json", () => {
 
   it("keeps transcription language unset for code-switched speech", () => {
     expect(exported.audio.input.transcription).not.toHaveProperty("language");
+  });
+});
+
+describe("shared/quiz-prompts.json", () => {
+  const prompts = JSON.parse(readFileSync(new URL("../shared/quiz-prompts.json", import.meta.url), "utf8")) as unknown;
+
+  it("matches buildQuizPrompts() (run `npm run export-config` if not)", () => {
+    expect(prompts).toEqual(buildQuizPrompts());
   });
 });
 

@@ -105,15 +105,30 @@ describe("POST /api/livekit/token", () => {
     const { body } = await learnerToken(base, { language: "ko", level: "advanced" });
     const claims = await verifier.verify(body.token);
     // "advanced" shares the intermediate prompt (learnerLevelFor).
-    expect(JSON.parse(claims.metadata!)).toEqual({ language: "ko", level: "intermediate" });
+    expect(JSON.parse(claims.metadata!)).toEqual({ language: "ko", level: "intermediate", activity: "conversation", reviewItems: [] });
   });
 
   it("falls back to the default pair for an unknown or missing choice", async () => {
     const base = await start({ fetchImpl: vi.fn<typeof fetch>() });
     for (const choice of [{ language: "xx", level: 3 }, {}]) {
       const claims = await verifier.verify((await learnerToken(base, choice)).body.token);
-      expect(JSON.parse(claims.metadata!)).toEqual({ language: "zh", level: "beginner" });
+      expect(JSON.parse(claims.metadata!)).toEqual({ language: "zh", level: "beginner", activity: "conversation", reviewItems: [] });
     }
+  });
+
+  it("validates and caps quiz review metadata", async () => {
+    const base = await start({ fetchImpl: vi.fn<typeof fetch>() });
+    const reviewItems = Array.from({ length: 8 }, (_, i) => ({
+      kind: i === 0 ? "correction" : "phrase",
+      prompt: ` prompt ${i} `,
+      answer: "a".repeat(200),
+    }));
+    const { body } = await learnerToken(base, { activity: "quiz", reviewItems });
+    const claims = await verifier.verify(body.token);
+    const metadata = JSON.parse(claims.metadata!);
+    expect(metadata.activity).toBe("quiz");
+    expect(metadata.reviewItems).toHaveLength(5);
+    expect(metadata.reviewItems[0].answer).toHaveLength(160);
   });
 
   it("gives every request its own room", async () => {

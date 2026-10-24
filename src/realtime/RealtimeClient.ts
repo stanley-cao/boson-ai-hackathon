@@ -29,6 +29,7 @@ import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
+import { CONVERSATION_INTENT, type SessionIntent } from "../quiz/session";
 
 // The model can also be set in session.update; passing it in the URL means the
 // server knows which model you want before the first byte of config arrives.
@@ -135,6 +136,8 @@ export class RealtimeClient {
 
   /** Target chosen before connecting; retained across live instruction updates. */
   private target: TargetLanguageCode = ACTIVE_PAIR.target;
+  private intent: SessionIntent = CONVERSATION_INTENT;
+  private quizOpeningPending = false;
 
   /**
    * ⚠ The single most important line in this file.
@@ -196,6 +199,7 @@ export class RealtimeClient {
   async connect(
     level: LearnerLevel = ACTIVE_LEVEL,
     target: TargetLanguageCode = ACTIVE_PAIR.target,
+    intent: SessionIntent = CONVERSATION_INTENT,
   ): Promise<void> {
     if (this.connecting || this.state === "open" || this.state === "connecting") {
       this.info("connect() ignored — a connection is already active.");
@@ -233,9 +237,11 @@ export class RealtimeClient {
       // A new session starts at normal pace; nothing carries over.
       this.level = level;
       this.target = target;
+      this.intent = intent;
+      this.quizOpeningPending = intent.activity === "quiz";
       this.sessionPace = "normal";
       this.revertPace = null;
-      this.send(buildSessionConfig(LEARNER_LEVELS[level], PROFILES[target]));
+      this.send(buildSessionConfig(LEARNER_LEVELS[level], PROFILES[target], intent));
     };
     ws.onmessage = (ev) => this.onMessage(ev);
     ws.onerror = () => this.info("WebSocket error — the close code below has the detail.");
@@ -301,6 +307,13 @@ export class RealtimeClient {
     this.cb.onServerEvent?.(evt);
 
     switch (evt.type) {
+      case SERVER.sessionCreated:
+        if (this.quizOpeningPending) {
+          this.quizOpeningPending = false;
+          this.send(responseCreate());
+          this.setActivity("thinking");
+        }
+        break;
       case SERVER.responseCreated: {
         // A new assistant turn. Zero the played-sample counter so the truncate
         // maths below measures into *this* reply, not the whole session.
@@ -413,7 +426,7 @@ export class RealtimeClient {
       const level = levelChangeFromTool(name, result, this.level);
       if (level) {
         this.level = level;
-        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace, this.target);
+        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace, this.target, this.intent);
         this.info(`Learner level is now ${level} — updating the session instructions.`);
       }
       if (name === "set_speaking_pace") {
@@ -431,7 +444,7 @@ export class RealtimeClient {
         } else {
           const plan = planPaceChange(request, this.sessionPace);
           this.sessionPace = plan.sessionPace;
-          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send, this.target);
+          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send, this.target, this.intent);
           batch.revertPaceAfterReply = plan.revertAfterReply;
           this.info(`Speaking pace: ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}.`);
         }
@@ -458,7 +471,7 @@ export class RealtimeClient {
     const id = (evt.response as { id?: unknown } | undefined)?.id;
     if (this.revertPace && this.revertPace !== "armed" && this.revertPace.responseId === id) {
       this.revertPace = null;
-      this.send(buildInstructionsUpdate(this.level, this.sessionPace, this.target));
+      this.send(buildInstructionsUpdate(this.level, this.sessionPace, this.target, this.intent));
     }
 
     // ⚠ The double-fire. Tool calls that already arrived via

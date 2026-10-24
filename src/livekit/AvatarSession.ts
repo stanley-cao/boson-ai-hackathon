@@ -11,6 +11,7 @@ import {
   type RemoteVideoTrack,
 } from "livekit-client";
 import type { LearnerLevel, TargetLanguageCode } from "../lang/profiles";
+import { CONVERSATION_INTENT, type SessionIntent } from "../quiz/session";
 import type { ServerEvent } from "../realtime/events";
 import type { Activity, ConnectionState, LogEntry } from "../realtime/RealtimeClient";
 import { registerToolRpc } from "./toolRpc";
@@ -134,7 +135,11 @@ export class AvatarSession {
    * learner disconnects before it finishes. The language and level pick the
    * agent's prompt, through the room token (server/avatar.ts).
    */
-  async connect(language?: TargetLanguageCode, level?: LearnerLevel): Promise<void> {
+  async connect(
+    language?: TargetLanguageCode,
+    level?: LearnerLevel,
+    intent: SessionIntent = CONVERSATION_INTENT,
+  ): Promise<void> {
     if (this.room) {
       this.info("connect() ignored — a room is already joined.");
       return;
@@ -148,7 +153,12 @@ export class AvatarSession {
     const cancelled = () => this.room !== room;
 
     try {
-      const lk = await this.post<LiveKitToken>("/api/livekit/token", { language, level });
+      const lk = await this.post<LiveKitToken>("/api/livekit/token", {
+        language,
+        level,
+        activity: intent.activity,
+        reviewItems: intent.reviewItems,
+      });
       if (cancelled()) return;
       const emit = (evt: ServerEvent) => this.cb.onServerEvent?.(evt);
       // Both handlers go on before connecting: the agent greets, and may call

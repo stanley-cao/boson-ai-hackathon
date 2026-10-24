@@ -21,7 +21,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequ
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
-from session_config import instructions_for, load_prompts, load_session, model_kwargs
+from session_config import activity_for, instructions_for, load_prompts, load_quiz_prompts, load_session, model_kwargs, opening_instruction
 from tools import build_tools
 
 logger = logging.getLogger("polyglot")
@@ -30,6 +30,7 @@ load_dotenv(override=True)
 
 SESSION = load_session()
 PROMPTS = load_prompts()
+QUIZ_PROMPTS = load_quiz_prompts()
 
 # The identity this agent joins every room as. server/avatar.ts names it as the
 # avatar session's publisher_identity, and the avatar only plays audio from
@@ -38,13 +39,14 @@ AGENT_IDENTITY = "polyglot-tutor"
 
 
 class Tutor(Agent):
-    def __init__(self, instructions: str) -> None:
+    def __init__(self, instructions: str, activity: str = "conversation") -> None:
         super().__init__(instructions=instructions, tools=build_tools(SESSION))
+        self.activity = activity
 
     async def on_enter(self) -> None:
         # The model answers when the learner stops speaking. Speak first instead,
         # which is also what probe.py waits for.
-        self.session.generate_reply(instructions="Greet the learner in one short sentence.")
+        self.session.generate_reply(instructions=opening_instruction(self.activity))
 
 
 server = AgentServer()
@@ -61,7 +63,8 @@ async def entrypoint(ctx: JobContext) -> None:
     # They are always first in the room: the avatar is only added after.
     await ctx.connect()
     learner = await ctx.wait_for_participant()
-    instructions = instructions_for(learner.metadata, PROMPTS, SESSION["instructions"])
+    activity = activity_for(learner.metadata)
+    instructions = instructions_for(learner.metadata, PROMPTS, SESSION["instructions"], QUIZ_PROMPTS)
     logger.info("tutoring %s with metadata %r", learner.identity, learner.metadata)
     options = model_kwargs(SESSION)
     options["instructions"] = instructions
@@ -81,7 +84,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # avatar, whose synchronized audio/video tracks are what the learner
         # subscribes to. AgentSession clears this sink automatically on barge-in.
         route_audio_to_avatar(session, ctx.room)
-    await session.start(agent=Tutor(instructions), room=ctx.room)
+    await session.start(agent=Tutor(instructions, activity), room=ctx.room)
 
 
 if __name__ == "__main__":

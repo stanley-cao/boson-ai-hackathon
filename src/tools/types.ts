@@ -64,7 +64,23 @@ export interface PracticeLanguage {
   level: "beginner" | "intermediate" | "advanced";
 }
 
-export type ToolDetail = Correction | Phrase | PronunciationNote | PracticeLanguage;
+export type QuizCategory = "translation" | "vocabulary" | "grammar" | "comprehension";
+
+/** One authoritative, transcript-backed grade from a five-question quiz. */
+export interface QuizAnswer {
+  type: "quiz_answer";
+  language: LanguageCode;
+  questionNumber: 1 | 2 | 3 | 4 | 5;
+  category: QuizCategory;
+  source: "review" | "general";
+  question: string;
+  learnerAnswer: string;
+  referenceAnswer: string;
+  points: 0 | 1 | 2;
+  feedback: string;
+}
+
+export type ToolDetail = Correction | Phrase | PronunciationNote | PracticeLanguage | QuizAnswer;
 
 /** Which tool produces which detail type, keyed by the tool's schema name. */
 export interface ToolDetailByName {
@@ -72,4 +88,5 @@ export interface ToolDetailByName {
   save_phrase: Phrase;
   pronunciation_feedback: PronunciationNote;
   set_practice_language: PracticeLanguage;
+  grade_quiz_answer: QuizAnswer;
 }

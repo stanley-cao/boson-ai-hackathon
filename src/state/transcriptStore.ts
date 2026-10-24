@@ -92,7 +92,9 @@ export function toList(state: TranscriptState): TranscriptItem[] {
 
 /** Items that belong in the visible/copyable conversation transcript. */
 export function toDisplayList(state: TranscriptState): TranscriptItem[] {
-  return toList(state).filter((item) => item.kind !== "tool" || !item.restored);
+  return toList(state).filter(
+    (item) => item.kind !== "tool" || (!item.restored && item.name !== "grade_quiz_answer"),
+  );
 }
 
 // --- immutable helpers -------------------------------------------------------

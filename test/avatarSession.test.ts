@@ -69,7 +69,7 @@ describe("AvatarSession", () => {
     expect(JSON.parse(String(avatarCall?.[1]?.body))).toEqual({ room: TOKEN.room });
     // No choice passed: the server falls back to the default pair.
     const tokenCall = fetchImpl.mock.calls.find(([url]) => url === "/api/livekit/token");
-    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({});
+    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({ activity: "conversation", reviewItems: [] });
 
     calls.length = 0;
     await session.close();
@@ -88,7 +88,9 @@ describe("AvatarSession", () => {
     const { session, fetchImpl } = setup(() => json(201, { id: "as_1", status: "active" }));
     await session.connect("ko", "intermediate");
     const tokenCall = fetchImpl.mock.calls.find(([url]) => url === "/api/livekit/token");
-    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({ language: "ko", level: "intermediate" });
+    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({
+      language: "ko", level: "intermediate", activity: "conversation", reviewItems: [],
+    });
     await session.close();
   });
 

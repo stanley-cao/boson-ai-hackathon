@@ -18,6 +18,27 @@ import { PROFILES } from "../lang/profiles";
 export const TOOL_DEFINITIONS = [
   {
     type: "function",
+    name: "grade_quiz_answer",
+    description:
+      "In quiz mode, call this FIRST after every learner answer, before giving feedback or asking the next question. Grade exactly one numbered answer with the 0/1/2 rubric. Never use it in conversation mode and never grade pronunciation.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: { type: "string", enum: Object.keys(PROFILES) },
+        question_number: { type: "integer", enum: [1, 2, 3, 4, 5] },
+        category: { type: "string", enum: ["translation", "vocabulary", "grammar", "comprehension"] },
+        source: { type: "string", enum: ["review", "general"] },
+        question: { type: "string" },
+        learner_answer: { type: "string" },
+        reference_answer: { type: "string" },
+        points: { type: "integer", enum: [0, 1, 2], description: "2 correct and complete; 1 substantially correct with a minor error; 0 incorrect, unrelated, or no meaningful answer." },
+        feedback: { type: "string", description: "One short explanation of the grade, without stating the numeric score." },
+      },
+      required: ["language", "question_number", "category", "source", "question", "learner_answer", "reference_answer", "points", "feedback"],
+    },
+  },
+  {
+    type: "function",
     name: "note_correction",
     // Leads with when to call it, as save_phrase does: later in a
     // conversation, a sentence with a measure-word error was often corrected

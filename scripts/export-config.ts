@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
+import { buildQuizPrompts, buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
 
 const shared = resolve(dirname(fileURLToPath(import.meta.url)), "../shared");
 
@@ -24,3 +24,4 @@ write("session.json", buildSessionConfig().session);
 // The prompt for every target language and level, so the agent can run the
 // pair the learner picked in the browser (avatar mode).
 write("prompts.json", buildTutorPrompts());
+write("quiz-prompts.json", buildQuizPrompts());

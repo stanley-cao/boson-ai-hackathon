@@ -1,5 +1,5 @@
 import { PROFILES, type LanguageProfile, type ProfileCode } from "../lang/profiles";
-import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
+import type { Correction, Phrase, PracticeLanguage, PronunciationNote, QuizAnswer, QuizCategory, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -67,6 +67,55 @@ function normalizeText(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const t = raw.trim();
   return t ? t : null;
+}
+
+const QUIZ_CATEGORIES = new Set<QuizCategory>(["translation", "vocabulary", "grammar", "comprehension"]);
+
+/** Validate and record one quiz grade without ever throwing. */
+export function gradeQuizAnswer(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  const questionNumber = args.question_number;
+  const category = args.category;
+  const source = args.source;
+  const points = args.points;
+  const question = normalizeText(args.question);
+  const learnerAnswer = normalizeText(args.learner_answer);
+  const referenceAnswer = normalizeText(args.reference_answer);
+  const feedback = normalizeText(args.feedback);
+  if (!language) return { summary: "Quiz grade not recorded: unknown language.", error: "unknown_language" };
+  if (!Number.isInteger(questionNumber) || Number(questionNumber) < 1 || Number(questionNumber) > 5) {
+    return { summary: "Quiz grade not recorded: question number must be 1 through 5.", error: "invalid_question_number" };
+  }
+  if (typeof category !== "string" || !QUIZ_CATEGORIES.has(category as QuizCategory)) {
+    return { summary: "Quiz grade not recorded: invalid category.", error: "invalid_category" };
+  }
+  if (source !== "review" && source !== "general") {
+    return { summary: "Quiz grade not recorded: invalid source.", error: "invalid_source" };
+  }
+  if (points !== 0 && points !== 1 && points !== 2) {
+    return { summary: "Quiz grade not recorded: points must be 0, 1, or 2.", error: "invalid_points" };
+  }
+  if (!question || !learnerAnswer || !referenceAnswer || !feedback) {
+    return { summary: "Quiz grade not recorded: all answer fields are required.", error: "missing_fields" };
+  }
+  const detail: QuizAnswer = {
+    type: "quiz_answer",
+    language,
+    questionNumber: questionNumber as QuizAnswer["questionNumber"],
+    category: category as QuizCategory,
+    source,
+    question,
+    learnerAnswer,
+    referenceAnswer,
+    points,
+    feedback,
+  };
+  return {
+    detail,
+    summary: questionNumber === 5
+      ? "Final answer recorded. Give one short explanation, say the quiz is complete, and ask the learner to end the session to see the score. Do not announce a numeric score."
+      : `Answer ${questionNumber} recorded. Give one short explanation without mentioning points or a running score, then ask question ${Number(questionNumber) + 1} only.`,
+  };
 }
 
 // What a model may call each correction kind besides the enum value itself.
@@ -509,4 +558,5 @@ export const handlers: Record<string, (args: Record<string, unknown>) => ToolRes
   pronunciation_feedback: pronunciationFeedback,
   save_phrase: savePhrase,
   set_speaking_pace: setSpeakingPace,
+  grade_quiz_answer: gradeQuizAnswer,
 };

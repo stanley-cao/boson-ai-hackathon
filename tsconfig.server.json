@@ -20,6 +20,7 @@
     "src/realtime/sessionConfig.ts",
     "src/realtime/pace.ts",
     "src/lang/**/*.ts",
+    "src/quiz/**/*.ts",
     "src/tools/**/*.ts"
   ]
 }

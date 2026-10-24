@@ -1,6 +1,9 @@
 import { studyFromTranscript } from "../state/study";
 import type { TranscriptState } from "../state/transcriptStore";
 import type { ConnectionState } from "../realtime/RealtimeClient";
+import { quizFromTranscript } from "../state/quiz";
+import type { SessionActivity } from "../quiz/session";
+import { QuizResults } from "./QuizResults";
 
 export interface RecapVisibility {
   sessionOpened: boolean;
@@ -49,13 +52,27 @@ export interface SessionRecapProps {
   /** When the session opened; notes from before it are left out. */
   openedAt: number;
   onContinue: () => void;
+  activity?: SessionActivity;
 }
 
-export function SessionRecap({ state, openedAt, onContinue }: SessionRecapProps) {
-  const study = studyFromTranscript(sessionTranscript(state, openedAt));
+export function SessionRecap({ state, openedAt, onContinue, activity = "conversation" }: SessionRecapProps) {
+  const current = sessionTranscript(state, openedAt);
+  const study = studyFromTranscript(current);
+  const quiz = quizFromTranscript(current);
   const corrections = [...study.corrections].reverse();
   const phrases = [...study.phrases].reverse();
   const total = corrections.length + phrases.length + study.pronunciationNotes.length;
+
+  if (activity === "quiz") {
+    return (
+      <section className="recap-screen" aria-label="Quiz recap">
+        <QuizResults quiz={quiz} />
+        <button className="recap-action" type="button" onClick={onContinue}>
+          Back to activities
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="recap-screen" aria-labelledby="recap-heading">

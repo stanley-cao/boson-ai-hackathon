@@ -152,6 +152,7 @@ Realtime Higgs Avatar runs only inside a **LiveKit Cloud** room. Our agent relay
 - [x] **C:** keep direct-WebSocket mode as a **fallback** behind a toggle, in case avatar capacity or latency is a problem. (#35) (@stanley-cao)
 - [x] **A:** tune the prompt for an on-screen tutor (shorter turns, more expressive delivery). (#35) (@stanley-cao)
 - [ ] **Fallback, only if realtime is blocked:** pre-render intro and recap clips with `POST /v1/videos/stream` (fragmented MP4 from a still image and TTS text). (#33)
+- [x] **Adaptive quiz mode:** five transcript-backed questions, review-first adaptation, fair 0/1/2 grading, and a disconnect-only score recap in avatar and voice-only modes. Live credentialed acceptance remains pending.
 
 **Exit criteria:** a lip-synced avatar tutor holds the Phase 1 conversation, and barge-in stops the avatar mid-sentence.
 
@@ -185,6 +186,7 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-10-24 | Quiz mode is a separate session activity carried with capped, sanitized review data through both realtime transports. Every answer is recorded as a `quiz_answer` detail by `grade_quiz_answer`; the first valid grade per question is authoritative, pronunciation is excluded, and numeric results appear only after disconnect. `shared/quiz-prompts.json` keeps browser and LiveKit prompts aligned. | Transcript-backed grades make the recap reproducible and keep quiz attempts session-only. Capping review material limits prompt growth and marking it as untrusted data prevents a saved phrase from becoming an instruction. Delaying the score avoids steering later answers while still allowing brief corrective feedback. |
 | 2026-10-24 | In server-created `polyglot-*` rooms, `livekit/agent.py` installs LiveKit Agents' `DataStreamAudioOutput` as the session audio sink, targeting `polyglot-avatar` at 24 kHz and waiting for its audio track (#34). Other rooms keep the normal audio track, so the avatar-free `probe.py` path still works. Keep the roadmap item and issue open pending a credentialed live barge-in check. | The pinned SDK adapter implements the avatar's `lk.audio_stream`, playback-finished callback, and `lk.clear_buffer` RPC. AgentSession already feeds realtime model audio into its configured sink and clears that sink when speech is interrupted, avoiding a second copy of the protocol. |
 | 2026-10-24 | The language picker selects a target profile before connection; that target is passed into the initial session config and retained across learner-level and pace instruction updates. `ACTIVE_PAIR` remains the default rather than mutable global state (#29). | This keeps profiles as config while preventing a later instructions-only update from silently resetting a Korean, French, or Japanese session to Mandarin. The picker is locked during an active connection so its visible value cannot diverge from the live session. |
 | 2026-10-23 | Mandarin is the first target language, paired with English. | The team chose it. Tone feedback makes a strong showcase, and Han vs. Latin text makes code-switches visible. |

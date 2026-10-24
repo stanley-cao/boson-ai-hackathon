@@ -29,6 +29,86 @@
   "tools": [
     {
       "type": "function",
+      "name": "grade_quiz_answer",
+      "description": "In quiz mode, call this FIRST after every learner answer, before giving feedback or asking the next question. Grade exactly one numbered answer with the 0/1/2 rubric. Never use it in conversation mode and never grade pronunciation.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "zh",
+              "ko",
+              "fr",
+              "ja",
+              "sr"
+            ]
+          },
+          "question_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "translation",
+              "vocabulary",
+              "grammar",
+              "comprehension"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "review",
+              "general"
+            ]
+          },
+          "question": {
+            "type": "string"
+          },
+          "learner_answer": {
+            "type": "string"
+          },
+          "reference_answer": {
+            "type": "string"
+          },
+          "points": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2
+            ],
+            "description": "2 correct and complete; 1 substantially correct with a minor error; 0 incorrect, unrelated, or no meaningful answer."
+          },
+          "feedback": {
+            "type": "string",
+            "description": "One short explanation of the grade, without stating the numeric score."
+          }
+        },
+        "required": [
+          "language",
+          "question_number",
+          "category",
+          "source",
+          "question",
+          "learner_answer",
+          "reference_answer",
+          "points",
+          "feedback"
+        ]
+      }
+    },
+    {
+      "type": "function",
       "name": "note_correction",
       "description": "Call this FIRST, before you say anything else, whenever something the learner says has a grammar or word mistake, at any point in the conversation, including when they ask you to check a sentence or mix languages in one turn. It saves the correction to their study panel and then tells you what to say. Not for pronunciation, and not when nothing needs changing. After it returns, say the `correct` text clearly exactly once.",
       "parameters": {

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Router, type Response as ExpressResponse } from "express";
 import { AccessToken, TrackSource, type VideoGrant } from "livekit-server-sdk";
 import { ACTIVE_PAIR, TARGET_LANGUAGE_CODES, learnerLevelFor, type TargetLanguageCode } from "../src/lang/profiles";
+import { sanitizeQuizReviewItems, type SessionActivity } from "../src/quiz/session";
 
 /**
  * LiveKit rooms and Higgs Avatar realtime sessions (#33).
@@ -168,9 +169,12 @@ export function avatarRouter({
     if (!livekit) return res.status(500).json({ error: "livekit_not_configured" });
     const room = `${ROOM_PREFIX}${randomId()}`;
     const identity = `learner-${randomId()}`;
+    const activity: SessionActivity = req.body?.activity === "quiz" ? "quiz" : "conversation";
     const metadata = JSON.stringify({
       language: targetLanguageFor(req.body?.language),
       level: learnerLevelFor(typeof req.body?.level === "string" ? req.body.level : null),
+      activity,
+      reviewItems: activity === "quiz" ? sanitizeQuizReviewItems(req.body?.reviewItems) : [],
     });
     const jwt = await token(
       livekit,
