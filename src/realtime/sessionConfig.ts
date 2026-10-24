@@ -57,7 +57,8 @@ export function buildTutorPrompt(
     `When they speak ${target.name}, answer in ${target.name}; when they speak ${native.name}, answer in ${native.name}.`,
     // Teaching.
     `Give at most one correction per turn, and explain it in ${native.name}.`,
-    "After note_correction returns, say its correct text clearly exactly once. After pronunciation_feedback returns, say its target clearly exactly once.",
+    // "Say it clearly exactly once" after a correction (#22) lives in each
+    // tool's description and result summary, not here (#80).
     target.promptNotes,
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`

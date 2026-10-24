@@ -407,6 +407,11 @@ describe("pronunciation_feedback", () => {
     expect((r.detail as PronunciationNote).type).toBe("pronunciation");
   });
 
+  it("tells the tutor in its description to say the target clearly exactly once", () => {
+    const definition = TOOL_DEFINITIONS.find((tool) => tool.name === "pronunciation_feedback");
+    expect(definition?.description).toContain("say the `target` clearly exactly once");
+  });
+
   it("is offered with every profile language and the fields a card needs", () => {
     expect(TOOL_DEFINITIONS.find((d) => d.name === "pronunciation_feedback")).toMatchObject({
       parameters: {
