@@ -121,6 +121,15 @@ function normalizeText(raw: unknown): string | null {
   return t ? t : null;
 }
 
+/**
+ * A romanization only for a language written in another script. Live, a
+ * French correction came back with made-up pinyin in `romanization`, which
+ * the study panel would show under the French.
+ */
+function romanizationFor(language: ProfileCode, raw: unknown): string | null {
+  return "romanization" in PROFILES[language] ? normalizeText(raw) : null;
+}
+
 // What a model may call each correction kind besides the enum value itself.
 // Anything else files as "other": a mislabelled kind should still save the
 // correction, not lose it.
@@ -203,7 +212,7 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
     };
   }
 
-  const romanization = normalizeText(args.romanization);
+  const romanization = romanizationFor(language, args.romanization);
   const detail: Correction = {
     type: "correction",
     language,
@@ -534,7 +543,7 @@ export function pronunciationFeedback(args: Record<string, unknown>): ToolResult
     };
   }
 
-  const romanization = normalizeText(args.romanization);
+  const romanization = romanizationFor(language, args.romanization);
   const issue = normalizePronunciationIssue(args.issue, language);
   const tones = issue === "tone" ? noteTones(language, target, romanization) : null;
   const fixedTip = tones && tipContradicts(tip, tones) ? toneTip(tones) : null;
@@ -588,7 +597,7 @@ export function savePhrase(args: Record<string, unknown>): ToolResult {
     };
   }
 
-  const romanization = normalizeText(args.romanization);
+  const romanization = romanizationFor(language, args.romanization);
   const note = normalizeText(args.note);
   const detail: Phrase = {
     type: "phrase",
