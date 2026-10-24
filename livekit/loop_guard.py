@@ -9,6 +9,7 @@ The agent strips repeated sentences from the stored reply, so there's nothing
 left to copy.
 """
 
+import math
 import re
 
 # Short sentences recur naturally ("A ti?", "Dobro!", "Hvala.") and are never
@@ -33,13 +34,16 @@ _REPEAT_REQUEST = re.compile(
             r"\bwhat\s+did\s+you\s+(?:just\s+)?say\b",
             r"\bsorry,?\s+what\b",
             r"\bpardon\b",
-            r"^\W*(?:sorry|huh|what|excuse\s+me|again|encore)(?:\W+(?:please|une\s+fois|s'il\s+(?:te|vous)\s+pla[iî]t))?\W*$",
+            # A one-word "what?" in any language taught.
+            r"^\W*(?:sorry|huh|what|excuse\s+me|again|encore|quoi|molim|šta|hả|gì\s+cơ|え|えっ|何|什么|啊|뭐)(?:\W+(?:please|une\s+fois|s'il\s+(?:te|vous)\s+pla[iî]t))?\W*$",
             # French: répéter, répète, répétez; "Comment ?" alone.
             r"\br[ée]p[éeè]t\w*",
             r"\bencore\s+une\s+fois\b",
             r"\bplus\s+lentement\b",
             r"\bje\s+n'ai\s+pas\s+(?:compris|entendu)\b",
             r"^\W*comment\W*$",
+            r"\bqu'est-ce\s+que\s+(?:tu\s+as|vous\s+avez)\s+dit\b",
+            r"\bt'as\s+dit\s+quoi\b",
             # Serbian
             r"\bponovi\w*",
             r"\bsporije\b",
@@ -49,19 +53,29 @@ _REPEAT_REQUEST = re.compile(
             r"\bchậm\s+(?:lại|hơn)\b",
             r"\bmột\s+lần\s+nữa\b",
             # Japanese, Korean, Mandarin
-            r"もう一度|もう一回|ゆっくり|繰り返",
+            r"もう一度|もう一回|ゆっくり|繰り返|何て言",
             r"다시|천천히|뭐라고",
-            r"再说|再一次|慢一点|重复",
+            r"再说|再一次|慢一点|重复|说什么",
         ]
     ),
     re.IGNORECASE,
 )
-_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+# CJK full stops end a sentence with no space after them.
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|(?<=[。！？])\s*")
 _NON_WORD = re.compile(r"[^\w\s]")
+# Chinese and Japanese have no spaces: split() made every sentence one word,
+# so a looping 我昨天去了商店买了三个苹果。 could never reach MIN_WORDS. Two
+# characters to a word, about the length of a Mandarin word, so a recurring
+# 我很好啊 still counts as short.
+_UNSPACED_CHAR = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 
 
 def _sentences(text: str) -> list[str]:
     return [s for s in _SENTENCE_END.split(text.strip()) if s]
+
+
+def _words(key: str) -> int:
+    return sum(math.ceil(len(_UNSPACED_CHAR.findall(w)) / 2) or 1 for w in key.split())
 
 
 def _key(sentence: str) -> str:
@@ -81,7 +95,7 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
     # A whole reply said again counts even when each of its sentences is short:
     # "Hai, wakarimashita! (Yes, I understand!)" looped turn after turn.
     whole = _key(reply)
-    if len(whole.split()) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
+    if _words(whole) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
         return ""
     # The same reply twice in a row is a loop at any length: "How are you?"
     # and "Comment, ça, va?" each came back turn after turn, live.
@@ -95,7 +109,7 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
     kept: list[str] = []
     for sentence in _sentences(reply):
         key = _key(sentence)
-        if len(key.split()) >= MIN_WORDS and key in seen:
+        if _words(key) >= MIN_WORDS and key in seen:
             continue
         kept.append(sentence)
     if len(kept) == len(_sentences(reply)):

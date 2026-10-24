@@ -119,7 +119,10 @@ function TurnBubble({
         {item.text === null ? (
           <span className="pending">transcribing…</span>
         ) : (
-          <ScriptText text={item.text} romanizations={romanizations} />
+          // dir="auto" so Arabic, Hebrew, Persian or Urdu reads right to left.
+          <span dir="auto">
+            <ScriptText text={item.text} romanizations={romanizations} />
+          </span>
         )}
       </div>
     );
@@ -128,7 +131,9 @@ function TurnBubble({
   return (
     <div className={`turn assistant ${item.status}`}>
       <span className="who">assistant</span>
-      <ScriptText text={item.text} romanizations={romanizations} />
+      <span dir="auto">
+        <ScriptText text={item.text} romanizations={romanizations} />
+      </span>
       {item.status === "streaming" && <span className="caret" />}
       {item.status === "interrupted" && <span className="badge">interrupted</span>}
     </div>

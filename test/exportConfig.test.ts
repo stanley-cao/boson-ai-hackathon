@@ -7,6 +7,7 @@ import {
   SLOW_PACE_NOTE,
 } from "../src/realtime/sessionConfig";
 import { LEARNER_LEVELS, PROFILES } from "../src/lang/profiles";
+import { targetLanguageNames } from "../src/tools/handlers";
 
 // The LiveKit agent reads this file instead of the TypeScript, so a stale copy
 // silently runs an old prompt or tool list there (#30).
@@ -54,5 +55,13 @@ describe("shared/pace.json", () => {
     // livekit/agent.py builds the slow prompt as `prompt + " " + slow_note`.
     const args = [PROFILES.sr, PROFILES.en, LEARNER_LEVELS.beginner] as const;
     expect(buildTutorPrompt(...args, "slow")).toBe(`${buildTutorPrompt(...args, "normal")} ${pace.slow_note}`);
+  });
+});
+
+describe("shared/languages.json", () => {
+  const names = JSON.parse(readFileSync(new URL("../shared/languages.json", import.meta.url), "utf8")) as unknown;
+
+  it("matches targetLanguageNames() (run `npm run export-config` if not)", () => {
+    expect(names).toEqual(targetLanguageNames());
   });
 });

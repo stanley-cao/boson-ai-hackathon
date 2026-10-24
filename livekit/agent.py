@@ -14,6 +14,7 @@ Higgs Avatar only joins LiveKit Cloud rooms (Phase 4).
 """
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -40,6 +41,7 @@ from avatar_output import is_avatar_room, route_audio_to_avatar
 from dispatch import agent_name
 from language_switch import requested_language
 from loop_guard import strip_repeats
+from missed_tools import correction_in, phrase_to_save, saved_key
 from practised import PractisedPhrases, practised_phrase
 from session_config import (
     instructions_for,
@@ -90,6 +92,13 @@ class Tutor(Agent):
         # phrase can be added without changing it.
         self.pace = "normal"
         self.practised = PractisedPhrases()
+        # (tool name, time.monotonic()) for each call, so the agent can tell
+        # which tools the model called while composing a reply.
+        self.tool_calls: list[tuple[str, float]] = []
+        # Phrases and corrected sentences already saved, by saved_key: a reply
+        # in two parts (a tool call with "Sure!", then the answer) would
+        # otherwise have its second part saved again.
+        self.saved: set[str] = set()
         # Tutor replies so far, to tell whether the last one was about a study
         # item or was a one-off slow repeat: either is set at reply N and still
         # "the last reply" while no more than one reply has followed.
@@ -104,6 +113,11 @@ class Tutor(Agent):
         # RealtimeClient.ts applies in direct mode live in the prompt, so they
         # happen here. Awaited before the result goes back, so the reply that
         # follows already uses the new instructions.
+        self.tool_calls.append((name, time.monotonic()))
+        if name in ("save_phrase", "note_correction") and not result.get("error"):
+            self.saved.update(
+                saved_key(str(arguments.get(field) or "")) for field in ("phrase", "meaning", "said") if arguments.get(field)
+            )
         instructions = practice_change(name, result, PROMPTS)
         if instructions is not None and instructions != self.base_instructions:
             # The prompt carries the language's teaching notes and the level's
@@ -305,6 +319,67 @@ def track_practised_phrases(session: AgentSession, tutor: Tutor) -> None:
     session.on("conversation_item_added", on_item)
 
 
+def save_what_the_model_skipped(session: AgentSession, tutor: Tutor) -> None:
+    """Make the save_phrase or note_correction call the model left out of a reply.
+
+    See missed_tools.py. Checked once each reply is in: a call the model did
+    make comes before its reply's text, so any call since the previous reply
+    belongs to this one. Goes through the browser's own handler, as the
+    model's call would have, so the card lands on the study panel.
+    """
+    last_reply_at = time.monotonic()
+
+    async def call(name: str, arguments: dict[str, Any]) -> None:
+        room_io = session.room_io
+        learner = room_io.linked_participant
+        result = await forward_tool_call(
+            room_io.room.local_participant,
+            learner.identity if learner is not None else None,
+            f"missed_{name}_{int(time.time() * 1000)}",
+            name,
+            arguments,
+        )
+        logger.info("model skipped %s; saved %s -> %s", name, json.dumps(arguments, ensure_ascii=False), result.get("summary"))
+
+    async def check(item_id: str, reply: str, called: set[str]) -> None:
+        messages = [m for m in session.current_agent.chat_ctx.items if m.type == "message"]
+        index = next((i for i, m in enumerate(messages) if m.id == item_id), None)
+        if index is None:
+            return
+        learner = next((m.text_content for m in reversed(messages[:index]) if m.role == "user"), None)
+        if not learner:
+            return
+        if "save_phrase" not in called and (phrase := phrase_to_save(learner, reply, tutor.language)):
+            if not tutor.saved & {saved_key(phrase["phrase"]), saved_key(phrase["meaning"])}:
+                tutor.saved.update({saved_key(phrase["phrase"]), saved_key(phrase["meaning"])})
+                await call("save_phrase", phrase)
+        elif "note_correction" not in called and (fix := correction_in(learner, reply, tutor.language)):
+            said, correct = fix
+            if saved_key(said) in tutor.saved:
+                return
+            tutor.saved.add(saved_key(said))
+            await call(
+                "note_correction",
+                {"language": tutor.language, "said": said, "correct": correct, "explanation": "", "kind": "grammar"},
+            )
+
+    def on_item(event: ConversationItemAddedEvent) -> None:
+        nonlocal last_reply_at
+        item = event.item
+        reply = getattr(item, "text_content", None)
+        if getattr(item, "role", None) != "assistant" or not reply:
+            return
+        called = {name for name, at in tutor.tool_calls if at > last_reply_at}
+        last_reply_at = time.monotonic()
+        task = asyncio.create_task(check(item.id, reply, called))
+        # A missed card is only a missed card; never raise.
+        task.add_done_callback(
+            lambda t: t.cancelled() or t.exception() is None or logger.warning("missed tool check failed: %r", t.exception())
+        )
+
+    session.on("conversation_item_added", on_item)
+
+
 def switch_language_on_request(session: AgentSession, tutor: Tutor) -> None:
     """Make a spoken language switch happen even when the model calls no tool.
 
@@ -315,6 +390,10 @@ def switch_language_on_request(session: AgentSession, tutor: Tutor) -> None:
     """
 
     async def switch(language: str) -> None:
+        if tutor.language == language:
+            # The model's own set_practice_language call got there first; a
+            # second one only repeated the browser's tool card.
+            return
         arguments = {"language": language, "level": tutor.level}
         room_io = session.room_io
         learner = room_io.linked_participant
@@ -427,6 +506,7 @@ async def entrypoint(ctx: JobContext) -> None:
     tutor = Tutor(instructions, *practice_choice(learner.metadata, PROMPTS))
     switch_language_on_request(session, tutor)
     track_practised_phrases(session, tutor)
+    save_what_the_model_skipped(session, tutor)
 
     def on_user_state(event: UserStateChangedEvent) -> None:
         # The learner's next turn starts after the slow repeat was said, and

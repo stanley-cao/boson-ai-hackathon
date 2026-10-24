@@ -80,6 +80,16 @@ def test_the_same_short_reply_twice_in_a_row_is_stripped() -> None:
         "再说一遍",
         "Bạn có thể nói lại không?",
         "Nhắc lại đi",
+        "Qu'est-ce que tu as dit ?",
+        "Plus lentement s'il te plaît",
+        "Molim?",
+        "Nisam razumela",
+        "Gì cơ?",
+        "え？",
+        "何て言いましたか",
+        "뭐라고요?",
+        "什么？",
+        "你说什么？",
     ],
 )
 def test_ways_of_asking_for_a_repeat_keep_it(turn: str) -> None:
@@ -91,3 +101,12 @@ def test_ways_of_asking_for_a_repeat_keep_it(turn: str) -> None:
 def test_again_in_passing_is_no_repeat_request(turn: str) -> None:
     reply = "Of course! Let's start with one word."
     assert strip_repeats(reply, [reply], turn) == ""
+
+
+def test_a_repeated_chinese_sentence_is_stripped() -> None:
+    # No spaces: two characters count as a word, so a long sentence qualifies.
+    earlier = ["我昨天去了商店买了三个苹果。"]
+    reply = "很好！我昨天去了商店买了三个苹果。"
+    assert strip_repeats(reply, earlier, "我们说说别的吧。") == "很好！"
+    # Short ones may still recur.
+    assert strip_repeats("我很好啊。你呢？", ["我很好啊。今天天气不错。"], "我很好。") is None

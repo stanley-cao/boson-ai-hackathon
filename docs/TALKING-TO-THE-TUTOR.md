@@ -22,7 +22,7 @@ agent spots these itself (`livekit/language_switch.py`), even when the model
 doesn't call `set_practice_language`. You may hear one short line in the old
 language first.
 
-Languages: Mandarin (or Chinese), Korean, French, Japanese, Serbian, Vietnamese.
+Languages: every language Boson rates top tier for Higgs TTS 3 (84 besides English), from Afrikaans to Zulu, for example Mandarin (or Chinese), Korean, French, Japanese, Spanish, German, Arabic, Hindi, Russian, Serbian and Vietnamese. The picker lists them all, A to Z.
 
 These don't switch:
 
