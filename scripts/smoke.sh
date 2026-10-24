@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Live regression check for the conversation and its tools.
 #
-# Each case speaks one turn through the probe, then checks the events it
+# Each case speaks one or more turns through the probe, then checks the events it
 # recorded. A case fails if the probe does not close normally or an expected
 # tool call never fires. A tool that is expected but not yet registered in
 # src/tools/definitions.ts is reported as PENDING instead of failing, so the
@@ -30,8 +30,15 @@ CASES=(
   "explain|I keep hearing people say 好久不见. What does that mean?|save_phrase|phrase|好久不见|set_practice_language|meaning"
   "correction|我有三本狗。|note_correction|-|-|set_practice_language|-"
   "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback|-|-|set_practice_language|-"
-  "slow-repeat|Please say this again slowly: 我今天想去图书馆学习。|-|-|-|set_practice_language|-"
+  "slow-repeat|How do I say I want to go to the library in Chinese? >> Can you say that again slowly?|set_speaking_pace|scope|once|set_practice_language|-"
+  "slow-session|Please speak more slowly from now on.|set_speaking_pace|scope|session|set_practice_language|-"
 )
+
+# Cases whose last reply must be clearly slower than their first, by the
+# probe's "pace: N ms/syllable" lines (#76). The slow repeat is TTS with
+# prosody tags, probed at about 3x longer, so 1.5x leaves room for noise.
+PACE_CASES=(slow-repeat)
+PACE_MIN_RATIO=1.5
 
 # Probe output for these cases is kept as fixtures for offline tests.
 FIXTURE_CASES=(mandarin mixed)
@@ -46,6 +53,27 @@ is_fixture_case() {
     [ "$c" = "$1" ] && return 0
   done
   return 1
+}
+
+is_pace_case() {
+  local c
+  for c in "${PACE_CASES[@]}"; do
+    [ "$c" = "$1" ] && return 0
+  done
+  return 1
+}
+
+# Succeeds when the log's last pace line is at least PACE_MIN_RATIO times its
+# first, and prints both.
+reply_slowed() {
+  node -e '
+    const [file, ratio] = process.argv.slice(1);
+    const paces = [...require("fs").readFileSync(file, "utf8").matchAll(/pace: (\d+) ms\/syllable/g)].map((m) => Number(m[1]));
+    if (paces.length < 2) { console.log("fewer than two paced replies"); process.exit(1); }
+    const [first, last] = [paces[0], paces[paces.length - 1]];
+    console.log(`${first} -> ${last} ms/syllable`);
+    process.exit(last >= first * Number(ratio) ? 0 : 1);
+  ' "$1" "$2"
 }
 
 # Prints each tool the model called, one per line. The probe records a call
@@ -115,7 +143,16 @@ for case in "${CASES[@]}"; do
   log="$CAPTURES/smoke-$name.log"
   echo "== $name: $utterance"
 
-  if ! npm run --silent probe -- --say "$utterance" --out "$out" > "$log" 2>&1; then
+  # " >> " separates the spoken turns of a multi-turn case.
+  say_args=()
+  rest="$utterance"
+  while [[ "$rest" == *" >> "* ]]; do
+    say_args+=(--say "${rest%% >> *}")
+    rest="${rest#* >> }"
+  done
+  say_args+=(--say "$rest")
+
+  if ! npm run --silent probe -- "${say_args[@]}" --out "$out" > "$log" 2>&1; then
     echo "   FAIL: probe did not close normally (see $log)"
     failures=$((failures + 1))
     continue
@@ -164,6 +201,15 @@ for case in "${CASES[@]}"; do
         echo "   ok: $tool did not fire"
       fi
     done
+  fi
+
+  if is_pace_case "$name"; then
+    if pace="$(reply_slowed "$log" "$PACE_MIN_RATIO")"; then
+      echo "   ok: the last reply was slower ($pace)"
+    else
+      echo "   FAIL: the last reply was not ${PACE_MIN_RATIO}x slower ($pace)"
+      case_ok=0
+    fi
   fi
 
   if [ "$case_ok" = 0 ]; then

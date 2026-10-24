@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { learnerLevelFor } from "../src/lang/profiles";
 import {
-  buildLevelUpdate,
+  buildInstructionsUpdate,
   buildSessionConfig,
   levelChangeFromTool,
 } from "../src/realtime/sessionConfig";
@@ -26,9 +26,9 @@ describe("learnerLevelFor", () => {
   });
 });
 
-describe("buildLevelUpdate", () => {
+describe("buildInstructionsUpdate for a level", () => {
   it("sends only the new level's instructions", () => {
-    const event = buildLevelUpdate("intermediate");
+    const event = buildInstructionsUpdate("intermediate", "normal");
     expect(event.type).toBe("session.update");
     const session = event.session as Record<string, unknown>;
     expect(Object.keys(session)).toEqual(["instructions"]);
@@ -37,7 +37,7 @@ describe("buildLevelUpdate", () => {
 
   it("matches the instructions a fresh session at that level would get", () => {
     const fresh = buildSessionConfig().session as { instructions: string };
-    const update = buildLevelUpdate("beginner").session as { instructions: string };
+    const update = buildInstructionsUpdate("beginner", "normal").session as { instructions: string };
     expect(update.instructions).toBe(fresh.instructions);
   });
 });

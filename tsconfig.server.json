@@ -17,6 +17,7 @@
     "tools",
     "src/realtime/events.ts",
     "src/realtime/sessionConfig.ts",
+    "src/realtime/pace.ts",
     "src/lang/**/*.ts",
     "src/tools/**/*.ts"
   ]

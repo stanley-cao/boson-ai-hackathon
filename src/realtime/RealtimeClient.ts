@@ -10,8 +10,14 @@ import {
   type CloseInfo,
   type ServerEvent,
 } from "./events";
-import { buildLevelUpdate, buildSessionConfig, levelChangeFromTool } from "./sessionConfig";
+import {
+  buildInstructionsUpdate,
+  buildSessionConfig,
+  levelChangeFromTool,
+  planPaceChange,
+} from "./sessionConfig";
 import { ACTIVE_LEVEL, LEARNER_LEVELS, type LearnerLevel } from "../lang/profiles";
+import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../tools/handlers";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { dispatch as dispatchTool } from "../tools/registry";
@@ -44,6 +50,12 @@ export interface RealtimeCallbacks {
   onMicChange?: (active: boolean) => void;
   /** Live microphone level (RMS, ~10 per second) for the meter. */
   onMicLevel?: (rms: number) => void;
+  /**
+   * Re-speaks the tutor's last line slowly outside the session, for "say that
+   * again slowly" (#76). `play` resolves true once it is audible, false if it
+   * couldn't play; `stop` is called on barge-in.
+   */
+  slowRepeat?: { play: (text: string) => Promise<boolean>; stop: () => void };
   /** Mints a fresh ephemeral key for each connection. Required. */
   tokenProvider: () => Promise<string>;
 }
@@ -87,9 +99,29 @@ export class RealtimeClient {
   private toolBatch: {
     promises: Promise<void>[];
     outputs: ClientEvent[];
-    /** A level change from this turn's tools, sent before the outputs. */
+    /** A level or pace change from this turn's tools, sent before the outputs. */
     sessionUpdate?: ClientEvent;
+    revertPaceAfterReply?: boolean;
+    /** A slow repeat is playing through TTS, so no reply is asked for. */
+    silent?: boolean;
   } | null = null;
+
+  /**
+   * The tutor's last spoken line, and that line as it stood when the current
+   * response began. A slow repeat uses the second, so a "Sure!" spoken in
+   * the same response as the tool call isn't what gets repeated.
+   */
+  private lastReplyText: string | null = null;
+  private replyTextBeforeResponse: string | null = null;
+
+  /** The lasting speaking pace, from "please speak more slowly". */
+  private sessionPace: SpeakingPace = "normal";
+
+  /**
+   * A one-off slow repeat is due: the next response.created is that reply,
+   * and its response.done restores `sessionPace`.
+   */
+  private revertPace: "armed" | { responseId: string } | null = null;
 
   /** The learner level the session's current instructions were built for. */
   private level: LearnerLevel = ACTIVE_LEVEL;
@@ -185,7 +217,10 @@ export class RealtimeClient {
       this.connecting = false;
       this.setState("open");
       this.info(`Socket open — sending session.update (${level} level).`);
+      // A new session starts at normal pace; nothing carries over.
       this.level = level;
+      this.sessionPace = "normal";
+      this.revertPace = null;
       this.send(buildSessionConfig(LEARNER_LEVELS[level]));
     };
     ws.onmessage = (ev) => this.onMessage(ev);
@@ -252,13 +287,17 @@ export class RealtimeClient {
     this.cb.onServerEvent?.(evt);
 
     switch (evt.type) {
-      case SERVER.responseCreated:
+      case SERVER.responseCreated: {
         // A new assistant turn. Zero the played-sample counter so the truncate
         // maths below measures into *this* reply, not the whole session.
         this.player.reset();
         this.toolBatch = null;
+        const id = (evt.response as { id?: unknown } | undefined)?.id;
+        if (this.revertPace === "armed" && typeof id === "string") this.revertPace = { responseId: id };
+        this.replyTextBeforeResponse = this.lastReplyText;
         this.setActivity("thinking");
         break;
+      }
 
       case SERVER.functionCallArgsDone:
         this.onFunctionCallArgsDone(evt);
@@ -284,6 +323,12 @@ export class RealtimeClient {
         }
         break;
       }
+
+      case SERVER.audioTranscriptDone:
+        if (typeof evt.transcript === "string" && evt.transcript.trim()) {
+          this.lastReplyText = evt.transcript;
+        }
+        break;
 
       case SERVER.outputAudioDelta: {
         // The audio itself: base64 PCM16 in `delta`.
@@ -358,8 +403,28 @@ export class RealtimeClient {
       const level = levelChangeFromTool(name, result, this.level);
       if (level) {
         this.level = level;
-        batch.sessionUpdate = buildLevelUpdate(level);
+        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace);
         this.info(`Learner level is now ${level} — updating the session instructions.`);
+      }
+      if (name === "set_speaking_pace") {
+        const request = paceRequestFrom(args);
+        // A one-off repeat is re-spoken through TTS when it can be: pace in
+        // the instructions mostly didn't change the audio, TTS reliably did.
+        const playing =
+          request.scope === "once" &&
+          this.replyTextBeforeResponse !== null &&
+          (await this.cb.slowRepeat?.play(this.replyTextBeforeResponse)) === true;
+        if (playing) {
+          result = SLOW_REPEAT_PLAYING;
+          batch.silent = true;
+          this.info("Playing a slow repeat of the last reply through TTS.");
+        } else {
+          const plan = planPaceChange(request, this.sessionPace);
+          this.sessionPace = plan.sessionPace;
+          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send);
+          batch.revertPaceAfterReply = plan.revertAfterReply;
+          this.info(`Speaking pace: ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}.`);
+        }
       }
       // Feed the result into the transcript through the same reducer path as
       // everything else, using a synthetic event type of our own.
@@ -379,6 +444,13 @@ export class RealtimeClient {
    * The turn is over. If it contained tool calls, this is where we answer them.
    */
   private onResponseDone(evt: ServerEvent): void {
+    // The slow repeat is over: back to the lasting pace for the next turn.
+    const id = (evt.response as { id?: unknown } | undefined)?.id;
+    if (this.revertPace && this.revertPace !== "armed" && this.revertPace.responseId === id) {
+      this.revertPace = null;
+      this.send(buildInstructionsUpdate(this.level, this.sessionPace));
+    }
+
     // ⚠ The double-fire. Tool calls that already arrived via
     // function_call_arguments.done can appear AGAIN in response.done's output
     // list. We still walk it — occasionally a call shows up only here — but
@@ -426,13 +498,16 @@ export class RealtimeClient {
     // as long as the slower one, not as long as both.
     await Promise.all(batch.promises);
 
-    // Before the outputs and response.create, so the reply that confirms the
-    // new level is already spoken under its instructions.
+    // Before the outputs and response.create, so the reply is already spoken
+    // under the new level's or pace's instructions.
     if (batch.sessionUpdate) this.send(batch.sessionUpdate);
+    if (batch.revertPaceAfterReply) this.revertPace = "armed";
     for (const out of batch.outputs) this.send(out);
 
-    // Mandatory. Without it the model has every result and says nothing.
-    this.send(responseCreate());
+    // Mandatory, except while a slow repeat plays: without it the model has
+    // every result and says nothing, which is exactly what we want then.
+    if (batch.silent) this.setActivity(this.capture.active ? "listening" : "idle");
+    else this.send(responseCreate());
   }
 
   /**
@@ -454,6 +529,7 @@ export class RealtimeClient {
    */
   private async handleBargeIn(): Promise<void> {
     this.setActivity("listening");
+    this.cb.slowRepeat?.stop();
     const playedMs = await this.player.flush();
     if (this.currentAssistantItemId && playedMs > 0) {
       this.send(truncateItem(this.currentAssistantItemId, playedMs));
