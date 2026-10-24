@@ -13,6 +13,21 @@ describe("tutor prompt", () => {
     expect(buildTutorPrompt()).toContain("In tool arguments, write Mandarin Chinese with pinyin and tone marks.");
   });
 
+  it("mirrors each language explicitly and never asks the learner to pick one", () => {
+    // Probed 2026-10-24: "reply in the language they just used" answered
+    // pure-Mandarin turns in English; naming both directions fixed it.
+    const prompt = buildTutorPrompt();
+    expect(prompt).toContain("When they speak Mandarin Chinese, answer in Mandarin Chinese");
+    expect(prompt).toContain("never ask which language they want");
+  });
+
+  it("only asks for pinyin inside tool arguments", () => {
+    // An unscoped "write with pinyin" made the tutor speak pinyin, not
+    // characters, so every mention of pinyin must be the tool-argument line.
+    const outsideTools = buildTutorPrompt().replace(/In tool arguments[^.]*\./, "");
+    expect(outsideTools).not.toMatch(/pinyin/i);
+  });
+
   it("omits the romanization line for a profile without one", () => {
     const prompt = buildTutorPrompt(PROFILES.en, PROFILES.en);
     expect(prompt).not.toContain("tone marks");

@@ -26,11 +26,13 @@ import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
  * The learner's native language and the target language both come from
  * `ACTIVE_PAIR`; the target's `promptNotes` carry the teaching specifics.
  *
- * Code-switching: the tutor replies in whichever language the learner just
- * used, rather than asking which one they want. That matches how the learner
- * talks and avoids a question that would break the flow. The probe has not
- * yet compared this with the target-language-first variant; see the ROADMAP
- * decision log once that run is recorded.
+ * Code-switching: an explicit "target → target, native → native" mirror,
+ * with corrections explained in the native language. Probed 2026-10-24 (see
+ * the ROADMAP decision log): plain "reply in the language they just used"
+ * answered Mandarin in English, "mostly the target language" dropped English
+ * from corrections and stopped tool calls, and "learner chooses" asked them
+ * to pick. Pinyin is confined to tool arguments; an unscoped "write with
+ * pinyin" made the tutor speak pinyin instead of characters.
  */
 export function buildTutorPrompt(
   target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
@@ -40,10 +42,10 @@ export function buildTutorPrompt(
     // Role and capabilities.
     `You are a friendly language tutor. The learner speaks ${native.name} and is learning ${target.name}.`,
     // Code-switching.
-    "They switch between the two mid-sentence. Follow the switch and reply in the language they just used.",
-    "Never ask which language they want.",
+    "They switch between the two mid-sentence; never ask which language they want.",
+    `When they speak ${target.name}, answer in ${target.name}; when they speak ${native.name}, answer in ${native.name}.`,
     // Teaching.
-    "Give at most one correction per turn, after answering what they said.",
+    `Give at most one correction per turn, and explain it in ${native.name}.`,
     target.promptNotes,
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
