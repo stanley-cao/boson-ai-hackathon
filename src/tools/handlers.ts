@@ -1,5 +1,5 @@
 import { PROFILES } from "../lang/profiles";
-import type { Correction, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
+import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -235,8 +235,50 @@ export function pronunciationFeedback(args: Record<string, unknown>): ToolResult
   };
 }
 
+/**
+ * Save a word or phrase to the learner's phrase list.
+ *
+ * The schema tells the model to call this BEFORE it speaks, so the summary is
+ * its cue for what to say next rather than a line to read out: a "same turn"
+ * description was called far less reliably in live probes.
+ */
+export function savePhrase(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    return {
+      summary: `Phrase not saved: language must be one of ${Object.keys(PROFILES).join(", ")}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const phrase = normalizeText(args.phrase);
+  const meaning = normalizeText(args.meaning);
+  if (!phrase || !meaning) {
+    return {
+      summary: "Phrase not saved: it needs the phrase and what it means.",
+      error: "missing_fields",
+    };
+  }
+
+  const romanization = normalizeText(args.romanization);
+  const note = normalizeText(args.note);
+  const detail: Phrase = {
+    type: "phrase",
+    language,
+    phrase,
+    meaning,
+    ...(romanization ? { romanization } : {}),
+    ...(note ? { note } : {}),
+  };
+  return {
+    summary: `Saved ${phrase} to the phrase list. Now briefly tell the learner what it means, then carry on the conversation.`,
+    detail,
+  };
+}
+
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
   note_correction: noteCorrection,
   set_practice_language: setPracticeLanguage,
   pronunciation_feedback: pronunciationFeedback,
+  save_phrase: savePhrase,
 };

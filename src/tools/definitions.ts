@@ -139,4 +139,48 @@ export const TOOL_DEFINITIONS = [
       required: ["language", "target", "issue", "tip"],
     },
   },
+  {
+    type: "function",
+    name: "save_phrase",
+    // Leads with when to call it. Probed live, "how do you say 谢谢 in English?"
+    // after a greeting was answered without a call (0 of 8) until the
+    // description opened with the trigger (5 of 5).
+    description:
+      "Call this FIRST, before you say anything else, whenever the learner " +
+      "asks what a word or phrase means or how to say something, even after a " +
+      "greeting or in the middle of a sentence. Also call it when you teach " +
+      "them a new word or they ask you to remember one. It saves the phrase to " +
+      "the phrase list on their screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          enum: Object.keys(PROFILES),
+          description: "The language the phrase is in.",
+        },
+        phrase: {
+          type: "string",
+          description:
+            "The word or phrase in its own script (Chinese characters for " +
+            "Mandarin, not pinyin), e.g. '加油'.",
+        },
+        meaning: {
+          type: "string",
+          description: "What it means, in the learner's native language.",
+        },
+        romanization: {
+          type: "string",
+          description:
+            "How to say it, for a language not written in Latin letters. For " +
+            "Mandarin, pinyin with tone marks, e.g. 'jiā yóu'.",
+        },
+        note: {
+          type: "string",
+          description: "Optional: a short usage note, e.g. 'said to cheer someone on'.",
+        },
+      },
+      required: ["language", "phrase", "meaning"],
+    },
+  },
 ] as const;
