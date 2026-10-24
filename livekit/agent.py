@@ -14,7 +14,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobRequest, cli
 from livekit.plugins import boson
 
 from session_config import load_session, model_kwargs
@@ -25,6 +25,11 @@ logger = logging.getLogger("polyglot")
 load_dotenv(override=True)
 
 SESSION = load_session()
+
+# The identity this agent joins every room as. server/avatar.ts names it as the
+# avatar session's publisher_identity, and the avatar only plays audio from
+# there (#33). LiveKit would otherwise pick "agent-<job id>".
+AGENT_IDENTITY = "polyglot-tutor"
 
 
 class Tutor(Agent):
@@ -40,7 +45,11 @@ class Tutor(Agent):
 server = AgentServer()
 
 
-@server.rtc_session()
+async def accept_as_tutor(request: JobRequest) -> None:
+    await request.accept(identity=AGENT_IDENTITY)
+
+
+@server.rtc_session(on_request=accept_as_tutor)
 async def entrypoint(ctx: JobContext) -> None:
     options = model_kwargs(SESSION)
     # Environment overrides, as upstream has, for trying another model or voice.
