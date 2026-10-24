@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git describe *)",
+      "Bash(git stash list)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh run view *)",
+      "Bash(gh run list *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(file *)",
+      "Bash(python -m pytest *)",
+      "Bash(npm run test*)",
+      "Bash(npm install)",
+      "Bash(npm list *)",
+      "Bash(pip install *)",
+      "Bash(pip list *)",
+      "Bash(pip freeze)",
+      "Bash(docker ps *)",
+      "Bash(docker images)",
+      "Bash(docker logs *)",
+      "Bash(docker inspect *)",
+      "Bash(git config --get *)"
+    ]
+  }
+}
