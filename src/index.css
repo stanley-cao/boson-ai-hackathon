@@ -312,6 +312,22 @@ code {
   color: var(--text);
 }
 
+.romanized-text {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 0.08em;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.transcript-romanization {
+  color: var(--accent);
+  font-size: 0.68em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
 .turn.tool {
   border-left: 3px solid var(--muted);
   font-size: 0.85rem;
