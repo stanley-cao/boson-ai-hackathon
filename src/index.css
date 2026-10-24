@@ -126,6 +126,37 @@ code {
   padding-left: 0.6rem;
 }
 
+/* --- practising badge --- */
+
+.practice {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.35rem 0.8rem;
+  margin-bottom: 1.2rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.practice-label {
+  color: var(--muted);
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+
+.practice-lang {
+  font-weight: 600;
+}
+
+.practice-level {
+  color: var(--muted);
+  border-left: 1px solid var(--border);
+  padding-left: 0.5rem;
+}
+
 /* --- microphone --- */
 
 .mic {
