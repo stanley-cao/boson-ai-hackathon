@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { segmentByScript } from "../lang/scriptRuns";
 import { studyFromTranscript } from "../state/study";
 import {
-  toList,
+  toDisplayList,
   toPlainText,
   type TranscriptItem,
   type TranscriptState,
@@ -14,7 +14,7 @@ import {
 } from "./romanization";
 
 export function TranscriptPanel({ state }: { state: TranscriptState }) {
-  const items = toList(state);
+  const items = toDisplayList(state);
   const romanizations = romanizationsFromStudy(studyFromTranscript(state));
   const endRef = useRef<HTMLDivElement>(null);
 
