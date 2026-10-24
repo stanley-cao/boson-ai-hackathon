@@ -25,11 +25,19 @@ import {
   type LearnerLevel,
   type TargetLanguageCode,
 } from "../lang/profiles";
-import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../tools/handlers";
+import {
+  oneOffPace,
+  paceRequestFrom,
+  SLOW_REPEAT_PLAYING,
+  slowRepeatSummary,
+  type SpeakingPace,
+} from "../tools/handlers";
+import { practiceFocusFromTool, type PracticeFocus, type SlowSpeechOptions } from "./pace";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
+import { requestedLanguage } from "./languageSwitch";
 import { interruptedAssistantItem } from "./turnInterruption";
 
 // The model can also be set in session.update; passing it in the URL means the
@@ -64,7 +72,7 @@ export interface RealtimeCallbacks {
    * again slowly" (#76). `play` resolves true once it is audible, false if it
    * couldn't play; `stop` is called on barge-in.
    */
-  slowRepeat?: { play: (text: string) => Promise<boolean>; stop: () => void };
+  slowRepeat?: { play: (text: string, options: SlowSpeechOptions) => Promise<boolean>; stop: () => void };
   /** Mints a fresh ephemeral key for each connection. Required. */
   tokenProvider: () => Promise<string>;
 }
@@ -116,6 +124,8 @@ export class RealtimeClient {
     revertPaceAfterReply?: boolean;
     /** A slow repeat is playing through TTS, so no reply is asked for. */
     silent?: boolean;
+    /** The study item this turn's tools centre the next reply on. */
+    focus?: PracticeFocus;
   } | null = null;
 
   /**
@@ -125,6 +135,20 @@ export class RealtimeClient {
    */
   private lastReplyText: string | null = null;
   private replyTextBeforeResponse: string | null = null;
+
+  /**
+   * The same for the study item a reply was about (a correction, phrase or
+   * pronunciation note), so "say that slowly" right after one repeats the
+   * item rather than the whole reply and its English tip. Set by a tool batch
+   * for the response it asks for, and kept with that response's line.
+   */
+  private pendingFocus: PracticeFocus | null = null;
+  private responseFocus: PracticeFocus | null = null;
+  private lastReplyFocus: PracticeFocus | null = null;
+  private focusBeforeResponse: PracticeFocus | null = null;
+
+  /** The last slow repeat played through TTS, so asking again goes slower. */
+  private lastSlowRepeat: { text: string; pace: SpeakingPace } | null = null;
 
   /** The lasting speaking pace, from "please speak more slowly". */
   private sessionPace: SpeakingPace = "normal";
@@ -276,6 +300,9 @@ export class RealtimeClient {
     // Adding the message does not start a turn. This does.
     this.send(responseCreate());
     this.setActivity("thinking");
+    // A typed turn has no transcription event, so check it for a switch here.
+    const language = requestedLanguage(text, this.target);
+    if (language) void this.switchLanguage(language);
   }
 
   send(evt: ClientEvent): void {
@@ -315,6 +342,9 @@ export class RealtimeClient {
         const id = (evt.response as { id?: unknown } | undefined)?.id;
         if (this.revertPace === "armed" && typeof id === "string") this.revertPace = { responseId: id };
         this.replyTextBeforeResponse = this.lastReplyText;
+        this.focusBeforeResponse = this.lastReplyFocus;
+        this.responseFocus = this.pendingFocus;
+        this.pendingFocus = null;
         this.setActivity("thinking");
         break;
       }
@@ -344,6 +374,13 @@ export class RealtimeClient {
         this.setActivity("thinking");
         break;
 
+      case SERVER.transcriptionCompleted: {
+        const language =
+          typeof evt.transcript === "string" ? requestedLanguage(evt.transcript, this.target) : null;
+        if (language) void this.switchLanguage(language);
+        break;
+      }
+
       case SERVER.outputItemAdded: {
         const item = evt.item as { id?: string; type?: string } | undefined;
         if (item?.type === "message" && typeof item.id === "string") {
@@ -355,6 +392,8 @@ export class RealtimeClient {
       case SERVER.audioTranscriptDone:
         if (typeof evt.transcript === "string" && evt.transcript.trim()) {
           this.lastReplyText = evt.transcript;
+          this.lastReplyFocus = this.responseFocus;
+          this.lastSlowRepeat = null;
         }
         break;
 
@@ -434,20 +473,36 @@ export class RealtimeClient {
           `Now practising ${PROFILES[change.target].name} at ${change.level} level — updating the session instructions.`,
         );
       }
+      const itemFocus = practiceFocusFromTool(result);
+      if (itemFocus) batch.focus = itemFocus;
       if (name === "set_speaking_pace") {
         const request = paceRequestFrom(args);
+        // Right after a study item, the item is what gets repeated.
+        const focus = this.focusBeforeResponse;
+        const repeatText = focus?.text ?? this.replyTextBeforeResponse;
+        // Asked again straight after a slow repeat, the next one goes slower.
+        const justHeard =
+          this.lastSlowRepeat && this.lastSlowRepeat.text === repeatText ? this.lastSlowRepeat.pace : this.sessionPace;
+        const pace = oneOffPace(request.pace, justHeard);
         // A one-off repeat is re-spoken through TTS when it can be: pace in
         // the instructions mostly didn't change the audio, TTS reliably did.
         const playing =
           request.scope === "once" &&
-          this.replyTextBeforeResponse !== null &&
-          (await this.cb.slowRepeat?.play(this.replyTextBeforeResponse)) === true;
+          repeatText !== null &&
+          pace !== "normal" &&
+          (await this.cb.slowRepeat?.play(repeatText, {
+            language: focus?.language ?? this.target,
+            pace,
+            wholeTarget: focus !== null,
+          })) === true;
         if (playing) {
           result = SLOW_REPEAT_PLAYING;
           batch.silent = true;
-          this.info("Playing a slow repeat of the last reply through TTS.");
+          this.lastSlowRepeat = { text: repeatText, pace };
+          this.info(`Playing a ${pace} repeat of ${focus ? `"${focus.text}"` : "the last reply"} through TTS.`);
         } else {
-          const plan = planPaceChange(request, this.sessionPace);
+          if (request.scope === "once" && focus) result = { summary: slowRepeatSummary(focus.text) };
+          const plan = planPaceChange(request, this.sessionPace, justHeard);
           this.sessionPace = plan.sessionPace;
           if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send, this.target);
           batch.revertPaceAfterReply = plan.revertAfterReply;
@@ -510,6 +565,37 @@ export class RealtimeClient {
   }
 
   /**
+   * Make a spoken language switch happen even when the model calls no tool.
+   *
+   * Runs set_practice_language through the registry, as a model call would,
+   * so the transcript (and with it the badge and picker) records the switch.
+   * The tutor's reply to the request itself may still use the old prompt; the
+   * next turn uses the new one. Unlike the agent (livekit/agent.py), this
+   * can't ask for a fresh reply: Boson rejects response.create with "No user
+   * input" once the tutor has answered the latest turn.
+   */
+  private async switchLanguage(language: TargetLanguageCode): Promise<void> {
+    const call_id = `switch-${Date.now()}`;
+    const args = { language, level: this.level };
+    this.cb.onServerEvent?.({
+      type: SERVER.functionCallArgsDone,
+      call_id,
+      name: "set_practice_language",
+      item_id: call_id,
+      arguments: JSON.stringify(args),
+    });
+    const startedAt = Date.now();
+    const result = await runTool("set_practice_language", args);
+    this.cb.onServerEvent?.({ type: CLIENT_TOOL_RESULT, call_id, result, ms: Date.now() - startedAt });
+    const change = practiceChangeFromTool("set_practice_language", result, { target: this.target, level: this.level });
+    if (!change) return;
+    this.target = change.target;
+    this.level = change.level;
+    this.send(buildInstructionsUpdate(change.level, this.sessionPace, change.target));
+    this.info(`Learner asked for ${PROFILES[change.target].name}; switching.`);
+  }
+
+  /**
    * Wait for every tool in this turn, send one output per call_id, then exactly
    * one response.create.
    *
@@ -535,6 +621,8 @@ export class RealtimeClient {
     // under the new level's or pace's instructions.
     if (batch.sessionUpdate) this.send(batch.sessionUpdate);
     if (batch.revertPaceAfterReply) this.revertPace = "armed";
+    // The reply asked for below is the one about this item.
+    this.pendingFocus = batch.silent ? null : (batch.focus ?? null);
     for (const out of batch.outputs) this.send(out);
 
     // Mandatory, except while a slow repeat plays: without it the model has

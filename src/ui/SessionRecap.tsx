@@ -88,9 +88,9 @@ export function SessionRecap({ state, openedAt, onContinue }: SessionRecapProps)
                   key={`${correction.said}-${correction.correct}-${index}`}
                 >
                   <span className="recap-label">You said</span>
-                  <del>{correction.said}</del>
+                  <del dir="auto">{correction.said}</del>
                   <span className="recap-label">Try instead</span>
-                  <strong>{correction.correct}</strong>
+                  <strong dir="auto">{correction.correct}</strong>
                   {correction.romanization && (
                     <span className="romanization">{correction.romanization}</span>
                   )}
@@ -113,7 +113,7 @@ export function SessionRecap({ state, openedAt, onContinue }: SessionRecapProps)
                   key={`${phrase.language}-${phrase.phrase}-${index}`}
                 >
                   <span className="recap-language">{phrase.language.toUpperCase()}</span>
-                  <strong>{phrase.phrase}</strong>
+                  <strong dir="auto">{phrase.phrase}</strong>
                   {phrase.romanization && (
                     <span className="romanization">{phrase.romanization}</span>
                   )}

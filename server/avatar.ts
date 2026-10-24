@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type Response as ExpressResponse } from "express";
-import { AccessToken, TrackSource, type VideoGrant } from "livekit-server-sdk";
+import { hostname } from "node:os";
+import { AccessToken, RoomAgentDispatch, RoomConfiguration, TrackSource, type VideoGrant } from "livekit-server-sdk";
 import { ACTIVE_PAIR, TARGET_LANGUAGE_CODES, learnerLevelFor, type TargetLanguageCode } from "../src/lang/profiles";
 
 /**
@@ -44,6 +45,24 @@ export interface LiveKitConfig {
   url: string;
   apiKey: string;
   apiSecret: string;
+  /**
+   * The agent each learner room asks for by name. Unset, LiveKit hands the
+   * room to any agent registered to the project, which with a team sharing
+   * one project was often a teammate's laptop running other code.
+   */
+  agentName?: string;
+}
+
+/**
+ * This machine's agent name: POLYGLOT_AGENT_NAME, or `polyglot-tutor-<host>`.
+ * livekit/dispatch.py computes the same, so the agent `npm run dev:avatar`
+ * starts here is the one every room from this token server asks for.
+ */
+export function agentNameFor(env = process.env, host = hostname()): string {
+  const explicit = env.POLYGLOT_AGENT_NAME?.trim();
+  if (explicit) return explicit;
+  const slug = host.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `polyglot-tutor-${slug || "local"}`;
 }
 
 export interface AvatarOptions {
@@ -60,7 +79,7 @@ export function loadLiveKitConfig(env = process.env): LiveKitConfig | undefined 
   const url = env.LIVEKIT_URL?.trim();
   const apiKey = env.LIVEKIT_API_KEY?.trim();
   const apiSecret = env.LIVEKIT_API_SECRET?.trim();
-  return url && apiKey && apiSecret ? { url, apiKey, apiSecret } : undefined;
+  return url && apiKey && apiSecret ? { url, apiKey, apiSecret, agentName: agentNameFor(env) } : undefined;
 }
 
 function randomId(): string {
@@ -116,6 +135,10 @@ export function avatarRouter({
   async function token(lk: LiveKitConfig, identity: string, ttlSeconds: number, grant: VideoGrant, metadata?: string) {
     const at = new AccessToken(lk.apiKey, lk.apiSecret, { identity, ttl: ttlSeconds, metadata });
     at.addGrant(grant);
+    if (lk.agentName) {
+      // The room is created on join, and dispatches this agent and no other.
+      at.roomConfig = new RoomConfiguration({ agents: [new RoomAgentDispatch({ agentName: lk.agentName })] });
+    }
     return at.toJwt();
   }
 

@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { TokenVerifier } from "livekit-server-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AGENT_IDENTITY, AVATAR_IDENTITY } from "./avatar";
+import { AGENT_IDENTITY, AVATAR_IDENTITY, agentNameFor } from "./avatar";
 import { createApp } from "./index";
 
 const LIVEKIT = { url: "wss://polyglot-test.livekit.cloud", apiKey: "lk-key", apiSecret: "s".repeat(32) };
@@ -114,6 +114,18 @@ describe("POST /api/livekit/token", () => {
       const claims = await verifier.verify((await learnerToken(base, choice)).body.token);
       expect(JSON.parse(claims.metadata!)).toEqual({ language: "zh", level: "beginner" });
     }
+  });
+
+  it("asks for this machine's agent by name", async () => {
+    const base = await start({ livekit: { ...LIVEKIT, agentName: "polyglot-tutor-test" }, fetchImpl: vi.fn<typeof fetch>() });
+    const claims = await verifier.verify((await learnerToken(base)).body.token);
+    expect(claims.roomConfig?.agents?.map((a) => a.agentName)).toEqual(["polyglot-tutor-test"]);
+  });
+
+  it("names the agent after the host unless POLYGLOT_AGENT_NAME is set", () => {
+    expect(agentNameFor({}, "Stanleys-MacBook-Air.local")).toBe("polyglot-tutor-stanleys-macbook-air-local");
+    expect(agentNameFor({ POLYGLOT_AGENT_NAME: " demo " }, "any")).toBe("demo");
+    expect(agentNameFor({}, "")).toBe("polyglot-tutor-local");
   });
 
   it("gives every request its own room", async () => {

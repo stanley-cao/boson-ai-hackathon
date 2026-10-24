@@ -27,6 +27,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from livekit import api, rtc
 
+from dispatch import room_config
 from tools import TOOL_RPC_METHOD
 
 REPO = Path(__file__).resolve().parent.parent
@@ -54,6 +55,8 @@ def user_token(room: str) -> str:
         api.AccessToken(os.environ["LIVEKIT_API_KEY"], os.environ["LIVEKIT_API_SECRET"])
         .with_identity(f"probe-{uuid.uuid4().hex[:6]}")
         .with_grants(api.VideoGrants(room_join=True, room=room))
+        # The agent only joins rooms that ask for it by name (dispatch.py).
+        .with_room_config(room_config())
         .to_jwt()
     )
 

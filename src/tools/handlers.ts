@@ -1,5 +1,19 @@
-import { PROFILES, type LanguageProfile, type ProfileCode } from "../lang/profiles";
-import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
+import {
+  PROFILES,
+  SCRIPT_PATTERNS,
+  TARGET_LANGUAGE_CODES,
+  type ProfileCode,
+  type TargetLanguageCode,
+} from "../lang/profiles";
+import type {
+  Correction,
+  Phrase,
+  PracticeLanguage,
+  PronunciationIssue,
+  PronunciationNote,
+  ToolDetail,
+} from "./types";
+import { checkTip, NEGATED_CLAUSE } from "./pronunciationRules";
 
 /**
  * The result shape every tool returns.
@@ -17,32 +31,67 @@ export interface ToolResult {
   error?: string;
 }
 
-// Names a model is likely to send for each profile. The schema enum says "zh",
-// but models also say the language's name or a locale tag, so both map here.
-const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
-  en: "en",
-  english: "en",
-  zh: "zh",
-  mandarin: "zh",
-  chinese: "zh",
-  "mandarin chinese": "zh",
-  ko: "ko",
-  korean: "ko",
-  fr: "fr",
-  french: "fr",
-  français: "fr",
-  francais: "fr",
-  ja: "ja",
-  japanese: "ja",
-  nihongo: "ja",
-  sr: "sr",
-  serbian: "sr",
-  srpski: "sr",
-  vi: "vi",
-  vietnamese: "vi",
-  "tiếng việt": "vi",
-  "tieng viet": "vi",
+// Names for a profile besides its own English name: what the language calls
+// itself, and other English names for it ("Farsi", "Slovenian").
+const EXTRA_NAMES: Partial<Record<ProfileCode, string[]>> = {
+  zh: ["mandarin", "chinese"],
+  fr: ["français"],
+  ja: ["nihongo"],
+  sr: ["srpski"],
+  vi: ["tiếng việt"],
+  ckb: ["kurdish", "sorani"],
+  de: ["deutsch"],
+  es: ["español", "castilian"],
+  fa: ["farsi"],
+  ht: ["haitian", "kreyòl"],
+  id: ["bahasa indonesia"],
+  ky: ["kirghiz"],
+  luo: ["dholuo"],
+  mhr: ["meadow mari"],
+  ms: ["bahasa melayu"],
+  no: ["norsk", "bokmål"],
+  nso: ["northern sotho"],
+  pt: ["português"],
+  sl: ["slovenian"],
+  sw: ["kiswahili"],
+  tl: ["filipino"],
+  ug: ["uighur"],
+  xh: ["isixhosa"],
+  zu: ["isizulu"],
 };
+
+// "Māori" -> "maori", "tiếng việt" -> "tieng viet": a name typed or sent
+// without its accents still counts.
+const withoutMarks = (name: string): string => name.normalize("NFD").replace(/\p{M}/gu, "");
+
+/**
+ * Every name for each profile, lowercase, with and without accents. Codes are
+ * left out on purpose: the LiveKit agent matches these in speech (exported to
+ * shared/languages.json), where "it" or "no" is an ordinary word.
+ */
+export const LANGUAGE_NAMES = Object.fromEntries(
+  Object.values(PROFILES).map((profile) => {
+    const names = [profile.name, ...(EXTRA_NAMES[profile.code] ?? [])].map((n) => n.toLowerCase());
+    return [profile.code, [...new Set(names.flatMap((n) => [n, withoutMarks(n)]))]];
+  }),
+) as Record<ProfileCode, string[]>;
+
+/** The names of every target language, for shared/languages.json (LiveKit agent). */
+export function targetLanguageNames(): Record<TargetLanguageCode, string[]> {
+  return Object.fromEntries(TARGET_LANGUAGE_CODES.map((code) => [code, LANGUAGE_NAMES[code]])) as Record<
+    TargetLanguageCode,
+    string[]
+  >;
+}
+
+// What a model may send for each profile. The schema enum says "zh", but
+// models also say the language's name or a locale tag, so both map here.
+const LANGUAGE_ALIASES: Record<string, ProfileCode> = Object.fromEntries(
+  (Object.entries(LANGUAGE_NAMES) as [ProfileCode, string[]][]).flatMap(([code, names]) => [
+    [code, code],
+    ...names.map((name) => [name, code]),
+  ]),
+);
 
 /**
  * Normalise a language argument to a profile code, or `null` if we don't
@@ -71,6 +120,17 @@ function normalizeText(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const t = raw.trim();
   return t ? t : null;
+}
+
+/**
+ * A romanization only for a language not written in Latin script. Live, a
+ * French correction came back with made-up pinyin in `romanization`, which
+ * the study panel would show under the French. Keyed on the script, not the
+ * profile's `romanization` system: Russian or Arabic have no named system,
+ * but a romanization still helps there.
+ */
+function romanizationFor(language: ProfileCode, raw: unknown): string | null {
+  return PROFILES[language].script === "Latn" ? null : normalizeText(raw);
 }
 
 // What a model may call each correction kind besides the enum value itself.
@@ -103,13 +163,6 @@ function comparable(text: string): string {
   return text.normalize("NFC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
-// A character of each non-Latin profile script, and what to call the script
-// when asking the model to write in it. Japanese mixes kanji and kana.
-const SCRIPTS: Partial<Record<LanguageProfile["script"], { pattern: RegExp; name: string }>> = {
-  Hans: { pattern: /\p{Script=Han}/u, name: "Chinese characters" },
-  Hang: { pattern: /\p{Script=Hangul}/u, name: "Hangul" },
-  Jpan: { pattern: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, name: "Japanese script" },
-};
 
 /**
  * Record a correction for the study panel.
@@ -154,7 +207,7 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
   }
 
   // A summary naming the right script lets the model retry the call.
-  const script = SCRIPTS[PROFILES[language].script];
+  const script = SCRIPT_PATTERNS[PROFILES[language].script];
   if (script && !script.pattern.test(correct)) {
     return {
       summary: `Correction not saved: write the corrected version in ${script.name}, and put the romanization in romanization.`,
@@ -162,7 +215,7 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
     };
   }
 
-  const romanization = normalizeText(args.romanization);
+  const romanization = romanizationFor(language, args.romanization);
   const detail: Correction = {
     type: "correction",
     language,
@@ -204,17 +257,15 @@ function normalizeLevel(raw: unknown): PracticeLanguage["level"] {
  * Switch the language or level being practised, for the "practising" badge.
  *
  * A language without a profile is an error rather than a silent switch: the
- * tutor has no teaching notes for it yet, and the summary names the languages
- * it does have, so the model can offer those instead.
+ * tutor has no teaching notes for it yet. The summary doesn't list the ones it
+ * has, because 85 names would be read aloud; the schema's enum already lists them.
  */
 export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
   const language = normalizeLanguage(args.language);
   if (!language) {
-    const names = Object.values(PROFILES)
-      .map((p) => p.name)
-      .join(" or ");
     return {
-      summary: `That language isn't available yet. The learner can practise ${names}.`,
+      summary:
+        "That language isn't available yet. Tell the learner in a few words, and offer a close language you can teach instead.",
       error: "unknown_language",
     };
   }
@@ -229,39 +280,105 @@ export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
 
 // Words that name each pronunciation issue. Anything else files as "other":
 // a mislabelled issue should still save the note, not lose it.
-const PRONUNCIATION_ISSUES: Record<string, PronunciationNote["issue"]> = {
+const ISSUE_WORDS: Record<string, PronunciationIssue> = {
   tone: "tone",
   tonal: "tone",
   initial: "initial",
-  consonant: "initial",
   final: "final",
-  vowel: "final",
+  consonant: "consonant",
+  vowel: "vowel",
+  stress: "stress",
+  stressed: "stress",
+  emphasis: "stress",
+  pitch: "pitch",
+  accent: "pitch",
+  intonation: "pitch",
 };
 
-function normalizePronunciationIssue(raw: unknown): PronunciationNote["issue"] {
+// The terms each language's notes are filed under. Mandarin syllables are
+// taught as initial + final + tone; the other languages have no "final", so
+// the model's Mandarin habits (it was told about tones first) are mapped onto
+// consonant / vowel there, and "tone" onto pitch where there are no tones.
+const MANDARIN_TERMS: Partial<Record<PronunciationIssue, PronunciationIssue>> = {
+  consonant: "initial",
+  vowel: "final",
+  pitch: "tone",
+};
+const TONAL_TERMS: Partial<Record<PronunciationIssue, PronunciationIssue>> = {
+  initial: "consonant",
+  final: "vowel",
+  pitch: "tone",
+};
+const NON_TONAL_TERMS: Partial<Record<PronunciationIssue, PronunciationIssue>> = {
+  initial: "consonant",
+  final: "vowel",
+  tone: "pitch",
+};
+// Japanese has no stress accent: a "stress" note is about its pitch accent.
+const JAPANESE_TERMS = { ...NON_TONAL_TERMS, stress: "pitch" } as const;
+// Languages where pitch tells words apart, so a "pitch" note is filed as tone.
+// Every other language besides Mandarin and Japanese uses the non-tonal terms.
+const TONAL_LANGUAGES: ReadonlySet<ProfileCode> = new Set<ProfileCode>([
+  "vi", "th", "ha", "rw", "ln", "luo", "sn", "nso", "xh", "zu",
+]);
+
+function issueTerms(language: ProfileCode): Partial<Record<PronunciationIssue, PronunciationIssue>> {
+  if (language === "zh") return MANDARIN_TERMS;
+  if (language === "ja") return JAPANESE_TERMS;
+  return TONAL_LANGUAGES.has(language) ? TONAL_TERMS : NON_TONAL_TERMS;
+}
+
+function normalizePronunciationIssue(raw: unknown, language: ProfileCode): PronunciationIssue {
   if (typeof raw !== "string") return "other";
   // Word by word, so "Tones", "wrong tone" and "tone_error" all file as tone.
   for (const word of raw.toLowerCase().split(/[\s_-]+/)) {
-    const w = word.replace(/s$/, "");
-    if (Object.hasOwn(PRONUNCIATION_ISSUES, w)) return PRONUNCIATION_ISSUES[w];
+    // The word as sent, then without a plural "s" ("stress" must stay itself).
+    const w = Object.hasOwn(ISSUE_WORDS, word) ? word : word.replace(/s$/, "");
+    if (Object.hasOwn(ISSUE_WORDS, w)) {
+      const issue = ISSUE_WORDS[w];
+      return issueTerms(language)[issue] ?? issue;
+    }
   }
   return "other";
 }
 
-type Tone = 1 | 2 | 3 | 4 | 5;
 type Movement = "level" | "rise" | "fall" | "dip";
+
+/** One tone as a learner is told it, and the pitch movements a tip may name. */
+interface ToneInfo {
+  name: string;
+  contour: string;
+  tip: string;
+  moves: Movement[];
+}
+
+type Tone = 1 | 2 | 3 | 4 | 5;
 
 // Mandarin tones as a learner is told them. Probed live, the tip for 妈 (mā)
 // once described the rising second tone, and the tutor read it aloud. So for a
 // tone note the handler states the contour from the pinyin itself, and drops a
 // tip that describes a movement the tone doesn't have (#55).
-const TONES: Record<Tone, { name: string; contour: string; tip: string; moves: Movement[] }> = {
+const TONES: Record<Tone, ToneInfo> = {
   1: { name: "first tone", contour: "high and level", tip: "start high and keep it level", moves: ["level"] },
   2: { name: "second tone", contour: "rising, like a question", tip: "start in the middle and rise, as if asking a question", moves: ["rise"] },
   // A full third tone falls and then rises, so a tip may mention any of these.
   3: { name: "third tone", contour: "low and dipping", tip: "dip low, then rise a little", moves: ["dip", "fall", "rise"] },
   4: { name: "fourth tone", contour: "sharply falling", tip: "start high and fall sharply", moves: ["fall"] },
   5: { name: "neutral tone", contour: "short and light", tip: "keep it short and light, without stress", moves: [] },
+};
+
+type VietnameseTone = "ngang" | "huyền" | "sắc" | "hỏi" | "ngã" | "nặng";
+
+// The six Northern (Hà Nội) tones, the standard taught to learners. Same job
+// as TONES: the contour comes from the tone mark, not from the model's tip.
+const VIETNAMESE_TONES: Record<VietnameseTone, ToneInfo> = {
+  ngang: { name: "level tone (ngang)", contour: "mid and level", tip: "keep it mid and level", moves: ["level"] },
+  huyền: { name: "falling tone (huyền)", contour: "low and gently falling", tip: "start low and let it fall gently", moves: ["fall"] },
+  sắc: { name: "rising tone (sắc)", contour: "high and rising", tip: "start mid and rise sharply", moves: ["rise"] },
+  hỏi: { name: "dipping tone (hỏi)", contour: "dipping, then rising", tip: "dip down, then come back up", moves: ["dip", "fall", "rise"] },
+  // Rises with a catch in the throat partway through.
+  ngã: { name: "broken rising tone (ngã)", contour: "rising with a break", tip: "rise, with a short catch in the middle", moves: ["rise", "dip"] },
+  nặng: { name: "heavy tone (nặng)", contour: "low, short and dropping", tip: "drop low and cut it short", moves: ["fall"] },
 };
 
 const MOVEMENT_WORDS: Record<Movement, RegExp> = {
@@ -289,6 +406,12 @@ const VOWEL_CLUSTER = /[aeiouüvāēīōūǖáéíóúǘǎěǐǒǔǚăĕĭŏŭà
 interface WordTones {
   word: string;
   tones: Tone[];
+}
+
+/** A word and the tones it carries, in whichever language's tone set. */
+interface WordToneInfo {
+  word: string;
+  tones: ToneInfo[];
 }
 
 /**
@@ -322,30 +445,72 @@ export function pinyinTones(pinyin: string): WordTones[] | null {
   return marked && read.every((w) => w.tones.length > 0) ? read : null;
 }
 
+// Vietnamese tone marks as combining characters, after NFD. The circumflex,
+// breve and horn (â, ă, ơ, ư) change the vowel, not the tone.
+const VIETNAMESE_TONE_MARKS: Record<string, VietnameseTone> = {
+  "̀": "huyền",
+  "́": "sắc",
+  "̉": "hỏi",
+  "̃": "ngã",
+  "̣": "nặng",
+};
+// Any mark only Vietnamese spelling uses, tone or vowel, or đ.
+const VIETNAMESE_MARK = /[̛̣̀́̉̃̂̆]|đ/;
+
+/**
+ * The tone of each Vietnamese word, one syllable per written word.
+ *
+ * Returns null when the text isn't plain Latin words, or carries no
+ * Vietnamese mark at all: without one, "ma" may be the level tone or a model
+ * that dropped every diacritic, and stating the wrong tone is the bug this
+ * exists to prevent (as in `pinyinTones`).
+ */
+export function vietnameseTones(text: string): { word: string; tones: VietnameseTone[] }[] | null {
+  const words = text.normalize("NFC").toLowerCase().split(/[\s-]+/).filter(Boolean);
+  if (words.length === 0 || !words.every((w) => /^\p{Script=Latin}+$/u.test(w))) return null;
+  if (!words.some((w) => VIETNAMESE_MARK.test(w.normalize("NFD")))) return null;
+  return words.map((word) => {
+    const tone = [...word.normalize("NFD")].flatMap((ch) => VIETNAMESE_TONE_MARKS[ch] ?? [])[0] ?? "ngang";
+    return { word, tones: [tone] };
+  });
+}
+
+/** The tones a tone note is about, or null when they can't be read reliably. */
+function noteTones(language: ProfileCode, target: string, romanization: string | null): WordToneInfo[] | null {
+  if (PROFILES[language].romanization === "pinyin") {
+    const read = romanization ? pinyinTones(romanization) : null;
+    return read?.map(({ word, tones }) => ({ word, tones: tones.map((t) => TONES[t]) })) ?? null;
+  }
+  if (language === "vi") {
+    // Vietnamese is written in Latin letters, so the target is its own
+    // spelling, tone marks included; a romanization adds nothing to read.
+    const read = vietnameseTones(target);
+    return read?.map(({ word, tones }) => ({ word, tones: tones.map((t) => VIETNAMESE_TONES[t]) })) ?? null;
+  }
+  return null;
+}
+
 /** "mā, first tone: high and level", one clause per word. */
-function describeTones(words: WordTones[]): string {
+function describeTones(words: WordToneInfo[]): string {
   return words
-    .map(({ word, tones }) => `${word}, ${tones.map((t) => `${TONES[t].name}: ${TONES[t].contour}`).join(", then ")}`)
+    .map(({ word, tones }) => `${word}, ${tones.map((t) => `${t.name}: ${t.contour}`).join(", then ")}`)
     .join("; ");
 }
 
 /** The card's tip for these tones, used when the model's own tip contradicts them. */
-function toneTip(words: WordTones[]): string {
+function toneTip(words: WordToneInfo[]): string {
   const perWord = words.map(({ word, tones }) => {
-    const tip = tones.map((t) => TONES[t].tip).join(", then ");
+    const tip = tones.map((t) => t.tip).join(", then ");
     return words.length === 1 ? tip : `${word}: ${tip}`;
   });
   const tip = perWord.join("; ");
   return `${tip.charAt(0).toUpperCase()}${tip.slice(1)}.`;
 }
 
-// From a negation to the end of its clause. Probed live, a correct first-tone
-// tip ended "try saying it without dipping or rising".
-const NEGATED_CLAUSE = /\b(without|not|no|never|don't|do not|avoid|instead of|rather than)\b[^.,;:!?]*/g;
 
 /** True when the tip describes a pitch movement that none of these tones has. */
-function tipContradicts(tip: string, words: WordTones[]): boolean {
-  const allowed = new Set(words.flatMap(({ tones }) => tones.flatMap((t) => TONES[t].moves)));
+function tipContradicts(tip: string, words: WordToneInfo[]): boolean {
+  const allowed = new Set(words.flatMap(({ tones }) => tones.flatMap((t) => t.moves)));
   const text = tip.toLowerCase().replace(/’/g, "'").replace(NEGATED_CLAUSE, "");
   return (Object.keys(MOVEMENT_WORDS) as Movement[]).some(
     (move) => !allowed.has(move) && MOVEMENT_WORDS[move].test(text),
@@ -353,8 +518,12 @@ function tipContradicts(tip: string, words: WordTones[]): boolean {
 }
 
 /**
- * Save a pronunciation note: the Mandarin showcase, since the model hears the
- * learner's tones directly rather than through a transcript.
+ * Save a pronunciation note. Tone notes are checked against the tone marks in
+ * Mandarin and Vietnamese, the two tonal targets, since the model hears the
+ * learner's tones directly rather than through a transcript. The other
+ * languages' tips are checked against the rules in `checkTip` (stress
+ * placement, Korean consonant sets, Serbian č/ć); a note no rule covers, such
+ * as a French vowel, is saved as given.
  *
  * The schema tells the model to call this BEFORE it speaks, so the summary is
  * its cue for what to say next rather than a line to read out: a "same turn"
@@ -378,21 +547,30 @@ export function pronunciationFeedback(args: Record<string, unknown>): ToolResult
     };
   }
 
-  const romanization = normalizeText(args.romanization);
-  const issue = normalizePronunciationIssue(args.issue);
-  const tones =
-    issue === "tone" && PROFILES[language].romanization === "pinyin" && romanization
-      ? pinyinTones(romanization)
-      : null;
+  const romanization = romanizationFor(language, args.romanization);
+  const issue = normalizePronunciationIssue(args.issue, language);
+  const tones = issue === "tone" ? noteTones(language, target, romanization) : null;
   const fixedTip = tones && tipContradicts(tip, tones) ? toneTip(tones) : null;
+  // The non-tonal languages have no marks to read, but rules a tip can break.
+  const rule = tones ? null : checkTip(language, issue, target, tip);
   const detail: PronunciationNote = {
     type: "pronunciation",
     language,
     target,
     issue,
-    tip: fixedTip ?? tip,
+    tip: fixedTip ?? rule?.tip ?? tip,
     ...(romanization ? { romanization } : {}),
   };
+  if (rule) {
+    // In the summary for the same reason as a tone's contour, below.
+    return {
+      summary:
+        `Saved a pronunciation note for ${target}: ${rule.fact}. ` +
+        (rule.tip ? "Your tip went against that, so it was replaced. " : "") +
+        "Now say it the right way, explain that in a few words, then carry on the conversation.",
+      detail,
+    };
+  }
   if (!tones) {
     return {
       summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
@@ -435,7 +613,7 @@ export function savePhrase(args: Record<string, unknown>): ToolResult {
     };
   }
 
-  const romanization = normalizeText(args.romanization);
+  const romanization = romanizationFor(language, args.romanization);
   const note = normalizeText(args.note);
   const detail: Phrase = {
     type: "phrase",
@@ -445,13 +623,36 @@ export function savePhrase(args: Record<string, unknown>): ToolResult {
     ...(romanization ? { romanization } : {}),
     ...(note ? { note } : {}),
   };
+  // Say the phrase before its meaning: told only to "tell the learner what it
+  // means", the tutor answered "how do I say hello?" with "It means hello."
+  // and never said Bonjour.
   return {
-    summary: `Saved ${phrase} to the phrase list. Now briefly tell the learner what it means, then carry on the conversation.`,
+    // The English as a quoted line: given only "what it means in English",
+    // the Japanese tutor said こんにちは and stopped.
+    summary: `Saved to the phrase list. Now say ${phrase} clearly once, then say "That means ${meaning}." Then carry on the conversation.`,
     detail,
   };
 }
 
-export type SpeakingPace = "slow" | "normal";
+/** Normal, slow, then slower: the one step below slow, for "even slower". */
+export type SpeakingPace = "normal" | "slow" | "slower";
+
+/** The next pace down, for a slow request when the learner is already hearing `pace`. */
+export function slowerThan(pace: SpeakingPace): SpeakingPace {
+  return pace === "normal" ? "slow" : "slower";
+}
+
+const PACE_ORDER: SpeakingPace[] = ["normal", "slow", "slower"];
+
+/**
+ * The pace of a one-off slow repeat. "Say that again slowly" when the line
+ * was already slow (a slow session, or a slow repeat just played) means
+ * slower than that, or the repeat would sound the same.
+ */
+export function oneOffPace(requested: SpeakingPace, justHeard: SpeakingPace): SpeakingPace {
+  const step = slowerThan(justHeard);
+  return PACE_ORDER.indexOf(requested) > PACE_ORDER.indexOf(step) ? requested : step;
+}
 
 /** A pace change: just the next reply ("once"), or the rest of the session. */
 export interface PaceRequest {
@@ -466,7 +667,12 @@ export interface PaceRequest {
  * the session: a single normal-speed reply means nothing.
  */
 export function paceRequestFrom(args: Record<string, unknown>): PaceRequest {
-  const pace = /normal|fast|quick|natural|regular/i.test(String(args.pace ?? "")) ? "normal" : "slow";
+  const raw = String(args.pace ?? "");
+  const pace: SpeakingPace = /normal|fast|quick|natural|regular/i.test(raw)
+    ? "normal"
+    : /slower|slowest|very|extra|even|more/i.test(raw)
+      ? "slower"
+      : "slow";
   const scope = pace === "normal" || /session|always|rest/i.test(String(args.scope ?? ""))
     ? "session"
     : "once";
@@ -498,13 +704,20 @@ export function setSpeakingPace(args: Record<string, unknown>): ToolResult {
   if (pace === "normal") {
     return { summary: "Back to your normal pace. Say so in a few words, then carry on." };
   }
-  if (scope === "once") {
-    return {
-      summary:
-        "Now repeat the content of your previous reply exactly, slowly, syllable by syllable with a short pause after each. Add nothing new.",
-    };
-  }
-  return { summary: "You'll speak slowly from now on. Say so in a few words, then carry on." };
+  if (scope === "once") return { summary: slowRepeatSummary(null) };
+  const how = pace === "slower" ? "very slowly" : "slowly";
+  return { summary: `You'll speak ${how} from now on. Say so in a few words, then carry on.` };
+}
+
+/**
+ * What a one-off slow repeat tells the model to say when the client can't
+ * play it through TTS. Right after a correction, phrase or pronunciation note
+ * that is the item itself (`text`), not the whole reply with its English tip:
+ * that is what the learner wants to hear again.
+ */
+export function slowRepeatSummary(text: string | null): string {
+  const what = text ? `say ${text} again` : "repeat the content of your previous reply exactly";
+  return `Now ${what}, slowly, syllable by syllable with a short pause after each. Add nothing new.`;
 }
 
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {

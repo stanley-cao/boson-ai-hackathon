@@ -15,7 +15,7 @@ Polyglot is a real-time voice tutor you talk to in a mix of English and the lang
 
 Learners need speaking practice, but language apps mostly offer drills, and voice assistants struggle when a beginner falls back to English mid-sentence. Stopping to fix every mistake also kills the conversation.
 
-Polyglot is for English speakers learning Mandarin, Korean, Japanese, French, Serbian or Vietnamese, from beginner to intermediate, who want a patient conversation partner rather than flashcards.
+Polyglot is for English speakers learning any of the 84 languages Boson rates top tier for Higgs TTS 3 (Mandarin, Korean, Japanese, French, Spanish, Arabic, Hindi and more), from beginner to intermediate, who want a patient conversation partner rather than flashcards.
 
 You pick a language and level and start talking in the browser. The tutor hears your voice directly and answers out loud in whichever language you just used, so you can switch mid-sentence without choosing a mode. It gives at most one correction per turn, flags wrong tones and sounds, explains phrases you ask about, and slows down when you ask it to say something again slowly. Each correction, phrase and pronunciation tip becomes a card in a study panel, with a button to replay it in the tutor's voice. When you finish, a recap lists what to review, and your notes are still there after a reload. In avatar mode, the same tutor appears on screen as a lip-synced face.
 

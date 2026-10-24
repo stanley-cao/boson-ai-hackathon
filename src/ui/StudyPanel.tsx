@@ -138,6 +138,8 @@ function ReplayButton({ text }: { text: string }) {
   );
 }
 
+// Target-language text gets dir="auto", so a right-to-left script (Arabic,
+// Hebrew, Persian, Urdu, Uyghur, Kurdish) isn't laid out left to right.
 function CorrectionCard({ item }: { item: Correction }) {
   return (
     <article className="study-card study-card--correction">
@@ -145,11 +147,11 @@ function CorrectionCard({ item }: { item: Correction }) {
       <div className="correction-pair">
         <div>
           <span className="study-label">You said</span>
-          <del>{item.said}</del>
+          <del dir="auto">{item.said}</del>
         </div>
         <div>
           <span className="study-label">Try instead</span>
-          <strong>{item.correct}</strong>
+          <strong dir="auto">{item.correct}</strong>
           {item.romanization && <span className="romanization">{item.romanization}</span>}
         </div>
       </div>
@@ -163,7 +165,7 @@ function PhraseCard({ item }: { item: Phrase }) {
   return (
     <article className="study-card study-card--phrase">
       <CardMeta language={item.language} label="phrase" />
-      <strong className="study-target">{item.phrase}</strong>
+      <strong className="study-target" dir="auto">{item.phrase}</strong>
       {item.romanization && <span className="romanization">{item.romanization}</span>}
       <p className="study-meaning">{item.meaning}</p>
       {item.note && <p className="study-note">{item.note}</p>}
@@ -176,7 +178,7 @@ function PronunciationCard({ item }: { item: PronunciationNote }) {
   return (
     <article className="study-card study-card--pronunciation">
       <CardMeta language={item.language} label={item.issue} />
-      <strong className="study-target">{item.target}</strong>
+      <strong className="study-target" dir="auto">{item.target}</strong>
       {item.romanization && <span className="romanization">{item.romanization}</span>}
       <p>{item.tip}</p>
       <ReplayButton text={item.target} />

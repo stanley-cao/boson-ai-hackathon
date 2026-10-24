@@ -6,6 +6,7 @@ import {
   setPracticeLanguage,
   pronunciationFeedback,
   savePhrase,
+  targetLanguageNames,
 } from "../src/tools/handlers";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 import { PROFILES } from "../src/lang/profiles";
@@ -71,8 +72,34 @@ describe("normalizeLanguage", () => {
     }
   });
 
+  it("maps the names and locale tags of Boson's other languages", () => {
+    const cases = [
+      ["German", "de"],
+      ["de-DE", "de"],
+      ["pt_BR", "pt"],
+      ["Māori", "mi"],
+      ["maori", "mi"],
+      ["Farsi", "fa"],
+      ["Haitian Creole", "ht"],
+      ["Slovenian", "sl"],
+      ["español", "es"],
+      ["espanol", "es"],
+      ["ceb", "ceb"],
+    ] as const;
+    for (const [sent, expected] of cases) expect(normalizeLanguage(sent), sent).toBe(expected);
+  });
+
+  it("exports names but not codes for the agent, which matches them in speech", () => {
+    const names = targetLanguageNames();
+    expect(Object.keys(names)).not.toContain("en");
+    expect(names.it).toEqual(["italian"]);
+    expect(names.mi).toEqual(["māori", "maori"]);
+    expect(Object.values(names).flat()).not.toContain("no");
+  });
+
   it("returns null for values it does not know, rather than guessing", () => {
-    for (const sent of ["Klingon", "", "  ", "de-DE", "Chinese (Simplified)"]) {
+    // Welsh is one of the languages Boson rates below its top tier, left out on purpose.
+    for (const sent of ["Klingon", "Welsh", "", "  ", "Chinese (Simplified)"]) {
       expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();
     }
   });
@@ -179,6 +206,22 @@ describe("note_correction", () => {
     }
   });
 
+  it("refuses a correction in Latin letters for the newer non-Latin scripts", () => {
+    const cases = [
+      ["ru", "Я студент", "Ya student", "Cyrillic"],
+      ["hi", "मैं छात्र हूँ", "main chhatra hoon", "Devanagari"],
+      ["ar", "أنا طالب", "ana talib", "Arabic script"],
+      ["th", "ฉันเป็นนักเรียน", "chan pen nakrian", "Thai script"],
+    ] as const;
+    for (const [language, said, correct, name] of cases) {
+      const wrong = noteCorrection({ ...args, language, said, correct });
+      expect(wrong.error, language).toBe("wrong_script");
+      expect(wrong.summary).toContain(name);
+      // The same fix in the language's own script is saved.
+      expect(noteCorrection({ ...args, language, said: correct, correct: said }).detail, language).toBeDefined();
+    }
+  });
+
   it("still saves a mixed-language Mandarin fix, and an English one in Latin letters", () => {
     expect(noteCorrection({ ...args, said: "I have 三本狗", correct: "I have 三只狗" }).detail).toBeDefined();
     expect(
@@ -244,10 +287,12 @@ describe("set_practice_language", () => {
   });
 
   it("answers with an error, never a throw, for a language without a profile", () => {
-    for (const language of ["Klingon", "de-DE", "", undefined, { code: "zh" }]) {
+    for (const language of ["Klingon", "Welsh", "", undefined, { code: "zh" }]) {
       const r = setPracticeLanguage({ language, level: "beginner" });
       expect(r.error, String(language)).toBe("unknown_language");
-      for (const p of Object.values(PROFILES)) expect(r.summary).toContain(p.name);
+      // Spoken, so it must not read out all 85 language names.
+      expect(r.summary).not.toContain(PROFILES.ru.name);
+      expect(r.summary.length).toBeLessThan(160);
       expect(r.detail).toBeUndefined();
     }
   });
@@ -414,6 +459,139 @@ describe("pronunciation_feedback", () => {
     }
   });
 
+  it("files issues in each language's own terms", () => {
+    const cases: [string, unknown, PronunciationNote["issue"]][] = [
+      ["zh", "consonant", "initial"],
+      ["zh", "vowel", "final"],
+      ["zh", "pitch", "tone"],
+      ["fr", "final", "vowel"],
+      ["fr", "initial consonant", "consonant"],
+      ["fr", "tone", "pitch"],
+      ["fr", "liaison", "other"],
+      ["ko", "Stress", "stress"],
+      ["ja", "pitch accent", "pitch"],
+      ["ja", "tones", "pitch"],
+      ["ja", "stress", "pitch"],
+      ["sr", "accent", "pitch"],
+      ["vi", "tone", "tone"],
+      ["vi", "pitch", "tone"],
+      ["vi", "final", "vowel"],
+      ["th", "pitch", "tone"],
+      ["zu", "pitch", "tone"],
+      ["de", "tone", "pitch"],
+      ["ru", "final", "vowel"],
+    ];
+    for (const [language, sent, issue] of cases) {
+      const d = pronunciationFeedback({ ...args, language, issue: sent }).detail as PronunciationNote;
+      expect(d.issue, `${language} ${String(sent)}`).toBe(issue);
+    }
+  });
+
+  it("states the Vietnamese tone from the mark, and replaces a tip that contradicts it", () => {
+    const vi = { ...args, language: "vi", romanization: undefined, issue: "tone" };
+    const r = pronunciationFeedback({ ...vi, target: "mà", tip: "Rise sharply, like a question." });
+    expect(r.summary).toContain("mà, falling tone (huyền): low and gently falling");
+    expect((r.detail as PronunciationNote).tip).toBe("Start low and let it fall gently.");
+    const ok = pronunciationFeedback({ ...vi, target: "má", tip: "Let it rise sharply." });
+    expect(ok.summary).toContain("má, rising tone (sắc)");
+    expect((ok.detail as PronunciationNote).tip).toBe("Let it rise sharply.");
+  });
+
+  it("reads one Vietnamese tone per word, with vowel marks that aren't tones", () => {
+    // ơ and ư carry a horn, ê a circumflex: vowel marks, so these are level.
+    const r = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target: "cơm", tip: "Listen." });
+    expect(r.summary).toContain("cơm, level tone (ngang)");
+    const two = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target: "Việt Nam", tip: "Listen." });
+    expect(two.summary).toContain("việt, heavy tone (nặng)");
+    expect(two.summary).toContain("nam, level tone (ngang)");
+  });
+
+  it("states no Vietnamese contour when there are no marks to read it from", () => {
+    // "ma" may be level, or a model that dropped every diacritic.
+    for (const target of ["ma", "xin chao", "ma 2"]) {
+      const r = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target, tip: "Rise." });
+      expect(r.summary, target).not.toContain("tone:");
+      expect((r.detail as PronunciationNote).tip).toBe("Rise.");
+    }
+  });
+
+  describe("rule checks for the non-tonal languages", () => {
+    const note = (language: string, issue: string, target: string, tip: string) => {
+      const r = pronunciationFeedback({ language, issue, target, tip });
+      return { summary: r.summary, tip: (r.detail as PronunciationNote).tip };
+    };
+
+    it("replaces a French stress tip that puts it early, and keeps one that puts it last", () => {
+      const wrong = note("fr", "stress", "important", "Stress the first syllable, IM-portant.");
+      expect(wrong.summary).toContain("French stress falls on the last syllable");
+      expect(wrong.summary).toContain("so it was replaced");
+      expect(wrong.tip).toBe("Keep every syllable even, with a little more length on the last one.");
+      const right = note("fr", "stress", "important", "Lean a little on the last syllable.");
+      expect(right.tip).toBe("Lean a little on the last syllable.");
+      expect(right.summary).not.toContain("replaced");
+    });
+
+    it("replaces a Korean tip that stresses a syllable, but not one that says not to", () => {
+      expect(note("ko", "stress", "사랑해요", "Stress the second syllable.").tip).toBe(
+        "Give every syllable the same weight; don't stress one of them.",
+      );
+      expect(note("ko", "stress", "사랑해요", "Don't stress the first syllable; keep it even.").tip).toBe(
+        "Don't stress the first syllable; keep it even.",
+      );
+    });
+
+    it("reads Korean consonant sets from the Hangul, and replaces a tip for a set the word lacks", () => {
+      // 빵: ㅃ is tense, so a puff of air is the wrong advice.
+      const wrong = note("ko", "consonant", "빵", "Release it with a strong puff of air.");
+      expect(wrong.summary).toContain("ㅃ is tense (tight throat, no puff of air)");
+      expect(wrong.tip).toBe("ㅃ: tight throat, no puff of air.");
+      expect(note("ko", "consonant", "빵", "Tighten your throat, like a doubled b.").tip).toBe(
+        "Tighten your throat, like a doubled b.",
+      );
+      // 커피: aspirated ㅋ and ㅍ.
+      expect(note("ko", "consonant", "커피", "Keep it relaxed and soft.").summary).toContain(
+        "ㅋ is aspirated (a strong puff of air); ㅍ is aspirated",
+      );
+    });
+
+    it("refiles a Japanese stress note as pitch and replaces a tip about loudness", () => {
+      const r = pronunciationFeedback({ language: "ja", issue: "stress", target: "箸", tip: "Say the first syllable louder." });
+      expect((r.detail as PronunciationNote).issue).toBe("pitch");
+      expect((r.detail as PronunciationNote).tip).toBe(
+        "Keep every mora the same length and loudness; only the pitch steps up or down.",
+      );
+      expect(note("ja", "pitch", "箸", "Start high, then drop.").tip).toBe("Start high, then drop.");
+    });
+
+    it("replaces a Serbian tip that stresses the last syllable of a longer word", () => {
+      expect(note("sr", "stress", "voda", "Stress the last syllable.").tip).toBe(
+        "Put the stress earlier in the word; Serbian never stresses the last syllable.",
+      );
+      // One syllable: the rule says nothing, so the note is saved as given.
+      const one = note("sr", "stress", "dan", "Stress the end.");
+      expect(one.tip).toBe("Stress the end.");
+      expect(one.summary).not.toContain("never falls");
+    });
+
+    it("checks Serbian č/ć tips against the letter in the word", () => {
+      const soft = note("sr", "consonant", "ćao", "Curl your tongue back, it's hard.");
+      expect(soft.summary).toContain("ć and đ are the soft pair");
+      expect(soft.tip).toContain("flat middle of your tongue");
+      const hard = note("sr", "consonant", "čaj", "It's soft, with a flat tongue.");
+      expect(hard.tip).toContain("raise the tip of your tongue");
+      // Both kinds in one word: no single rule, so no check.
+      expect(note("sr", "consonant", "čuća", "Soft.").tip).toBe("Soft.");
+    });
+
+    it("leaves notes no rule covers as given", () => {
+      const r = note("fr", "vowel", "rue", "Round your lips as for 'oo', but say 'ee'.");
+      expect(r.tip).toBe("Round your lips as for 'oo', but say 'ee'.");
+      expect(r.summary).toBe(
+        "Saved a pronunciation note for rue. Now say it the right way, give the tip in a few words, then carry on the conversation.",
+      );
+    });
+  });
+
   it("leaves notes about initials and finals alone", () => {
     const tip = "Curl your tongue back, and let it rise.";
     const r = pronunciationFeedback({ ...args, issue: "initial", romanization: "zhī", tip });
@@ -453,7 +631,7 @@ describe("pronunciation_feedback", () => {
       parameters: {
         properties: {
           language: { enum: Object.keys(PROFILES) },
-          issue: { enum: ["tone", "initial", "final", "other"] },
+          issue: { enum: ["tone", "initial", "final", "consonant", "vowel", "stress", "pitch", "other"] },
         },
         required: ["language", "target", "issue", "tip"],
       },
@@ -474,6 +652,8 @@ describe("save_phrase", () => {
     const r = savePhrase(args);
     expect(r.error).toBeUndefined();
     expect(r.summary).toContain("加油");
+    // The phrase is said before its meaning, so "how do I say…?" hears it.
+    expect(r.summary.indexOf("加油")).toBeLessThan(r.summary.indexOf("Keep going"));
     expect(r.detail).toEqual({
       type: "phrase",
       language: "zh",
@@ -482,6 +662,25 @@ describe("save_phrase", () => {
       romanization: "jiā yóu",
       note: "Said to cheer someone on.",
     });
+  });
+
+  it("drops a romanization for a language written in Latin script", () => {
+    // Live, a French correction came back with made-up pinyin.
+    const d = noteCorrection({
+      language: "fr",
+      said: "Je suis allé à la plage avec mon amis.",
+      correct: "Je suis allé à la plage avec mon ami.",
+      kind: "grammar",
+      romanization: "zhè shì yī gè chūcún de shīfàn.",
+    }).detail as Correction;
+    expect(d.correct).toBe("Je suis allé à la plage avec mon ami.");
+    expect(d).not.toHaveProperty("romanization");
+    expect(savePhrase({ ...args, language: "sr", phrase: "Hvala" }).detail).not.toHaveProperty("romanization");
+    // Kept for a non-Latin script without a named romanization system.
+    expect(savePhrase({ ...args, language: "ru", phrase: "Спасибо", romanization: "spasibo" }).detail).toHaveProperty(
+      "romanization",
+      "spasibo",
+    );
   });
 
   it("leaves out a blank or missing romanization and note", () => {

@@ -75,10 +75,10 @@ describe("tutor prompt", () => {
     const intermediate = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.intermediate);
 
     expect(beginner).toContain("Speak slowly");
-    expect(beginner).toContain("brief English scaffolding");
+    expect(beginner).toContain("what it means in English");
     expect(intermediate).toContain("natural but clear pace");
     expect(intermediate).toContain("mostly the target language");
-    expect(intermediate).not.toContain("English scaffolding");
+    expect(intermediate).not.toContain("what it means in English");
   });
 
   it("leaves slow requests to set_speaking_pace rather than a prompt rule", () => {
@@ -105,7 +105,10 @@ describe("tutor prompt", () => {
     // the model may stop calling tools. Checked per level because the
     // intermediate note is the longer one, and the default is beginner.
     for (const level of Object.values(LEARNER_LEVELS)) {
-      expect(buildTutorPrompt(PROFILES.zh, PROFILES.en, level).length, level.code).toBeLessThanOrEqual(1200);
+      for (const target of Object.values(PROFILES)) {
+        const prompt = buildTutorPrompt(target, PROFILES.en, level);
+        expect(prompt.length, `${target.code} ${level.code}`).toBeLessThanOrEqual(1200);
+      }
     }
   });
 
