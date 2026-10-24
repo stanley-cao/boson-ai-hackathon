@@ -22,7 +22,7 @@ agent spots these itself (`livekit/language_switch.py`), even when the model
 doesn't call `set_practice_language`. You may hear one short line in the old
 language first.
 
-Languages: Mandarin (or Chinese), Korean, French, Japanese, Serbian.
+Languages: Mandarin (or Chinese), Korean, French, Japanese, Serbian, Vietnamese.
 
 These don't switch:
 
