@@ -246,6 +246,89 @@ describe("pronunciation_feedback", () => {
     expect(pronunciationFeedback({ ...args, romanization: "" }).detail).not.toHaveProperty("romanization");
   });
 
+  it("states the contour of each tone mark in the summary the tutor speaks from", () => {
+    const cases: [string, string, string][] = [
+      ["妈", "mā", "mā, first tone: high and level"],
+      ["麻", "má", "má, second tone: rising"],
+      ["马", "mǎ", "mǎ, third tone: low and dipping"],
+      ["骂", "mà", "mà, fourth tone: sharply falling"],
+    ];
+    for (const [target, romanization, contour] of cases) {
+      const r = pronunciationFeedback({ ...args, target, romanization, tip: "Listen and copy me." });
+      expect(r.summary, romanization).toContain(contour);
+      expect((r.detail as PronunciationNote).tip).toBe("Listen and copy me.");
+    }
+  });
+
+  it("replaces a tip that describes a different tone, as in the live run behind #55", () => {
+    const r = pronunciationFeedback({
+      ...args,
+      romanization: "mā",
+      tip: "Try raising your pitch steadily from mid to high, like a question in English.",
+    });
+    expect((r.detail as PronunciationNote).tip).toBe("Start high and keep it level.");
+    expect(r.summary).toContain("mā, first tone: high and level");
+    expect(r.summary).toContain("Your tip described a different tone");
+
+    // A negation only hides the movement it negates.
+    const mixed = pronunciationFeedback({ ...args, romanization: "má", tip: "It's not a rising tone; it's falling." });
+    expect((mixed.detail as PronunciationNote).tip).toBe("Start in the middle and rise, as if asking a question.");
+  });
+
+  it("keeps a tip that fits the tone", () => {
+    const cases: [string, string][] = [
+      ["mā", "Keep it high and flat."],
+      ["má", "Let your voice rise, as if asking a question."],
+      ["mǎ", "Dip down low, then come back up."],
+      ["mà", "Drop sharply, like a firm command."],
+      // Live: a correct tip that names the movements it rules out.
+      ["mā", "The first tone is high and level, like a flat note. Try saying it without dipping or rising."],
+      ["mā", "Keep it high; don’t let it rise or fall."],
+    ];
+    for (const [romanization, tip] of cases) {
+      const r = pronunciationFeedback({ ...args, romanization, tip });
+      expect((r.detail as PronunciationNote).tip, romanization).toBe(tip);
+      expect(r.summary).not.toContain("replaced");
+    }
+  });
+
+  it("reads a neutral-tone syllable once tone marks are in use", () => {
+    const tip = "Say the second one lightly.";
+    expect(pronunciationFeedback({ ...args, target: "谢谢", romanization: "xiè xie", tip }).summary).toContain(
+      "xiè, fourth tone: sharply falling; xie, neutral tone: short and light",
+    );
+    // Written as one word, each vowel cluster is still its own syllable.
+    expect(pronunciationFeedback({ ...args, target: "妈妈", romanization: "māma", tip }).summary).toContain(
+      "māma, first tone: high and level, then neutral tone: short and light",
+    );
+  });
+
+  it("reads tones the way models send them: numbers, capitals, decomposed accents, a breve", () => {
+    const contourOf = (romanization: string) => pronunciationFeedback({ ...args, romanization, tip: "Listen." }).summary;
+    expect(contourOf("ma1")).toContain("first tone");
+    expect(contourOf("ma5")).toContain("neutral tone");
+    expect(contourOf("MĀ")).toContain("first tone");
+    expect(contourOf("mā")).toContain("first tone");
+    expect(contourOf("mă")).toContain("third tone");
+  });
+
+  it("states no contour and keeps the tip when it can't tell the tone", () => {
+    // Missing, unmarked (a neutral tone, or a mark the model left out?), or not
+    // plain pinyin.
+    for (const romanization of [undefined, "", "ma", "妈", "mā (first tone)"]) {
+      const r = pronunciationFeedback({ ...args, romanization, tip: "Try raising your pitch." });
+      expect(r.summary, String(romanization)).not.toContain("tone:");
+      expect((r.detail as PronunciationNote).tip).toBe("Try raising your pitch.");
+    }
+  });
+
+  it("leaves notes about initials and finals alone", () => {
+    const tip = "Curl your tongue back, and let it rise.";
+    const r = pronunciationFeedback({ ...args, issue: "initial", romanization: "zhī", tip });
+    expect(r.summary).not.toContain("tone:");
+    expect((r.detail as PronunciationNote).tip).toBe(tip);
+  });
+
   it("answers with an error, never a throw, when the language is unknown", () => {
     for (const language of ["Klingon", undefined, null]) {
       const r = pronunciationFeedback({ ...args, language });
