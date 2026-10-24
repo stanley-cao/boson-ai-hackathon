@@ -36,12 +36,30 @@ _HOW_TO_SAY = re.compile(
 # "加油 means "come on" or "keep going," like cheering someone on."
 _MEANS = re.compile(r"\bmeans?\s+(?:something\s+like\s+)?(.+?)(?:,[\"”']?\s*(?:like|as|and|which)\b|[.!?;][\"”']?\s|[.!?;]?$)", re.IGNORECASE)
 
-# Each target language's own script, for finding the phrase in a reply.
-_SCRIPT_RUN = {
-    "zh": r"[\u3400-\u9fff]+(?:[\s，、]*[\u3400-\u9fff]+)*",
-    "ja": r"[\u3040-\u30ff\u3400-\u9fff]+(?:[\s、]*[\u3040-\u30ff\u3400-\u9fff]+)*",
-    "ko": r"[\uac00-\ud7a3]+(?:\s+[\uac00-\ud7a3]+)*",
-}
+def _is_latin(char: str) -> bool:
+    # Basic Latin to Latin Extended-B, and Latin Extended Additional (Vietnamese).
+    return ord(char) < 0x250 or 0x1E00 <= ord(char) <= 0x1EFF
+
+
+def _non_latin_run(text: str) -> str | None:
+    """The first stretch of words in a non-Latin script: 谢谢, Спасибо, شكرا جزيلا.
+
+    Any script, so each of the profiles' languages works without a table:
+    letters outside Latin, their combining marks (Devanagari and Thai vowel
+    signs aren't letters), and spaces or CJK commas between them.
+    """
+    run: list[str] = []
+    for char in text:
+        if (char.isalpha() and not _is_latin(char)) or (run and unicodedata.category(char).startswith("M")):
+            run.append(char)
+        elif run and char in " 、，":
+            run.append(char)
+        elif run:
+            break
+    phrase = "".join(run).strip(" 、，")
+    return phrase or None
+
+
 # "In French, you say …", "You can say: …", "It's …".
 _LEAD_IN = re.compile(
     r"^(?:in\s+\w+,?\s*)?(?:you\s+(?:can\s+|would\s+|could\s+)?say|you'?d\s+say|we\s+say|it'?s|that'?s|say)\s*:?\s*",
@@ -87,11 +105,10 @@ def phrase_question(turn: str) -> tuple[str, str] | None:
     return None
 
 
-def _phrase_in(reply: str, language: str, meaning: str) -> str | None:
+def _phrase_in(reply: str, meaning: str) -> str | None:
     """The target-language phrase a reply teaches, or None when it can't tell."""
-    if language in _SCRIPT_RUN:
-        match = re.search(_SCRIPT_RUN[language], reply)
-        return match.group(0).strip() if match else None
+    if (run := _non_latin_run(reply)) is not None:
+        return run
     # Latin script: a quoted phrase, else the first sentence without its
     # English lead-in. Never the English meaning said back.
     candidates = _QUOTED.findall(reply) + [
@@ -125,7 +142,7 @@ def phrase_to_save(learner_turn: str, reply: str, current: str) -> dict[str, str
         if not meaning or _key(meaning) == _key(text):
             return None
         return {"language": language, "phrase": text, "meaning": meaning}
-    phrase = _phrase_in(reply, language, text)
+    phrase = _phrase_in(reply, text)
     if phrase is None or _key(phrase) == _key(text):
         return None
     return {"language": language, "phrase": phrase, "meaning": text}
