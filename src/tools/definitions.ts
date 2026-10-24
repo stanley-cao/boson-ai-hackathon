@@ -111,7 +111,8 @@ export const TOOL_DEFINITIONS = [
       "them mispronounce something (for Mandarin, above all a wrong tone, or a " +
       "wrong initial or final), or they ask how to pronounce something, call " +
       "this FIRST, before you say anything else; it shows the note on their " +
-      "screen and then tells you what to say.",
+      "screen and then tells you what to say. After it returns, say the " +
+      "`target` clearly exactly once.",
     parameters: {
       type: "object",
       properties: {
