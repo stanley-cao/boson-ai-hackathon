@@ -244,7 +244,7 @@ export default function App() {
           <section className="hero" id="top">
             <div className="hero-copy">
               <span className="eyebrow">Speak naturally · learn continuously</span>
-              <h1>Your conversation partner,<br /><em>in every language.</em></h1>
+              <h1>Your conversation partner,<br /><em>for your next language.</em></h1>
               <p className="lede">
                 Practise real conversations, switch languages mid-sentence, and turn every
                 correction into something worth remembering.
