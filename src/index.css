@@ -1398,6 +1398,40 @@ summary:focus-visible {
   padding: 1.1rem;
 }
 
+.transcript-panel {
+  height: min(62vh, 42rem);
+  gap: 0;
+  overflow: hidden;
+}
+
+.transcript-scroll {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.9rem 0.25rem 0.25rem;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+}
+
+.transcript-scroll::-webkit-scrollbar {
+  width: 0.45rem;
+}
+
+.transcript-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transcript-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+}
+
 .transcript-head,
 .study-head {
   min-height: 2rem;
@@ -1425,6 +1459,19 @@ summary:focus-visible {
   background: rgba(255,255,255,.035);
   line-height: 1.65;
   box-shadow: 0 8px 22px rgba(0,0,0,.08);
+  animation: message-arrive 280ms cubic-bezier(.2,.8,.2,1) both;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+@keyframes message-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(0.55rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .turn.user {
@@ -1575,6 +1622,10 @@ summary:focus-visible {
   .workspace--avatar .avatar-stage {
     grid-column: auto;
     height: min(55vh, 30rem);
+  }
+
+  .transcript-panel {
+    height: min(68vh, 38rem);
   }
 }
 

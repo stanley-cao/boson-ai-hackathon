@@ -16,11 +16,30 @@ import {
 export function TranscriptPanel({ state }: { state: TranscriptState }) {
   const items = toDisplayList(state);
   const romanizations = romanizationsFromStudy(studyFromTranscript(state));
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const followsConversationRef = useRef(true);
+  const previousItemCountRef = useRef(0);
 
-  // Follow the conversation as it grows.
+  // Keep motion inside the transcript. scrollIntoView() also moves the page,
+  // which made a new learner/assistant turn jump the whole UI. Only follow
+  // while the reader is already near the latest message; scrolling up to read
+  // an older turn opts out until they return to the bottom.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const panel = scrollRef.current;
+    const isNewTurn = items.length > previousItemCountRef.current;
+    previousItemCountRef.current = items.length;
+    if (!panel || !followsConversationRef.current) return;
+
+    const frame = requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      panel.scrollTo({
+        top: panel.scrollHeight,
+        // Ease between bubbles, but do not restart a smooth animation for
+        // every streaming transcript delta inside the same bubble.
+        behavior: isNewTurn && !reduceMotion ? "smooth" : "auto",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [items.length, items[items.length - 1]]);
 
   if (items.length === 0) {
@@ -38,12 +57,27 @@ export function TranscriptPanel({ state }: { state: TranscriptState }) {
           copy
         </button>
       </div>
-      {items.map((item) => (
-        <TurnBubble key={item.itemId} item={item} romanizations={romanizations} />
-      ))}
-      <div ref={endRef} />
+      <div
+        className="transcript-scroll"
+        ref={scrollRef}
+        onScroll={(event) => {
+          followsConversationRef.current = isNearTranscriptBottom(event.currentTarget);
+        }}
+      >
+        {items.map((item) => (
+          <TurnBubble key={item.itemId} item={item} romanizations={romanizations} />
+        ))}
+      </div>
     </section>
   );
+}
+
+/** Whether auto-following would preserve, rather than override, reading position. */
+export function isNearTranscriptBottom(
+  element: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">,
+  threshold = 96,
+): boolean {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= threshold;
 }
 
 function TurnBubble({
