@@ -147,7 +147,7 @@ Realtime Higgs Avatar runs only inside a **LiveKit Cloud** room. Our agent relay
   - `POST /v1/avatar/sessions` (`avatar_id` such as `builtin_claire_v1`, with `publisher_identity` set to the agent).
   - `DELETE` the session when the user leaves.
   - On `429 capacity_exhausted`, honour `Retry-After`.
-- [ ] **D:** the agent forwards `response.output_audio.delta` to the avatar over a LiveKit data stream, and tells the avatar to drop unplayed audio on barge-in. (#34)
+- [ ] **D:** the agent forwards `response.output_audio.delta` to the avatar over a LiveKit data stream, and tells the avatar to drop unplayed audio on barge-in. (#34) — implementation ready; live validation pending
 - [ ] **C:** an avatar mode using `livekit-client`: join the room, publish the mic, and attach the avatar's video and audio tracks, with the transcript and study panel beside the video. (#35)
 - [ ] **C:** keep direct-WebSocket mode as a **fallback** behind a toggle, in case avatar capacity or latency is a problem. (#35)
 - [ ] **A:** tune the prompt for an on-screen tutor (shorter turns, more expressive delivery). (#35)
@@ -185,6 +185,7 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-10-24 | In server-created `polyglot-*` rooms, `livekit/agent.py` installs LiveKit Agents' `DataStreamAudioOutput` as the session audio sink, targeting `polyglot-avatar` at 24 kHz and waiting for its audio track (#34). Other rooms keep the normal audio track, so the avatar-free `probe.py` path still works. Keep the roadmap item and issue open pending a credentialed live barge-in check. | The pinned SDK adapter implements the avatar's `lk.audio_stream`, playback-finished callback, and `lk.clear_buffer` RPC. AgentSession already feeds realtime model audio into its configured sink and clears that sink when speech is interrupted, avoiding a second copy of the protocol. |
 | 2026-10-24 | The language picker selects a target profile before connection; that target is passed into the initial session config and retained across learner-level and pace instruction updates. `ACTIVE_PAIR` remains the default rather than mutable global state (#29). | This keeps profiles as config while preventing a later instructions-only update from silently resetting a Korean, French, or Japanese session to Mandarin. The picker is locked during an active connection so its visible value cannot diverge from the live session. |
 | 2026-10-23 | Mandarin is the first target language, paired with English. | The team chose it. Tone feedback makes a strong showcase, and Han vs. Latin text makes code-switches visible. |
 | 2026-10-23 | Realtime avatar requires LiveKit Cloud, so the prompt and tools stay portable (`shared/session.json`), and a LiveKit spike starts during Phase 1–2. | Higgs Avatar realtime sessions only join LiveKit Cloud rooms, so the browser-direct WebSocket can't drive the avatar. |
