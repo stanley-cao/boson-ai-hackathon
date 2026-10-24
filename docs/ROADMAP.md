@@ -91,7 +91,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **B:** replace `web_search` with (#10, #11, #12, #13):
   - [x] `note_correction {language, said, correct, explanation, kind, romanization}` (#10)
   - [ ] `save_phrase {language, phrase, meaning, romanization, note}` (#11)
-  - [ ] `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase. (#12)
+  - [x] `pronunciation_feedback {language, target, romanization, issue: "tone"|"initial"|"final"|"other", tip}`: tone feedback is the Mandarin showcase. (#12)
   - [x] `set_practice_language {language, level: "beginner"|"intermediate"|"advanced"}` (#13)
 - [x] **B:** normalise language arguments ("Mandarin", "Chinese", "zh-CN", "ZH" → `zh`), as `normalizeTopic` does. Handlers never throw. Add unit tests for every tool. (#9) (@KyleDong03)
 - [x] **B:** `src/state/study.ts`, which derives corrections, phrases and pronunciation notes from the transcript. (#14) (@dorsa-molaverdikhani)

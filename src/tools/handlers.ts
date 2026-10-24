@@ -1,5 +1,5 @@
 import { PROFILES } from "../lang/profiles";
-import type { Correction, PracticeLanguage, ToolDetail } from "./types";
+import type { Correction, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -173,7 +173,70 @@ export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
   };
 }
 
+// Words that name each pronunciation issue. Anything else files as "other":
+// a mislabelled issue should still save the note, not lose it.
+const PRONUNCIATION_ISSUES: Record<string, PronunciationNote["issue"]> = {
+  tone: "tone",
+  tonal: "tone",
+  initial: "initial",
+  consonant: "initial",
+  final: "final",
+  vowel: "final",
+};
+
+function normalizePronunciationIssue(raw: unknown): PronunciationNote["issue"] {
+  if (typeof raw !== "string") return "other";
+  // Word by word, so "Tones", "wrong tone" and "tone_error" all file as tone.
+  for (const word of raw.toLowerCase().split(/[\s_-]+/)) {
+    const w = word.replace(/s$/, "");
+    if (Object.hasOwn(PRONUNCIATION_ISSUES, w)) return PRONUNCIATION_ISSUES[w];
+  }
+  return "other";
+}
+
+/**
+ * Save a pronunciation note: the Mandarin showcase, since the model hears the
+ * learner's tones directly rather than through a transcript.
+ *
+ * The schema tells the model to call this BEFORE it speaks, so the summary is
+ * its cue for what to say next rather than a line to read out: a "same turn"
+ * description was called far less reliably in live probes.
+ */
+export function pronunciationFeedback(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    return {
+      summary: `Note not saved: language must be one of ${Object.keys(PROFILES).join(", ")}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const target = normalizeText(args.target);
+  const tip = normalizeText(args.tip);
+  if (!target || !tip) {
+    return {
+      summary: "Note not saved: it needs the word or syllable and a tip.",
+      error: "missing_fields",
+    };
+  }
+
+  const romanization = normalizeText(args.romanization);
+  const detail: PronunciationNote = {
+    type: "pronunciation",
+    language,
+    target,
+    issue: normalizePronunciationIssue(args.issue),
+    tip,
+    ...(romanization ? { romanization } : {}),
+  };
+  return {
+    summary: `Saved a pronunciation note for ${target}. Now say it the right way, give the tip in a few words, then carry on the conversation.`,
+    detail,
+  };
+}
+
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
   note_correction: noteCorrection,
   set_practice_language: setPracticeLanguage,
+  pronunciation_feedback: pronunciationFeedback,
 };
