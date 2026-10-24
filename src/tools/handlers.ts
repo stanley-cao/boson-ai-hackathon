@@ -487,7 +487,7 @@ export function setSpeakingPace(args: Record<string, unknown>): ToolResult {
   if (scope === "once") {
     return {
       summary:
-        "Now repeat the content of your previous reply exactly, slowly, with a short pause between words. Add nothing new.",
+        "Now repeat the content of your previous reply exactly, slowly, syllable by syllable with a short pause after each. Add nothing new.",
     };
   }
   return { summary: "You'll speak slowly from now on. Say so in a few words, then carry on." };

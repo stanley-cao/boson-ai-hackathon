@@ -109,30 +109,24 @@ describe("pace measure", () => {
 });
 
 describe("slowSpeechInput", () => {
-  it("slows the line and pauses between words, Mandarin included", () => {
-    const input = slowSpeechInput("我今天想去图书馆学习。")!;
-    expect(input.startsWith("<|prosody:speed_slow|>")).toBe(true);
-    expect(input).toContain("今天 <|prosody:pause|> ");
-    expect(input.endsWith("学习。")).toBe(true);
-    expect(input.replace(/<\|[^|]+\|>|\s/g, "")).toBe("我今天想去图书馆学习。");
-  });
-
-  it("keeps punctuation as the pause between sentences", () => {
-    expect(slowSpeechInput("Hi. Good morning!")).toBe(
-      "<|prosody:speed_slow|>Hi. Good <|prosody:pause|> morning!",
+  it("slows the line and stops after every Mandarin syllable", () => {
+    expect(slowSpeechInput("我今天想去图书馆学习。")).toBe(
+      "<|prosody:speed_slow|>我。今。天。想。去。图。书。馆。学。习。",
     );
   });
 
-  it("drops the word pauses when the line would pass the 500-character route cap", () => {
-    const long = "word ".repeat(60).trim() + ".";
-    const input = slowSpeechInput(long)!;
-    expect(input).not.toContain("<|prosody:pause|>");
-    expect(Array.from(input).length).toBeLessThanOrEqual(500);
+  it("splits pinyin words but leaves English whole", () => {
+    const input = slowSpeechInput('你好 (nǐ hǎo) means "hello".')!;
+    expect(input).toBe('<|prosody:speed_slow|>你。好。 (nǐ. hǎo.) means "hello".');
   });
 
-  it("is null with nothing to say or a line too long either way", () => {
+  it("adds no stop where punctuation already is one", () => {
+    expect(slowSpeechInput("你好！再见。")).toBe("<|prosody:speed_slow|>你。好！再。见。");
+  });
+
+  it("is null with nothing to say or a line too long for the route", () => {
     expect(slowSpeechInput("!?")).toBeNull();
-    expect(slowSpeechInput("word ".repeat(200))).toBeNull();
+    expect(slowSpeechInput("好".repeat(300))).toBeNull();
   });
 });
 
