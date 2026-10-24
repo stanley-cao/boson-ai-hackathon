@@ -119,6 +119,30 @@ code {
   min-width: 10rem;
 }
 
+/* --- mode toggle --- */
+
+.mode-toggle {
+  display: flex;
+}
+
+.mode-toggle button {
+  border-radius: 0;
+}
+
+.mode-toggle button:first-child {
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.mode-toggle button:last-child {
+  border-radius: 0 0.5rem 0.5rem 0;
+  border-left: none;
+}
+
+.mode-toggle .mode-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* --- status bar --- */
 
 .status {
@@ -250,6 +274,51 @@ code {
   grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+/* Video, transcript and study panel side by side (#35). */
+.workspace--avatar {
+  grid-template-columns: minmax(16rem, 0.9fr) minmax(0, 1.1fr) minmax(16rem, 0.75fr);
+}
+
+.avatar-stage {
+  position: sticky;
+  top: 1rem;
+  margin-top: 1.2rem;
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.avatar-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-waiting {
+  margin: 0;
+  padding: 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Too narrow for three columns: the video goes above the other two. */
+@media (max-width: 64rem) {
+  .workspace--avatar {
+    grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+  }
+
+  .workspace--avatar .avatar-stage {
+    grid-column: 1 / -1;
+    position: static;
+    aspect-ratio: 16 / 9;
+    max-height: 50vh;
+  }
 }
 
 .empty {
@@ -735,7 +804,8 @@ code {
     padding: 1.5rem 1rem 5rem;
   }
 
-  .workspace {
+  .workspace,
+  .workspace--avatar {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.4rem;
   }

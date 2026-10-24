@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RemoteVideoTrack } from "livekit-client";
+import { AvatarSession, AvatarUnavailableError } from "./livekit/AvatarSession";
 import {
   RealtimeClient,
   type Activity,
   type ConnectionState,
   type LogEntry,
 } from "./realtime/RealtimeClient";
+import type { ServerEvent } from "./realtime/events";
 import {
   transcriptReducer,
   type TranscriptState,
@@ -27,9 +30,11 @@ import {
   type TargetLanguageCode,
 } from "./lang/profiles";
 import { slowSpeechInput } from "./realtime/pace";
+import { AvatarStage } from "./ui/AvatarStage";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { LanguagePicker } from "./ui/LanguagePicker";
+import { ModeToggle, loadStoredMode, saveStoredMode, type SessionMode } from "./ui/ModeToggle";
 import { PracticeBadge } from "./ui/PracticeBadge";
 import {
   INITIAL_RECAP_VISIBILITY,
@@ -79,6 +84,8 @@ export default function App() {
   const [micLevel, setMicLevel] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
   const [recapVisibility, setRecapVisibility] = useState(INITIAL_RECAP_VISIBILITY);
+  const [mode, setMode] = useState<SessionMode>(loadStoredMode);
+  const [avatarVideo, setAvatarVideo] = useState<RemoteVideoTrack | null>(null);
 
   // A failed connection attempt is not a session. Remember that the socket
   // actually opened before treating a later close as the end of one.
@@ -89,30 +96,52 @@ export default function App() {
     setRecapVisibility((current) => recapVisibilityAfterConnection(current, next, now));
   }, []);
 
-  // The client outlives re-renders, so it lives in a ref rather than state.
+  // The clients outlive re-renders, so they live in refs rather than state.
   const clientRef = useRef<RealtimeClient | null>(null);
-  if (!clientRef.current) {
-    clientRef.current = new RealtimeClient({
-      tokenProvider: fetchToken,
+  const avatarRef = useRef<AvatarSession | null>(null);
+  if (!clientRef.current || !avatarRef.current) {
+    // Both modes report through the same callbacks, so everything below is
+    // the same whichever one is connected.
+    const callbacks = {
       onConnectionState: handleConnectionState,
       onActivity: setActivity,
-      onLog: (entry) => setLog((l) => [...l, entry]),
-      onClose: (info) => setCloseMessage(info.message),
+      onLog: (entry: LogEntry) => setLog((l) => [...l, entry]),
+      onClose: (info: { message: string }) => setCloseMessage(info.message),
       onMicChange: setMicActive,
       onMicLevel: setMicLevel,
-      slowRepeat: { play: playSlowRepeat, stop: stopReplay },
       // Every server event goes through the reducer. That is the whole wiring:
       // the client knows nothing about the transcript, and the transcript knows
       // nothing about sockets.
-      onServerEvent: (evt) => {
+      onServerEvent: (evt: ServerEvent) => {
         setTranscript((s) => transcriptReducer(s, evt, Date.now()));
       },
+    };
+    clientRef.current = new RealtimeClient({
+      ...callbacks,
+      tokenProvider: fetchToken,
+      slowRepeat: { play: playSlowRepeat, stop: stopReplay },
     });
+    avatarRef.current = new AvatarSession({ ...callbacks, onVideo: setAvatarVideo });
   }
 
   useEffect(() => {
     const client = clientRef.current!;
-    return () => void client.close();
+    const avatar = avatarRef.current!;
+    return () => {
+      void client.close();
+      void avatar.close();
+    };
+  }, []);
+
+  /** Whichever client the current mode uses. */
+  const session = useCallback(
+    () => (mode === "avatar" ? avatarRef.current! : clientRef.current!),
+    [mode],
+  );
+
+  const changeMode = useCallback((next: SessionMode) => {
+    setMode(next);
+    saveStoredMode(next);
   }, []);
 
   const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
@@ -125,16 +154,28 @@ export default function App() {
 
   const connect = useCallback(async () => {
     setCloseMessage(null);
-    await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage);
-  }, [storedLevel, targetLanguage]);
+    if (mode === "direct") {
+      await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage);
+      return;
+    }
+    try {
+      await avatarRef.current!.connect();
+    } catch (e) {
+      // The fallback (#35): no capacity, no LiveKit, or no room. Not saved, so
+      // the next visit tries the avatar again.
+      const code = e instanceof AvatarUnavailableError ? e.code : String(e);
+      setMode("direct");
+      setCloseMessage(`Avatar unavailable (${code}). Switched to voice only: press Connect.`);
+    }
+  }, [mode, storedLevel, targetLanguage]);
 
   const send = useCallback(() => {
     if (!text.trim()) return;
-    clientRef.current!.sendUserText(text);
-  }, [text]);
+    session().sendUserText(text);
+  }, [session, text]);
 
   const toggleMic = useCallback(async () => {
-    const client = clientRef.current!;
+    const client = session();
     setMicError(null);
     try {
       if (client.micActive) await client.stopMic();
@@ -144,9 +185,13 @@ export default function App() {
       // land here and all three are worth telling the user about explicitly.
       setMicError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [session]);
 
   const isOpen = connection === "open";
+  const busy = connection === "connecting" || isOpen;
+  // The agent starts from shared/session.json's default pair and doesn't hear
+  // the picker, so avatar mode shows that language until the model switches.
+  const sessionLanguage = mode === "avatar" ? ACTIVE_PAIR.target : targetLanguage;
 
   // A failed write is deliberately ignored so private browsing cannot break
   // the current session. Restored details live in the transcript as hidden
@@ -188,23 +233,24 @@ export default function App() {
         <>
           <PracticeBadge
             practice={
-              study.practiceLanguage?.language === targetLanguage
+              study.practiceLanguage?.language === sessionLanguage
                 ? study.practiceLanguage
                 : null
             }
-            fallbackLanguage={targetLanguage}
+            fallbackLanguage={sessionLanguage}
           />
 
           <div className="row">
             <LanguagePicker
-              value={targetLanguage}
-              disabled={connection === "connecting" || isOpen}
+              value={sessionLanguage}
+              disabled={busy || mode === "avatar"}
               onChange={setTargetLanguage}
             />
-            <button onClick={connect} disabled={connection === "connecting" || isOpen}>
+            <ModeToggle value={mode} disabled={busy} onChange={changeMode} />
+            <button onClick={connect} disabled={busy}>
               {connection === "connecting" ? "Connecting…" : "Connect"}
             </button>
-            <button onClick={() => clientRef.current!.disconnect()} disabled={!isOpen}>
+            <button onClick={() => session().disconnect()} disabled={!isOpen}>
               Disconnect
             </button>
           </div>
@@ -233,7 +279,8 @@ export default function App() {
             </div>
           </details>
 
-          <div className="workspace">
+          <div className={mode === "avatar" ? "workspace workspace--avatar" : "workspace"}>
+            {mode === "avatar" && <AvatarStage track={avatarVideo} connection={connection} />}
             <TranscriptPanel state={transcript} />
             <StudyPanel state={transcript} onClear={clearStudy} />
           </div>
