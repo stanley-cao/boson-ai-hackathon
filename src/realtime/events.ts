@@ -98,14 +98,14 @@ export function describeClose(code: number, reason: string): CloseInfo {
       return {
         code,
         reason,
-        message: "The tutor is busy right now. Please try again in a moment.",
+        message: "Server at max concurrency (1013). Try again in a moment.",
         retryable: true,
       };
     case 3000:
       return {
         code,
         reason,
-        message: "Your session expired. Reconnect to start a fresh one.",
+        message: "Authentication failed (3000): the key was invalid or had expired.",
         retryable: false,
       };
     case 4429:
@@ -113,7 +113,7 @@ export function describeClose(code: number, reason: string): CloseInfo {
         code,
         reason,
         message:
-          "Voice chat is paused by this account's billing limit. Check the account balance, then reconnect.",
+          "Billing entitlement refused (4429). Check your balance — an `error` event just before this has the detail.",
         retryable: false,
       };
     default:
