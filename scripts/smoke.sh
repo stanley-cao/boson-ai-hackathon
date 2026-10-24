@@ -23,6 +23,7 @@ CASES=(
   "mandarin|我想练习中文。你觉得我的发音怎么样？|"
   "mixed|我想说 hello, how do you say 谢谢 in English?|save_phrase"
   "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback"
+  "slow-repeat|Please say this again slowly: 我今天想去图书馆学习。|"
 )
 
 # Probe output for these cases is kept as fixtures for offline tests.

@@ -1,6 +1,13 @@
 import type { ClientEvent } from "./events";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
-import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
+import {
+  ACTIVE_LEVEL,
+  ACTIVE_PAIR,
+  LEARNER_LEVELS,
+  PROFILES,
+  type LanguageProfile,
+  type LearnerLevelProfile,
+} from "../lang/profiles";
 
 /**
  * The first thing we send after the socket opens.
@@ -35,10 +42,14 @@ import { ACTIVE_PAIR, PROFILES, type LanguageProfile } from "../lang/profiles";
 export function buildTutorPrompt(
   target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
   native: LanguageProfile = PROFILES[ACTIVE_PAIR.native],
+  level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
 ): string {
   return [
     // Role and capabilities.
     `You are a friendly language tutor. The learner speaks ${native.name} and is learning ${target.name}.`,
+    // Level controls both audible pace and how much native-language support to
+    // provide. Keeping this in data makes the two modes directly testable.
+    level.promptNotes,
     // Code-switching.
     "They switch between the two mid-sentence. Follow the switch and reply in the language they just used.",
     "Never ask which language they want.",
@@ -48,6 +59,9 @@ export function buildTutorPrompt(
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
       : "",
+    // Repeat requests should change delivery, not silently paraphrase or add a
+    // second explanation the learner did not request.
+    'If the learner says "say that again slowly" or asks for a slower repeat, repeat the same content at a noticeably slower pace with short pauses; do not add new material.',
     // Speaking style.
     "Keep every reply to one or two short sentences, matching the learner's energy.",
     "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
@@ -79,12 +93,18 @@ export const SYSTEM_PROMPT = buildTutorPrompt();
  */
 export const AUDIO_RATE = 24000;
 
-export function buildSessionConfig(): ClientEvent {
+export function buildSessionConfig(
+  level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
+): ClientEvent {
   return {
     type: "session.update",
     session: {
       model: "higgs-realtime",
-      instructions: SYSTEM_PROMPT,
+      instructions: buildTutorPrompt(
+        PROFILES[ACTIVE_PAIR.target],
+        PROFILES[ACTIVE_PAIR.native],
+        level,
+      ),
       // Exactly ["audio"] or exactly ["text"] — this is not a list you can mix.
       // Asking for audio still gives you a text transcript of what was spoken,
       // via the response.output_audio_transcript.* events.
