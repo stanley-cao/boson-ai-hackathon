@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { segmentByScript } from "../lang/scriptRuns";
 import {
   toList,
   toPlainText,
@@ -68,7 +69,11 @@ function TurnBubble({ item }: { item: TranscriptItem }) {
         {/* text is null until the transcription arrives — which is seconds
             after the words were spoken. Showing the placeholder is what makes
             the UI feel responsive rather than broken. */}
-        {item.text === null ? <span className="pending">transcribing…</span> : item.text}
+        {item.text === null ? (
+          <span className="pending">transcribing…</span>
+        ) : (
+          <ScriptText text={item.text} />
+        )}
       </div>
     );
   }
@@ -76,9 +81,17 @@ function TurnBubble({ item }: { item: TranscriptItem }) {
   return (
     <div className={`turn assistant ${item.status}`}>
       <span className="who">assistant</span>
-      {item.text}
+      <ScriptText text={item.text} />
       {item.status === "streaming" && <span className="caret" />}
       {item.status === "interrupted" && <span className="badge">interrupted</span>}
     </div>
   );
+}
+
+function ScriptText({ text }: { text: string }) {
+  return segmentByScript(text).map((run, index) => (
+    <span className={`script-${run.script}`} key={`${index}-${run.script}`}>
+      {run.text}
+    </span>
+  ));
 }
