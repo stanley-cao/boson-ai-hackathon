@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "../src/realtime/events";
 import {
   emptyStudyState,
+  freshSessionTranscript,
   studyFromTranscript,
   transcriptFromStudy,
   withoutStudyItems,
@@ -233,5 +234,30 @@ describe("studyFromTranscript", () => {
     expect(cleared.items["user-1"].kind).toBe("user");
     expect(cleared.items["tool-2"].kind).toBe("tool");
     expect(studyFromTranscript(cleared)).toEqual(emptyStudyState());
+  });
+
+  it("starts a new session with the study items but none of the old conversation", () => {
+    let state = transcriptReducer(
+      emptyTranscript,
+      evt({ type: "input_audio_buffer.speech_started", item_id: "user-1" }),
+      1,
+    );
+    state = addTool(state, "tool-1", "c1", "save_phrase", {
+      summary: "Phrase saved.",
+      detail: { type: "phrase", language: "zh", phrase: "加油", meaning: "keep going" },
+    });
+
+    const fresh = freshSessionTranscript(state);
+    expect(toDisplayList(fresh)).toEqual([]);
+    expect(studyFromTranscript(fresh)).toEqual(studyFromTranscript(state));
+  });
+
+  it("starts a new session empty when nothing was studied", () => {
+    const state = transcriptReducer(
+      emptyTranscript,
+      evt({ type: "input_audio_buffer.speech_started", item_id: "user-1" }),
+      1,
+    );
+    expect(freshSessionTranscript(state)).toEqual(emptyTranscript);
   });
 });

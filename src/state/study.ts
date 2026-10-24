@@ -132,6 +132,15 @@ export function transcriptFromStudy(study: StudyState): TranscriptState {
 }
 
 /** Remove learning tool items while preserving the visible conversation. */
+/**
+ * The transcript a new session starts from: the study items only, as hidden
+ * restored items, so the previous conversation doesn't clutter the new one
+ * while the study panel keeps everything learned so far.
+ */
+export function freshSessionTranscript(state: TranscriptState): TranscriptState {
+  return transcriptFromStudy(studyFromTranscript(state));
+}
+
 export function withoutStudyItems(state: TranscriptState): TranscriptState {
   const order = state.order.filter((itemId) => {
     const item = state.items[itemId];

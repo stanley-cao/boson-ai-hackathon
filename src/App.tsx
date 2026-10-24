@@ -13,6 +13,7 @@ import {
   type TranscriptState,
 } from "./state/transcriptStore";
 import {
+  freshSessionTranscript,
   studyFromTranscript,
   transcriptFromStudy,
   withoutStudyItems,
@@ -154,6 +155,8 @@ export default function App() {
 
   const connect = useCallback(async () => {
     setCloseMessage(null);
+    // Each session starts with a clean chat; saved study items stay.
+    setTranscript((s) => freshSessionTranscript(s));
     if (mode === "direct") {
       await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage);
       return;
