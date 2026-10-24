@@ -18,8 +18,8 @@ describe("shared/session.json", () => {
     expect(exported.tools.map((tool) => tool.name)).toContain("note_correction");
   });
 
-  it("explicitly requests automatic transcription-language detection", () => {
-    expect(exported.audio.input.transcription).toMatchObject({ language: null });
+  it("carries the native-language transcription hint", () => {
+    expect(exported.audio.input.transcription).toMatchObject({ language: "en" });
   });
 });
 

@@ -58,8 +58,8 @@ def model_kwargs(session: dict[str, Any]) -> dict[str, Any]:
         # mid-sentence (#7), and the plugin's own default is 500 ms.
         "turn_detection": audio_in["turn_detection"],
         # The plugin only emits user transcripts when a model is named. The
-        # language is deliberately left unset, so code-switched speech is
-        # auto-detected; the plugin adds none of its own when it is None.
+        # native-language hint stabilizes short ambiguous English turns while
+        # still allowing the realtime model to detect clear language switches.
         "input_audio_transcription_model": audio_in["transcription"]["model"],
         "input_audio_transcription_language": audio_in["transcription"].get("language"),
     }
