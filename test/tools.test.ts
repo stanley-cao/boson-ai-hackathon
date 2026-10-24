@@ -59,6 +59,12 @@ describe("normalizeLanguage", () => {
     for (const [sent, expected] of cases) expect(normalizeLanguage(sent)).toBe(expected);
   });
 
+  it("maps Serbian names and either script locale tag to sr", () => {
+    for (const sent of ["sr", "sr-Latn", "sr-Cyrl", "Serbian", "srpski"]) {
+      expect(normalizeLanguage(sent), sent).toBe("sr");
+    }
+  });
+
   it("returns null for values it does not know, rather than guessing", () => {
     for (const sent of ["Klingon", "", "  ", "de-DE", "Chinese (Simplified)"]) {
       expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();
