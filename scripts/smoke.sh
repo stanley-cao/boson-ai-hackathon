@@ -30,6 +30,7 @@ CASES=(
   "explain|I keep hearing people say 好久不见. What does that mean?|save_phrase|phrase|好久不见|set_practice_language|meaning"
   "correction|我有三本狗。|note_correction|-|-|set_practice_language|-"
   "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback|-|-|set_practice_language|-"
+  "slow-repeat|Please say this again slowly: 我今天想去图书馆学习。|-|-|-|set_practice_language|-"
 )
 
 # Probe output for these cases is kept as fixtures for offline tests.
