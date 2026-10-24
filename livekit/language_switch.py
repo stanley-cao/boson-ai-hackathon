@@ -26,12 +26,12 @@ LANGUAGE_NAMES = {
 # ("Parlons japonais", "日本語で話しましょう"). Lowercase and as transcribed;
 # Serbian in Latin script, as the tutor writes it.
 NATIVE_NAMES = {
-    "zh": ("chinois", "中文", "汉语", "普通话", "중국어", "中国語", "kineski", "tiếng trung"),
-    "ko": ("coréen", "coreen", "韩语", "한국어", "韓国語", "korejski", "tiếng hàn"),
-    "fr": ("français", "francais", "法语", "프랑스어", "フランス語", "francuski", "tiếng pháp"),
-    "ja": ("japonais", "日语", "日本語", "일본어", "japanski", "tiếng nhật"),
-    "sr": ("serbe", "塞尔维亚语", "세르비아어", "セルビア語", "srpski", "tiếng serbia"),
-    "vi": ("vietnamien", "越南语", "베트남어", "ベトナム語", "vijetnamski", "tiếng việt"),
+    "zh": ("chinois", "中文", "汉语", "普通话", "중국어", "中国語", "kineski", "kineskom", "tiếng trung"),
+    "ko": ("coréen", "coreen", "韩语", "한국어", "韓国語", "korejski", "korejskom", "tiếng hàn"),
+    "fr": ("français", "francais", "法语", "프랑스어", "フランス語", "francuski", "francuskom", "tiếng pháp"),
+    "ja": ("japonais", "日语", "日本語", "일본어", "japanski", "japanskom", "tiếng nhật"),
+    "sr": ("serbe", "塞尔维亚语", "세르비아어", "セルビア語", "srpski", "srpskom", "tiếng serbia"),
+    "vi": ("vietnamien", "越南语", "베트남어", "ベトナム語", "vijetnamski", "vijetnamskom", "tiếng việt"),
 }
 
 _CODE_FOR = {
@@ -63,25 +63,49 @@ _ENGLISH = [
     # The whole turn is the language: "Japanese please", "Korean!".
     rf"^\W*{_NAME}(?:\s+(?:please|now|instead))*\W*$",
 ]
+_ARTICLE = r"(?:(?:au|à\s+l'|à\s+la|en|pour\s+le|le|la|l'|du|de\s+l')\s*)?"
 _NATIVE = [
-    # French: "parlons japonais", "on passe au coréen", "passons à l'espagnol".
-    rf"\b(?:parl(?:ons|e|ez)|passons|on\s+passe|changeons)\s+(?:(?:au|à\s+l'|à\s+la|en|pour\s+le|le|l')\s*)?{_NAME}",
-    # Serbian: "pričajmo japanski", "pređimo na japanski".
-    rf"\b(?:pričajmo|govorimo|pređimo\s+na|prebaci\w*\s+na|hajde\s+(?:na\s+)?)\s*{_NAME}",
-    # Vietnamese: "nói tiếng Nhật", "chuyển sang tiếng Hàn".
-    rf"\b(?:nói|học|chuyển\s+sang|đổi\s+sang)\s+{_NAME}",
-    # Japanese: "日本語で話しましょう", "韓国語に変えて". No word boundaries in CJK.
-    rf"{_NAME}\s*(?:で(?:話|はな)(?:しましょう|して|そう)|に(?:変え|切り替え))",
-    # Korean: "일본어로 바꿔 주세요", "일본어로 하자".
-    rf"{_NAME}\s*(?:으로|로)\s*(?:바꿔|하자|해요|해\s*주세요|말해|얘기)",
-    # Mandarin: "说日语", "换成韩语". Not "日语怎么说", which comes after the name.
+    # French: "parlons japonais", "on passe au coréen", "faisons du japonais".
+    rf"\b(?:parl(?:ons|e|ez)|passons|on\s+passe|changeons|faisons|on\s+fait)\s+{_ARTICLE}{_NAME}",
+    # "je veux passer au japonais", "tu peux parler japonais ?". Only after a
+    # wish or "can": "j'apprends le japonais à l'école" is a remark.
+    rf"\b(?:veux|voudrais|aimerais|peux|peut|pouvons|pourrais|pourrait|pourriez|pouvez|on\s+va)(?:-tu|-vous|-on)?"
+    rf"\s+(?:\w+\s+)?(?:passer|parler|apprendre|pratiquer|essayer|faire|changer\s+pour)\s+{_ARTICLE}{_NAME}",
+    rf"^\W*en\s+{_NAME}(?:\W+(?:s'il\s+(?:te|vous)\s+pla[iî]t|stp|svp|maintenant))?\W*$",
+    # Serbian: "pričajmo japanski", "pređimo na japanski", "pričaj na japanskom".
+    rf"\b(?:pričaj(?:mo|te)?|pričamo|pričati|govori(?:mo|te)?|govoriti|pređ(?:imo|em|emo)\s+na|"
+    rf"prebaci\w*\s+na|hajde\s+(?:na\s+)?|uč(?:imo|iti))\s+(?:na\s+)?{_NAME}",
+    # Vietnamese: "nói tiếng Nhật", "dạy tôi tiếng Nhật", "nói bằng tiếng Hàn".
+    rf"\b(?:nói|học|dạy\s+(?:tôi|mình|em|tớ)|chuyển\s+sang|đổi\s+sang)\s+(?:bằng\s+)?{_NAME}",
+    # Japanese: "日本語で話しましょう", "日本語にしよう", "韓国語でお願いします",
+    # "日本語を練習したい". No word boundaries in CJK.
+    rf"{_NAME}\s*(?:で(?:話|はな)(?:しましょう|して|そう)|でお願い|に(?:変え|切り替え|しよう|しましょう|して)|"
+    rf"を(?:練習|勉強)(?:しましょう|したい|しよう))",
+    # Korean: "일본어로 바꿔 주세요", "일본어로 말해 줘", "일본어 연습하고 싶어요".
+    rf"{_NAME}\s*(?:(?:으로|로)\s*(?:바꿔|바꾸자|하자|해요|해\s*주세요|해\s*줘|말해|얘기)|"
+    rf"(?:를|을)?\s*(?:연습하|배우)(?:자|고\s*싶))",
+    # Mandarin: "说日语", "换成韩语", "用日语聊吧". Not "日语怎么说" or
+    # "用日语怎么说", which ask for a translation.
     rf"(?:换成|改成|切换到|换到|说|讲|学)\s*{_NAME}",
+    rf"用\s*{_NAME}\s*(?:聊|说吧|讲吧|交流|对话)",
 ]
 _SWITCH = [re.compile(p, re.IGNORECASE) for p in _ENGLISH + _NATIVE]
 
-# "I don't want to switch to Japanese", "let's not do Korean".
+# A negation just before the request, in any language taught: "I don't want
+# to switch to Japanese", "je ne veux pas passer au japonais", "ne želim da
+# pređem na japanski", "tôi không muốn học tiếng Nhật", "我不想说日语". A comma
+# ends the reach, so "pas de souci, on passe au japonais" still switches.
+# Japanese and Korean negate after the verb, which the patterns don't accept.
 _NEGATED = re.compile(
-    r"\b(?:don'?t|do\s+not|doesn'?t|not|never|won'?t|wouldn'?t|can'?t|cannot|no\s+more)\s+(?:\w+\s+){0,3}$",
+    "|".join(
+        [
+            r"\b(?:don'?t|do\s+not|doesn'?t|(?<!why\s)not|never|won'?t|wouldn'?t|can'?t|cannot|no\s+more)\s+(?:\w+\s+){0,3}$",
+            r"(?:\bne\b|\bn'|\bpas\b|\bjamais\b)\s*(?:[\w'-]+\s+){0,3}$",
+            r"\b(?:nemoj\w*|neću|nećemo)\s+(?:\w+\s+){0,3}$",
+            r"\b(?:không|đừng|chẳng|chưa)\s+(?:\w+\s+){0,3}$",
+            r"[不别没甭](?:想|要|用|会|再)?\s*$",
+        ]
+    ),
     re.IGNORECASE,
 )
 # "I'm studying Japanese at school" reports a fact; it isn't a request. The

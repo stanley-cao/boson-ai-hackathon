@@ -80,6 +80,16 @@ def test_the_same_short_reply_twice_in_a_row_is_stripped() -> None:
         "再说一遍",
         "Bạn có thể nói lại không?",
         "Nhắc lại đi",
+        "Qu'est-ce que tu as dit ?",
+        "Plus lentement s'il te plaît",
+        "Molim?",
+        "Nisam razumela",
+        "Gì cơ?",
+        "え？",
+        "何て言いましたか",
+        "뭐라고요?",
+        "什么？",
+        "你说什么？",
     ],
 )
 def test_ways_of_asking_for_a_repeat_keep_it(turn: str) -> None:

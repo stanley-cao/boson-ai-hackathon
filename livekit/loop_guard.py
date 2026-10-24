@@ -33,13 +33,16 @@ _REPEAT_REQUEST = re.compile(
             r"\bwhat\s+did\s+you\s+(?:just\s+)?say\b",
             r"\bsorry,?\s+what\b",
             r"\bpardon\b",
-            r"^\W*(?:sorry|huh|what|excuse\s+me|again|encore)(?:\W+(?:please|une\s+fois|s'il\s+(?:te|vous)\s+pla[iî]t))?\W*$",
+            # A one-word "what?" in any language taught.
+            r"^\W*(?:sorry|huh|what|excuse\s+me|again|encore|quoi|molim|šta|hả|gì\s+cơ|え|えっ|何|什么|啊|뭐)(?:\W+(?:please|une\s+fois|s'il\s+(?:te|vous)\s+pla[iî]t))?\W*$",
             # French: répéter, répète, répétez; "Comment ?" alone.
             r"\br[ée]p[éeè]t\w*",
             r"\bencore\s+une\s+fois\b",
             r"\bplus\s+lentement\b",
             r"\bje\s+n'ai\s+pas\s+(?:compris|entendu)\b",
             r"^\W*comment\W*$",
+            r"\bqu'est-ce\s+que\s+(?:tu\s+as|vous\s+avez)\s+dit\b",
+            r"\bt'as\s+dit\s+quoi\b",
             # Serbian
             r"\bponovi\w*",
             r"\bsporije\b",
@@ -49,9 +52,9 @@ _REPEAT_REQUEST = re.compile(
             r"\bchậm\s+(?:lại|hơn)\b",
             r"\bmột\s+lần\s+nữa\b",
             # Japanese, Korean, Mandarin
-            r"もう一度|もう一回|ゆっくり|繰り返",
+            r"もう一度|もう一回|ゆっくり|繰り返|何て言",
             r"다시|천천히|뭐라고",
-            r"再说|再一次|慢一点|重复",
+            r"再说|再一次|慢一点|重复|说什么",
         ]
     ),
     re.IGNORECASE,
