@@ -17,4 +17,8 @@ describe("practice badge label", () => {
     const label = practiceLabel({ type: "practice_language", language: "ko", level: "intermediate" });
     expect(label).toEqual({ language: "ko", name: "한국어", level: "intermediate" });
   });
+
+  it("can display a target selected before the model reports a level", () => {
+    expect(practiceLabel(null, "ja")).toMatchObject({ language: "ja", level: null });
+  });
 });

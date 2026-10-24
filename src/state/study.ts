@@ -7,6 +7,7 @@ import type {
   PronunciationNote,
   ToolDetail,
 } from "../tools/types";
+import { PROFILES } from "../lang/profiles";
 
 export interface StudyState {
   corrections: Correction[];
@@ -16,7 +17,7 @@ export interface StudyState {
   practiceLanguage: PracticeLanguage | null;
 }
 
-const LANGUAGES = new Set<LanguageCode>(["en", "zh", "ko", "fr", "ja"]);
+const LANGUAGES = new Set<LanguageCode>(Object.keys(PROFILES) as LanguageCode[]);
 const CORRECTION_KINDS = new Set<Correction["kind"]>(["grammar", "vocabulary", "other"]);
 const PRONUNCIATION_ISSUES = new Set<PronunciationNote["issue"]>([
   "tone",

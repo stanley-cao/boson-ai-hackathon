@@ -53,10 +53,39 @@ const zh: LanguageProfile = {
   sampleOpeners: ["你好！今天想聊什么？", "你今天过得怎么样？", "我们用中文聊聊天吧！"],
 };
 
-// `satisfies` rather than a `Record<LanguageCode, …>` annotation: only two
-// languages exist yet, and this keeps the keys literal so `PROFILES.zh` is
-// known to be defined.
-export const PROFILES = { en, zh } satisfies Partial<Record<LanguageCode, LanguageProfile>>;
+const ko: LanguageProfile = {
+  code: "ko",
+  name: "Korean",
+  script: "Hang",
+  romanization: "revised",
+  promptNotes: "Write Korean in Hangul and use Revised Romanization in tool arguments.",
+  sampleOpeners: ["안녕하세요! 오늘은 무엇을 연습하고 싶어요?", "오늘 하루는 어땠어요?"],
+};
+
+const fr: LanguageProfile = {
+  code: "fr",
+  name: "French",
+  script: "Latn",
+  promptNotes: "Use clear, natural French and briefly point out important gender and agreement errors.",
+  sampleOpeners: ["Bonjour ! Qu’est-ce que vous aimeriez pratiquer aujourd’hui ?", "Comment s’est passée votre journée ?"],
+};
+
+const ja: LanguageProfile = {
+  code: "ja",
+  name: "Japanese",
+  script: "Jpan",
+  romanization: "hepburn",
+  promptNotes: "Write Japanese in its natural mix of kanji and kana, with Hepburn romanization in tool arguments.",
+  sampleOpeners: ["こんにちは！今日は何を練習したいですか？", "今日はどんな一日でしたか？"],
+};
+
+export const PROFILES = { en, zh, ko, fr, ja } satisfies Partial<
+  Record<LanguageCode, LanguageProfile>
+>;
+
+export type ProfileCode = keyof typeof PROFILES;
+export type TargetLanguageCode = Exclude<ProfileCode, "en">;
+export const TARGET_LANGUAGE_CODES = ["zh", "ko", "fr", "ja"] as const satisfies readonly TargetLanguageCode[];
 
 export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;

@@ -16,7 +16,14 @@ import {
   levelChangeFromTool,
   planPaceChange,
 } from "./sessionConfig";
-import { ACTIVE_LEVEL, LEARNER_LEVELS, type LearnerLevel } from "../lang/profiles";
+import {
+  ACTIVE_LEVEL,
+  ACTIVE_PAIR,
+  LEARNER_LEVELS,
+  PROFILES,
+  type LearnerLevel,
+  type TargetLanguageCode,
+} from "../lang/profiles";
 import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../tools/handlers";
 import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
@@ -126,6 +133,9 @@ export class RealtimeClient {
   /** The learner level the session's current instructions were built for. */
   private level: LearnerLevel = ACTIVE_LEVEL;
 
+  /** Target chosen before connecting; retained across live instruction updates. */
+  private target: TargetLanguageCode = ACTIVE_PAIR.target;
+
   /**
    * ⚠ The single most important line in this file.
    *
@@ -183,7 +193,10 @@ export class RealtimeClient {
    * `level` is the learner's stored level, so a reload doesn't reset them to
    * beginner.
    */
-  async connect(level: LearnerLevel = ACTIVE_LEVEL): Promise<void> {
+  async connect(
+    level: LearnerLevel = ACTIVE_LEVEL,
+    target: TargetLanguageCode = ACTIVE_PAIR.target,
+  ): Promise<void> {
     if (this.connecting || this.state === "open" || this.state === "connecting") {
       this.info("connect() ignored — a connection is already active.");
       return;
@@ -216,12 +229,13 @@ export class RealtimeClient {
     ws.onopen = () => {
       this.connecting = false;
       this.setState("open");
-      this.info(`Socket open — sending session.update (${level} level).`);
+      this.info(`Socket open — sending session.update (${PROFILES[target].name}, ${level} level).`);
       // A new session starts at normal pace; nothing carries over.
       this.level = level;
+      this.target = target;
       this.sessionPace = "normal";
       this.revertPace = null;
-      this.send(buildSessionConfig(LEARNER_LEVELS[level]));
+      this.send(buildSessionConfig(LEARNER_LEVELS[level], PROFILES[target]));
     };
     ws.onmessage = (ev) => this.onMessage(ev);
     ws.onerror = () => this.info("WebSocket error — the close code below has the detail.");
@@ -403,7 +417,7 @@ export class RealtimeClient {
       const level = levelChangeFromTool(name, result, this.level);
       if (level) {
         this.level = level;
-        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace);
+        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace, this.target);
         this.info(`Learner level is now ${level} — updating the session instructions.`);
       }
       if (name === "set_speaking_pace") {
@@ -421,7 +435,7 @@ export class RealtimeClient {
         } else {
           const plan = planPaceChange(request, this.sessionPace);
           this.sessionPace = plan.sessionPace;
-          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send);
+          if (plan.send) batch.sessionUpdate = buildInstructionsUpdate(this.level, plan.send, this.target);
           batch.revertPaceAfterReply = plan.revertAfterReply;
           this.info(`Speaking pace: ${plan.send ?? "unchanged"}${plan.revertAfterReply ? " for one reply" : ""}.`);
         }
@@ -448,7 +462,7 @@ export class RealtimeClient {
     const id = (evt.response as { id?: unknown } | undefined)?.id;
     if (this.revertPace && this.revertPace !== "armed" && this.revertPace.responseId === id) {
       this.revertPace = null;
-      this.send(buildInstructionsUpdate(this.level, this.sessionPace));
+      this.send(buildInstructionsUpdate(this.level, this.sessionPace, this.target));
     }
 
     // ⚠ The double-fire. Tool calls that already arrived via

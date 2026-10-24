@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildSessionConfig, buildTutorPrompt, SYSTEM_PROMPT } from "../src/realtime/sessionConfig";
+import {
+  buildInstructionsUpdate,
+  buildSessionConfig,
+  buildTutorPrompt,
+  SYSTEM_PROMPT,
+} from "../src/realtime/sessionConfig";
 import { LEARNER_LEVELS, PROFILES } from "../src/lang/profiles";
 import { TOOL_DEFINITIONS } from "../src/tools/definitions";
 
@@ -11,7 +16,25 @@ describe("tutor prompt", () => {
   });
 
   it("asks for pinyin with tone marks in tool arguments when the target has romanization", () => {
-    expect(buildTutorPrompt()).toContain("In tool arguments, write Mandarin Chinese with pinyin and tone marks.");
+    expect(buildTutorPrompt()).toContain("use pinyin romanization with tone marks");
+  });
+
+  it("builds target-specific prompts and session configs for every selectable language", () => {
+    expect(buildTutorPrompt(PROFILES.ko)).toContain("learning Korean");
+    expect(buildTutorPrompt(PROFILES.ko)).toContain("revised romanization");
+    expect(buildTutorPrompt(PROFILES.fr)).not.toContain("romanization");
+    expect(buildTutorPrompt(PROFILES.ja)).toContain("hepburn romanization");
+
+    const korean = buildSessionConfig(LEARNER_LEVELS.beginner, PROFILES.ko).session as {
+      instructions: string;
+    };
+    expect(korean.instructions).toContain("learning Korean");
+
+    const refreshed = buildInstructionsUpdate("intermediate", "slow", "ja").session as {
+      instructions: string;
+    };
+    expect(refreshed.instructions).toContain("learning Japanese");
+    expect(refreshed.instructions).toContain("Speak very slowly");
   });
 
   it("mirrors each language explicitly and never asks the learner to pick one", () => {

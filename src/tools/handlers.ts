@@ -1,4 +1,4 @@
-import { PROFILES, type LanguageProfile } from "../lang/profiles";
+import { PROFILES, type LanguageProfile, type ProfileCode } from "../lang/profiles";
 import type { Correction, Phrase, PracticeLanguage, PronunciationNote, ToolDetail } from "./types";
 
 /**
@@ -17,8 +17,6 @@ export interface ToolResult {
   error?: string;
 }
 
-type ProfileCode = keyof typeof PROFILES;
-
 // Names a model is likely to send for each profile. The schema enum says "zh",
 // but models also say the language's name or a locale tag, so both map here.
 const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
@@ -28,6 +26,15 @@ const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
   mandarin: "zh",
   chinese: "zh",
   "mandarin chinese": "zh",
+  ko: "ko",
+  korean: "ko",
+  fr: "fr",
+  french: "fr",
+  français: "fr",
+  francais: "fr",
+  ja: "ja",
+  japanese: "ja",
+  nihongo: "ja",
 };
 
 /**

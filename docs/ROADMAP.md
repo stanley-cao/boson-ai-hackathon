@@ -11,7 +11,7 @@ Update this table in the same PR that finishes a task or a phase.
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
 | 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
 | 2 | Depth and polish (levels, TTS replay, recap) | 🟨 in progress | | |
-| 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
+| 3 | More languages; LiveKit spike to de-risk the avatar | 🟨 in progress | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
 | 5 | Demo video and submission | ⬜ not started | | |
 
@@ -123,7 +123,7 @@ Agree on these first. Changing them requires a decision-log entry.
 
 ## Phase 3: More languages, and de-risking the avatar
 
-- [ ] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI). (#29)
+- [x] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI). (#29) — @dorsa-molaverdikhani
 - [ ] **A:** add an `sr` (Serbian) profile, written in Latin script like French. (#86)
 - [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
 - [ ] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
@@ -185,6 +185,7 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 
 | Date | Decision | Why |
 | --- | --- | --- |
+| 2026-10-24 | The language picker selects a target profile before connection; that target is passed into the initial session config and retained across learner-level and pace instruction updates. `ACTIVE_PAIR` remains the default rather than mutable global state (#29). | This keeps profiles as config while preventing a later instructions-only update from silently resetting a Korean, French, or Japanese session to Mandarin. The picker is locked during an active connection so its visible value cannot diverge from the live session. |
 | 2026-10-23 | Mandarin is the first target language, paired with English. | The team chose it. Tone feedback makes a strong showcase, and Han vs. Latin text makes code-switches visible. |
 | 2026-10-23 | Realtime avatar requires LiveKit Cloud, so the prompt and tools stay portable (`shared/session.json`), and a LiveKit spike starts during Phase 1–2. | Higgs Avatar realtime sessions only join LiveKit Cloud rooms, so the browser-direct WebSocket can't drive the avatar. |
 | 2026-10-23 | Transcription uses no fixed language. | A fixed language breaks transcription of code-switched speech. |
