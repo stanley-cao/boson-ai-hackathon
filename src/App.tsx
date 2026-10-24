@@ -159,13 +159,17 @@ export default function App() {
       return;
     }
     try {
-      await avatarRef.current!.connect();
+      await avatarRef.current!.connect(targetLanguage, learnerLevelFor(storedLevel));
     } catch (e) {
       // The fallback (#35): no capacity, no LiveKit, or no room. Not saved, so
       // the next visit tries the avatar again.
       const code = e instanceof AvatarUnavailableError ? e.code : String(e);
       setMode("direct");
-      setCloseMessage(`Avatar unavailable (${code}). Switched to voice only: press Connect.`);
+      setCloseMessage(
+        code === "agent_not_running"
+          ? "The avatar's tutor agent isn't running (start it with `npm run dev:agent`). Switched to voice only: press Connect."
+          : `Avatar unavailable (${code}). Switched to voice only: press Connect.`,
+      );
     }
   }, [mode, storedLevel, targetLanguage]);
 
@@ -189,9 +193,9 @@ export default function App() {
 
   const isOpen = connection === "open";
   const busy = connection === "connecting" || isOpen;
-  // The agent starts from shared/session.json's default pair and doesn't hear
-  // the picker, so avatar mode shows that language until the model switches.
-  const sessionLanguage = mode === "avatar" ? ACTIVE_PAIR.target : targetLanguage;
+  // Both modes start the session in the picked language: avatar mode passes
+  // it to the agent through the room token.
+  const sessionLanguage = targetLanguage;
 
   // A failed write is deliberately ignored so private browsing cannot break
   // the current session. Restored details live in the transcript as hidden
@@ -243,7 +247,7 @@ export default function App() {
           <div className="row">
             <LanguagePicker
               value={sessionLanguage}
-              disabled={busy || mode === "avatar"}
+              disabled={busy}
               onChange={setTargetLanguage}
             />
             <ModeToggle value={mode} disabled={busy} onChange={changeMode} />

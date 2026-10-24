@@ -7,13 +7,15 @@ import type { ConnectionState } from "../src/realtime/RealtimeClient";
 const TOKEN = { url: "wss://polyglot.livekit.cloud", room: "polyglot-0123456789ab", identity: "learner-1", token: "jwt" };
 
 /** Records the order of every call the session makes on the room. */
-function fakeRoom(calls: string[]) {
+function fakeRoom(calls: string[], participants = ["polyglot-tutor"]) {
   const room = {
+    remoteParticipants: new Map(participants.map((identity) => [identity, { identity }])),
     registerRpcMethod: (method: string) => calls.push(`rpc:${method}`),
     unregisterRpcMethod: (method: string) => calls.push(`unrpc:${method}`),
     registerTextStreamHandler: (topic: string) => calls.push(`text:${topic}`),
     unregisterTextStreamHandler: (topic: string) => calls.push(`untext:${topic}`),
     on: () => room,
+    off: () => room,
     connect: async () => void calls.push("connect"),
     startAudio: async () => {},
     disconnect: async () => void calls.push("disconnect"),
@@ -65,6 +67,9 @@ describe("AvatarSession", () => {
     ]);
     const avatarCall = fetchImpl.mock.calls.find(([url]) => url === "/api/avatar/sessions");
     expect(JSON.parse(String(avatarCall?.[1]?.body))).toEqual({ room: TOKEN.room });
+    // No choice passed: the server falls back to the default pair.
+    const tokenCall = fetchImpl.mock.calls.find(([url]) => url === "/api/livekit/token");
+    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({});
 
     calls.length = 0;
     await session.close();
@@ -77,6 +82,36 @@ describe("AvatarSession", () => {
     calls.length = 0;
     await session.close();
     expect(calls).toEqual([]);
+  });
+
+  it("asks for a room in the picked language and level", async () => {
+    const { session, fetchImpl } = setup(() => json(201, { id: "as_1", status: "active" }));
+    await session.connect("ko", "intermediate");
+    const tokenCall = fetchImpl.mock.calls.find(([url]) => url === "/api/livekit/token");
+    expect(JSON.parse(String(tokenCall?.[1]?.body))).toEqual({ language: "ko", level: "intermediate" });
+    await session.close();
+  });
+
+  it("leaves without an avatar when no agent joins the room", async () => {
+    const calls: string[] = [];
+    const states: ConnectionState[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+      return json(200, TOKEN);
+    });
+    const session = new AvatarSession({
+      fetchImpl: fetchImpl as typeof fetch,
+      createRoom: () => fakeRoom(calls, []),
+      agentJoinTimeoutMs: 5,
+      onConnectionState: (s) => states.push(s),
+    });
+
+    const error = await session.connect().catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "agent_not_running" });
+    // The avatar was never created, so no slot is held.
+    expect(calls).not.toContain("POST /api/avatar/sessions");
+    expect(calls).toContain("disconnect");
+    expect(states).toEqual(["connecting", "closed"]);
   });
 
   it("leaves the room and reports the code when the avatar has no capacity", async () => {

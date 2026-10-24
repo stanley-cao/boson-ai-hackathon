@@ -6,9 +6,11 @@ import {
   Track,
   createAudioAnalyser,
   type LocalAudioTrack,
+  type RemoteParticipant,
   type RemoteTrack,
   type RemoteVideoTrack,
 } from "livekit-client";
+import type { LearnerLevel, TargetLanguageCode } from "../lang/profiles";
 import type { ServerEvent } from "../realtime/events";
 import type { Activity, ConnectionState, LogEntry } from "../realtime/RealtimeClient";
 import { registerToolRpc } from "./toolRpc";
@@ -36,6 +38,11 @@ import {
 /** The typed-text input LiveKit Agents listens on by default. */
 const CHAT_TOPIC = "lk.chat";
 const METER_INTERVAL_MS = 100;
+// The identity livekit/agent.py joins as (AGENT_IDENTITY in server/avatar.ts).
+const AGENT_IDENTITY = "polyglot-tutor";
+// The agent joined ~1.5 s after the learner in live runs. Without it the
+// avatar would stand there silent and nothing would hear the mic.
+const AGENT_JOIN_TIMEOUT_MS = 10_000;
 
 export interface AvatarCallbacks {
   onConnectionState?: (s: ConnectionState) => void;
@@ -54,6 +61,7 @@ export interface AvatarSessionOptions extends AvatarCallbacks {
   /** For tests. */
   fetchImpl?: typeof fetch;
   createRoom?: () => Room;
+  agentJoinTimeoutMs?: number;
 }
 
 /**
@@ -91,6 +99,7 @@ export class AvatarSession {
   private readonly cb: AvatarCallbacks;
   private readonly fetchImpl: typeof fetch;
   private readonly createRoom: () => Room;
+  private readonly agentJoinTimeoutMs: number;
 
   private room: Room | null = null;
   private sessionId: string | null = null;
@@ -102,8 +111,9 @@ export class AvatarSession {
   private meter: { timer: ReturnType<typeof setInterval>; cleanup: () => Promise<void> } | null = null;
   private mic = false;
 
-  constructor({ fetchImpl, createRoom, ...callbacks }: AvatarSessionOptions = {}) {
+  constructor({ fetchImpl, createRoom, agentJoinTimeoutMs, ...callbacks }: AvatarSessionOptions = {}) {
     this.cb = callbacks;
+    this.agentJoinTimeoutMs = agentJoinTimeoutMs ?? AGENT_JOIN_TIMEOUT_MS;
     // Bound, because a bare window.fetch throws "Illegal invocation".
     this.fetchImpl = fetchImpl ?? ((input, init) => fetch(input, init));
     this.createRoom = createRoom ?? (() => new Room({ adaptiveStream: true, dynacast: true }));
@@ -118,11 +128,13 @@ export class AvatarSession {
   }
 
   /**
-   * Join a fresh room, publish the mic, then add the avatar. Throws
-   * AvatarUnavailableError, after leaving the room, if any step fails.
-   * Resolves quietly if the learner disconnects before it finishes.
+   * Join a fresh room, publish the mic, wait for the agent, then add the
+   * avatar. Throws AvatarUnavailableError, after leaving the room, if any step
+   * fails (`agent_not_running` when no agent joins). Resolves quietly if the
+   * learner disconnects before it finishes. The language and level pick the
+   * agent's prompt, through the room token (server/avatar.ts).
    */
-  async connect(): Promise<void> {
+  async connect(language?: TargetLanguageCode, level?: LearnerLevel): Promise<void> {
     if (this.room) {
       this.info("connect() ignored — a room is already joined.");
       return;
@@ -136,7 +148,7 @@ export class AvatarSession {
     const cancelled = () => this.room !== room;
 
     try {
-      const lk = await this.post<LiveKitToken>("/api/livekit/token");
+      const lk = await this.post<LiveKitToken>("/api/livekit/token", { language, level });
       if (cancelled()) return;
       const emit = (evt: ServerEvent) => this.cb.onServerEvent?.(evt);
       // Both handlers go on before connecting: the agent greets, and may call
@@ -154,6 +166,11 @@ export class AvatarSession {
       await room.startAudio();
       await this.setMic(true);
       if (cancelled()) return;
+
+      // Before the avatar, so a missing agent doesn't hold an avatar slot.
+      const agentJoined = await this.waitForAgent(room);
+      if (cancelled()) return;
+      if (!agentJoined) throw new AvatarUnavailableError("agent_not_running");
 
       // Only now: Boson ends a session once no other participant is left.
       const session = await this.post<AvatarSessionView>("/api/avatar/sessions", { room: lk.room });
@@ -214,6 +231,23 @@ export class AvatarSession {
   }
 
   // --- internals -------------------------------------------------------------
+
+  /** True once the tutor agent is in the room; false after the timeout. */
+  private waitForAgent(room: Room): Promise<boolean> {
+    if (room.remoteParticipants.has(AGENT_IDENTITY)) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const onJoin = (p: RemoteParticipant) => {
+        if (p.identity === AGENT_IDENTITY) done(true);
+      };
+      const timer = setTimeout(() => done(false), this.agentJoinTimeoutMs);
+      const done = (joined: boolean) => {
+        clearTimeout(timer);
+        room.off(RoomEvent.ParticipantConnected, onJoin);
+        resolve(joined);
+      };
+      room.on(RoomEvent.ParticipantConnected, onJoin);
+    });
+  }
 
   private listen(room: Room): void {
     room

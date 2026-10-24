@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from session_config import load_session, model_kwargs
+from session_config import instructions_for, load_prompts, load_session, model_kwargs
 from tools import STAND_IN_SUMMARY, build_tools
 
 
@@ -64,3 +64,16 @@ def test_plugin_sends_the_browsers_audio_config(session: dict[str, Any]) -> None
     assert opts.turn_detection == session["audio"]["input"]["turn_detection"]
     assert opts.input_audio_transcription == session["audio"]["input"]["transcription"]
     assert "language" not in opts.input_audio_transcription
+
+
+def test_instructions_follow_the_learners_choice(session: dict[str, Any]) -> None:
+    prompts = load_prompts()
+    chosen = instructions_for('{"language": "ko", "level": "intermediate"}', prompts, session["instructions"])
+    assert chosen == prompts["ko"]["intermediate"]
+    assert "Korean" in chosen
+
+
+@pytest.mark.parametrize("metadata", ["", "not json", "[]", '{"language": "xx", "level": "beginner"}'])
+def test_instructions_fall_back_to_the_default(session: dict[str, Any], metadata: str) -> None:
+    # Playground and probe.py participants have no metadata; that isn't an error.
+    assert instructions_for(metadata, load_prompts(), session["instructions"]) == session["instructions"]

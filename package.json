@@ -8,6 +8,8 @@
     "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
+    "dev:agent": "cd livekit && uv run agent.py dev",
+    "dev:avatar": "concurrently -n server,client,agent -c blue,green,magenta \"npm:dev:server\" \"npm:dev:client\" \"npm:dev:agent\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",

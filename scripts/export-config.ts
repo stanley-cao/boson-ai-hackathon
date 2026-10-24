@@ -7,12 +7,20 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSessionConfig } from "../src/realtime/sessionConfig";
+import { buildSessionConfig, buildTutorPrompts } from "../src/realtime/sessionConfig";
 
-const out = resolve(dirname(fileURLToPath(import.meta.url)), "../shared/session.json");
+const shared = resolve(dirname(fileURLToPath(import.meta.url)), "../shared");
 
+function write(name: string, value: unknown): void {
+  const out = resolve(shared, name);
+  writeFileSync(out, JSON.stringify(value, null, 2) + "\n");
+  console.log(`wrote ${out}`);
+}
+
+mkdirSync(shared, { recursive: true });
 // Only the `session` object, at the default pair, level and pace: the agent's
 // plugin builds its own session.update around it.
-mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, JSON.stringify(buildSessionConfig().session, null, 2) + "\n");
-console.log(`wrote ${out}`);
+write("session.json", buildSessionConfig().session);
+// The prompt for every target language and level, so the agent can run the
+// pair the learner picked in the browser (avatar mode).
+write("prompts.json", buildTutorPrompts());

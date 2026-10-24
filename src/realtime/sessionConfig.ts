@@ -6,6 +6,7 @@ import {
   ACTIVE_PAIR,
   LEARNER_LEVELS,
   PROFILES,
+  TARGET_LANGUAGE_CODES,
   learnerLevelFor,
   type LanguageProfile,
   type TargetLanguageCode,
@@ -91,6 +92,22 @@ export const SLOW_PACE_NOTE =
   "Speak very slowly now, at about half your normal speed, with a short pause between words.";
 
 export const SYSTEM_PROMPT = buildTutorPrompt();
+
+/**
+ * Every target language's prompt at every level, at normal pace, keyed
+ * `[language][level]`. Exported to shared/prompts.json for the LiveKit agent,
+ * which picks the learner's choice from their room token (avatar mode).
+ */
+export function buildTutorPrompts(): Record<TargetLanguageCode, Record<LearnerLevel, string>> {
+  const prompts = {} as Record<TargetLanguageCode, Record<LearnerLevel, string>>;
+  for (const code of TARGET_LANGUAGE_CODES) {
+    prompts[code] = {
+      beginner: buildTutorPrompt(PROFILES[code], PROFILES[ACTIVE_PAIR.native], LEARNER_LEVELS.beginner),
+      intermediate: buildTutorPrompt(PROFILES[code], PROFILES[ACTIVE_PAIR.native], LEARNER_LEVELS.intermediate),
+    };
+  }
+  return prompts;
+}
 
 /**
  * PCM16 at 24 kHz, both directions.
