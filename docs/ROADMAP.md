@@ -114,7 +114,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [x] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24) (@dorsa-molaverdikhani)
 - [x] **D:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side. (#25) (@lanazgonjanin)
 - [ ] **C:** a replay button on study cards. (#26)
-- [ ] **C:** an end-of-session recap screen. (#27)
+- [x] **C:** an end-of-session recap screen. (#27) (@dorsa-molaverdikhani)
 - [x] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28) (@lanazgonjanin)
 
 **Exit criteria:** a beginner can hold a slow conversation, replay any saved phrase, and see a recap at the end.

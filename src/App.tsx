@@ -22,6 +22,11 @@ import {
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
 import { PracticeBadge } from "./ui/PracticeBadge";
+import {
+  INITIAL_RECAP_VISIBILITY,
+  SessionRecap,
+  recapVisibilityAfterConnection,
+} from "./ui/SessionRecap";
 import { StatusBar } from "./ui/StatusBar";
 import { StudyPanel } from "./ui/StudyPanel";
 import { TranscriptPanel } from "./ui/TranscriptPanel";
@@ -46,13 +51,21 @@ export default function App() {
   const [micActive, setMicActive] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
+  const [recapVisibility, setRecapVisibility] = useState(INITIAL_RECAP_VISIBILITY);
+
+  // A failed connection attempt is not a session. Remember that the socket
+  // actually opened before treating a later close as the end of one.
+  const handleConnectionState = useCallback((next: ConnectionState) => {
+    setConnection(next);
+    setRecapVisibility((current) => recapVisibilityAfterConnection(current, next));
+  }, []);
 
   // The client outlives re-renders, so it lives in a ref rather than state.
   const clientRef = useRef<RealtimeClient | null>(null);
   if (!clientRef.current) {
     clientRef.current = new RealtimeClient({
       tokenProvider: fetchToken,
-      onConnectionState: setConnection,
+      onConnectionState: handleConnectionState,
       onActivity: setActivity,
       onLog: (entry) => setLog((l) => [...l, entry]),
       onClose: (info) => setCloseMessage(info.message),
@@ -126,45 +139,56 @@ export default function App() {
       </p>
 
       <StatusBar connection={connection} activity={activity} closeMessage={closeMessage} />
-      <PracticeBadge practice={study.practiceLanguage} />
+      {recapVisibility.visible ? (
+        <SessionRecap
+          state={transcript}
+          onContinue={() =>
+            setRecapVisibility((current) => ({ ...current, visible: false }))
+          }
+        />
+      ) : (
+        <>
+          <PracticeBadge practice={study.practiceLanguage} />
 
-      <div className="row">
-        <button onClick={connect} disabled={connection === "connecting" || isOpen}>
-          {connection === "connecting" ? "Connecting…" : "Connect"}
-        </button>
-        <button onClick={() => clientRef.current!.disconnect()} disabled={!isOpen}>
-          Disconnect
-        </button>
-      </div>
+          <div className="row">
+            <button onClick={connect} disabled={connection === "connecting" || isOpen}>
+              {connection === "connecting" ? "Connecting…" : "Connect"}
+            </button>
+            <button onClick={() => clientRef.current!.disconnect()} disabled={!isOpen}>
+              Disconnect
+            </button>
+          </div>
 
-      <MicButton
-        active={micActive}
-        level={micLevel}
-        disabled={!isOpen}
-        onToggle={toggleMic}
-      />
-      {micError && <p className="error">{micError}</p>}
-
-      <details className="typed">
-        <summary>…or type instead (Part 1's path, still here)</summary>
-        <div className="row">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && isOpen && send()}
-            placeholder="Type something for the model to say back…"
+          <MicButton
+            active={micActive}
+            level={micLevel}
             disabled={!isOpen}
+            onToggle={toggleMic}
           />
-          <button onClick={send} disabled={!isOpen}>
-            Send
-          </button>
-        </div>
-      </details>
+          {micError && <p className="error">{micError}</p>}
 
-      <div className="workspace">
-        <TranscriptPanel state={transcript} />
-        <StudyPanel state={transcript} onClear={clearStudy} />
-      </div>
+          <details className="typed">
+            <summary>…or type instead (Part 1's path, still here)</summary>
+            <div className="row">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && isOpen && send()}
+                placeholder="Type something for the model to say back…"
+                disabled={!isOpen}
+              />
+              <button onClick={send} disabled={!isOpen}>
+                Send
+              </button>
+            </div>
+          </details>
+
+          <div className="workspace">
+            <TranscriptPanel state={transcript} />
+            <StudyPanel state={transcript} onClear={clearStudy} />
+          </div>
+        </>
+      )}
 
       <DebugDrawer entries={log} />
     </main>
