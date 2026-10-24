@@ -29,7 +29,7 @@ npm run probe -- --say "hello there"   # headless session, prints every event
 
 ## Layout
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together and where to make changes.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together and where to make changes. See [docs/ROADMAP.md](docs/ROADMAP.md) for the build plan, phases, and who owns what.
 
 | Path | What |
 | --- | --- |

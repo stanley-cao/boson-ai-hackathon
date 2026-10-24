@@ -47,6 +47,10 @@ Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `
 | `server/index.ts` | Express token server: `/api/token` mints ephemeral keys |
 | `tools/probe.ts` | Headless CLI client for debugging the protocol |
 
+## Roadmap and workflow
+
+The project is built in phases (0–5) across four tracks (A: conversation and model, B: tools, C: frontend, D: infra, avatar and demo). **Read `docs/ROADMAP.md` before starting work.** It has the status table, the claimable task checklists, the file ownership per track, the shared contracts, and the per-phase exit criteria. When you finish a task, tick it and update the status table in the same PR. Record any change to a shared contract in its decision log.
+
 ## Invariants: don't break these
 
 - **The API key never reaches the browser.** The browser only gets short-lived `bai-eph-…` keys from `/api/token`. Never commit `.env` or any key.
