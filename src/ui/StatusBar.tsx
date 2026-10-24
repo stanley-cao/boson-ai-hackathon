@@ -10,7 +10,7 @@ export function StatusBar({
   closeMessage: string | null;
 }) {
   return (
-    <div className="status" role="status" aria-live="polite">
+    <div className="status">
       <span className={`dot dot-${connection}`} aria-hidden />
       <span className="status-text">
         {connection}

@@ -115,7 +115,7 @@ Agree on these first. Changing them requires a decision-log entry.
 - [x] **D:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side. (#25) (@lanazgonjanin)
 - [ ] **C:** a replay button on study cards. (#26)
 - [ ] **C:** an end-of-session recap screen. (#27)
-- [x] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28) (@lanazgonjanin)
+- [ ] **D:** choose a voice that handles Mandarin well (`audio.output.voice`, from the voice library), and add friendly error messages for close codes 3000, 4429 and 1013. (#28)
 
 **Exit criteria:** a beginner can hold a slow conversation, replay any saved phrase, and see a recap at the end.
 
@@ -199,4 +199,3 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-24 | Don't run `scripts/smoke.sh` for issues or PRs; it stays in `scripts/` for when someone asks for a run. A change is verified with `npm test && npm run typecheck && npm run build`, plus one `npm run probe` run when it touches a tool, the prompt, session config or the protocol. | A smoke run makes four live probe sessions and takes minutes, which cost more time per ticket than it saved. |
 | 2026-10-24 | Persist a versioned, runtime-validated `StudyState` snapshot in `localStorage`, then rehydrate it as restored tool items that are hidden from the conversation view. | Saved learning data survives reloads without creating a parallel UI store: the study panel and practice badge remain derived from transcript state, and blocked or corrupt storage safely behaves as empty. |
 | 2026-10-24 | An issue's PR needs only `npm test && npm run build`, plus unit tests for new logic. Live runs (`npm run probe`, `scripts/smoke.sh`) happen only when the issue asks, and a phase's **Verification** steps are for its exit. Agents commit, push and open PRs without asking; `.claude/settings.json` allows those commands, while pushes to `main` and force-pushes still prompt. Supersedes the earlier 2026-10-24 entry on smoke runs. | Tests and confirmation prompts were costing more time per ticket than they saved. The build already runs `tsc -b`, so a separate typecheck repeated it. |
-| 2026-10-24 | Use the `eleanor` preset for Realtime output, provisionally pending a live Mandarin listening check. | Boson's voice library describes Eleanor as calm, articulate and designed for educational explanations, which fits a language tutor; named TTS presets are supported by `audio.output.voice`. |
