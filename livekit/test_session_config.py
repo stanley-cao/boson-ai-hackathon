@@ -1,4 +1,4 @@
-"""Unit tests for the agent's config loading and stand-in tools. No network, no keys."""
+"""Unit tests for the agent's config loading and tool schemas. No network, no keys."""
 
 import asyncio
 from pathlib import Path

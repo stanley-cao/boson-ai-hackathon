@@ -44,7 +44,8 @@ Keep testing light. These are the only checks an issue or PR requires:
 | `src/realtime/events.ts` | Server event names, client event builders, and close-code meanings |
 | `src/tools/definitions.ts` | Tool JSON schemas sent to the model |
 | `src/tools/handlers.ts` | Tool implementations |
-| `src/tools/registry.ts` | `dispatch(name, args)`, shared by the browser and probe |
+| `src/tools/registry.ts` | `dispatch(name, args)`, shared by the browser and probe; `runTool` never throws, for transports |
+| `src/livekit/toolRpc.ts` | LiveKit mode: answers the agent's `polyglot.run_tool` RPC through the registry and feeds the transcript |
 | `src/state/transcriptStore.ts` | Pure reducer: event stream to ordered transcript |
 | `src/audio/` | Microphone capture/resampling to PCM16 and AudioWorklet playback |
 | `src/App.tsx`, `src/ui/` | React UI; there is no state-management library |
