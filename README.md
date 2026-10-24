@@ -27,6 +27,19 @@ npm run build
 npm run probe -- --say "hello there"   # headless session, prints every event
 ```
 
+## LiveKit mode (spike)
+
+The same tutor as a [LiveKit Agents](https://docs.livekit.io/agents/) worker, which is the path to Higgs Avatar (Phase 4). It reads its prompt, voice, VAD, transcription and tool schemas from `shared/session.json` (`npm run export-config`). Tool calls are only logged for now; forwarding them to the browser's study panel is #32. It needs [uv](https://docs.astral.sh/uv/) and a [LiveKit Cloud](https://cloud.livekit.io) project: the avatar refuses self-hosted LiveKit.
+
+```bash
+cd livekit
+cp .env.example .env      # BOSON_API_KEY plus the LiveKit Cloud URL, key and secret
+uv sync
+uv run agent.py dev       # join rooms; talk to it in the LiveKit Agents Playground
+uv run probe.py --say "What does 加油 mean?"   # headless: joins a room, types a turn, prints replies
+uv run pytest             # unit tests, no keys needed
+```
+
 ## Layout
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together and where to make changes. See [docs/ROADMAP.md](docs/ROADMAP.md) for the build plan, phases, and who owns what.
@@ -40,10 +53,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 | `src/state/` | Transcript reducer (event stream → ordered turns) |
 | `src/ui/` | React components |
 | `tools/probe.ts` | Headless debugging client (uses Higgs TTS to "speak" test turns) |
+| `shared/session.json` | The session config exported for the LiveKit agent (`npm run export-config`) |
+| `livekit/` | Python LiveKit voice agent and its probe |
 
 ## Credits
 
-The realtime client, audio pipeline, token server and probe are adapted from Boson AI's [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0, commit `87f1ae8`). See `NOTICE` and `LICENSES/`.
+The realtime client, audio pipeline, token server, probe and LiveKit agent are adapted from Boson AI's [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0, commit `87f1ae8`). See `NOTICE` and `LICENSES/`.
 
 ## Submission checklist
 

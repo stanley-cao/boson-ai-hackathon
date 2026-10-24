@@ -128,10 +128,10 @@ Agree on these first. Changing them requires a decision-log entry.
 - [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
 - [x] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
 - [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
-  - Copy `livekit/` from [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0) and extend `NOTICE` to cover it.
-  - Create a LiveKit Cloud project. Self-hosted LiveKit is refused by the avatar API.
-  - Load `shared/session.json` in the agent.
-  - Get a voice-only conversation working through LiveKit.
+  - [x] Copy `livekit/` from [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0) and extend `NOTICE` to cover it.
+  - [ ] Create a LiveKit Cloud project. Self-hosted LiveKit is refused by the avatar API.
+  - [x] Load `shared/session.json` in the agent. Tool calls get a stand-in result until #32.
+  - [ ] Get a voice-only conversation working through LiveKit.
 - [ ] **B:** make tool execution transport-agnostic. In LiveKit mode the agent receives the tool calls and forwards them to the browser over a LiveKit data channel or RPC. The browser runs `registry.dispatch` and returns the result, so the study panel works unchanged. (#32)
 
 **Exit criteria:** the same conversation, with working tools and study panel, runs both in direct-WebSocket mode and through LiveKit.
