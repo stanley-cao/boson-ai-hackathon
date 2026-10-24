@@ -15,6 +15,7 @@ LANGUAGE_NAMES = {
     "fr": ("french",),
     "ja": ("japanese",),
     "sr": ("serbian",),
+    "vi": ("vietnamese",),
 }
 
 # A switch needs a verb aimed at the language, so "how do you say hello in
