@@ -1,4 +1,10 @@
-import { PROFILES, type LanguageProfile, type ProfileCode } from "../lang/profiles";
+import {
+  PROFILES,
+  SCRIPT_PATTERNS,
+  TARGET_LANGUAGE_CODES,
+  type ProfileCode,
+  type TargetLanguageCode,
+} from "../lang/profiles";
 import type {
   Correction,
   Phrase,
@@ -24,32 +30,67 @@ export interface ToolResult {
   error?: string;
 }
 
-// Names a model is likely to send for each profile. The schema enum says "zh",
-// but models also say the language's name or a locale tag, so both map here.
-const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
-  en: "en",
-  english: "en",
-  zh: "zh",
-  mandarin: "zh",
-  chinese: "zh",
-  "mandarin chinese": "zh",
-  ko: "ko",
-  korean: "ko",
-  fr: "fr",
-  french: "fr",
-  français: "fr",
-  francais: "fr",
-  ja: "ja",
-  japanese: "ja",
-  nihongo: "ja",
-  sr: "sr",
-  serbian: "sr",
-  srpski: "sr",
-  vi: "vi",
-  vietnamese: "vi",
-  "tiếng việt": "vi",
-  "tieng viet": "vi",
+// Names for a profile besides its own English name: what the language calls
+// itself, and other English names for it ("Farsi", "Slovenian").
+const EXTRA_NAMES: Partial<Record<ProfileCode, string[]>> = {
+  zh: ["mandarin", "chinese"],
+  fr: ["français"],
+  ja: ["nihongo"],
+  sr: ["srpski"],
+  vi: ["tiếng việt"],
+  ckb: ["kurdish", "sorani"],
+  de: ["deutsch"],
+  es: ["español", "castilian"],
+  fa: ["farsi"],
+  ht: ["haitian", "kreyòl"],
+  id: ["bahasa indonesia"],
+  ky: ["kirghiz"],
+  luo: ["dholuo"],
+  mhr: ["meadow mari"],
+  ms: ["bahasa melayu"],
+  no: ["norsk", "bokmål"],
+  nso: ["northern sotho"],
+  pt: ["português"],
+  sl: ["slovenian"],
+  sw: ["kiswahili"],
+  tl: ["filipino"],
+  ug: ["uighur"],
+  xh: ["isixhosa"],
+  zu: ["isizulu"],
 };
+
+// "Māori" -> "maori", "tiếng việt" -> "tieng viet": a name typed or sent
+// without its accents still counts.
+const withoutMarks = (name: string): string => name.normalize("NFD").replace(/\p{M}/gu, "");
+
+/**
+ * Every name for each profile, lowercase, with and without accents. Codes are
+ * left out on purpose: the LiveKit agent matches these in speech (exported to
+ * shared/languages.json), where "it" or "no" is an ordinary word.
+ */
+export const LANGUAGE_NAMES = Object.fromEntries(
+  Object.values(PROFILES).map((profile) => {
+    const names = [profile.name, ...(EXTRA_NAMES[profile.code] ?? [])].map((n) => n.toLowerCase());
+    return [profile.code, [...new Set(names.flatMap((n) => [n, withoutMarks(n)]))]];
+  }),
+) as Record<ProfileCode, string[]>;
+
+/** The names of every target language, for shared/languages.json (LiveKit agent). */
+export function targetLanguageNames(): Record<TargetLanguageCode, string[]> {
+  return Object.fromEntries(TARGET_LANGUAGE_CODES.map((code) => [code, LANGUAGE_NAMES[code]])) as Record<
+    TargetLanguageCode,
+    string[]
+  >;
+}
+
+// What a model may send for each profile. The schema enum says "zh", but
+// models also say the language's name or a locale tag, so both map here.
+const LANGUAGE_ALIASES: Record<string, ProfileCode> = Object.fromEntries(
+  (Object.entries(LANGUAGE_NAMES) as [ProfileCode, string[]][]).flatMap(([code, names]) => [
+    [code, code],
+    ...names.map((name) => [name, code]),
+  ]),
+);
 
 /**
  * Normalise a language argument to a profile code, or `null` if we don't
@@ -110,13 +151,6 @@ function comparable(text: string): string {
   return text.normalize("NFC").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
-// A character of each non-Latin profile script, and what to call the script
-// when asking the model to write in it. Japanese mixes kanji and kana.
-const SCRIPTS: Partial<Record<LanguageProfile["script"], { pattern: RegExp; name: string }>> = {
-  Hans: { pattern: /\p{Script=Han}/u, name: "Chinese characters" },
-  Hang: { pattern: /\p{Script=Hangul}/u, name: "Hangul" },
-  Jpan: { pattern: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, name: "Japanese script" },
-};
 
 /**
  * Record a correction for the study panel.
@@ -161,7 +195,7 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
   }
 
   // A summary naming the right script lets the model retry the call.
-  const script = SCRIPTS[PROFILES[language].script];
+  const script = SCRIPT_PATTERNS[PROFILES[language].script];
   if (script && !script.pattern.test(correct)) {
     return {
       summary: `Correction not saved: write the corrected version in ${script.name}, and put the romanization in romanization.`,
@@ -211,17 +245,15 @@ function normalizeLevel(raw: unknown): PracticeLanguage["level"] {
  * Switch the language or level being practised, for the "practising" badge.
  *
  * A language without a profile is an error rather than a silent switch: the
- * tutor has no teaching notes for it yet, and the summary names the languages
- * it does have, so the model can offer those instead.
+ * tutor has no teaching notes for it yet. The summary doesn't list the ones it
+ * has, because 85 names would be read aloud; the schema's enum already lists them.
  */
 export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
   const language = normalizeLanguage(args.language);
   if (!language) {
-    const names = Object.values(PROFILES)
-      .map((p) => p.name)
-      .join(" or ");
     return {
-      summary: `That language isn't available yet. The learner can practise ${names}.`,
+      summary:
+        "That language isn't available yet. Tell the learner in a few words, and offer a close language you can teach instead.",
       error: "unknown_language",
     };
   }
@@ -270,15 +302,16 @@ const NON_TONAL_TERMS: Partial<Record<PronunciationIssue, PronunciationIssue>> =
   final: "vowel",
   tone: "pitch",
 };
-const ISSUE_TERMS: Record<ProfileCode, Partial<Record<PronunciationIssue, PronunciationIssue>>> = {
-  en: NON_TONAL_TERMS,
-  zh: MANDARIN_TERMS,
-  ko: NON_TONAL_TERMS,
-  fr: NON_TONAL_TERMS,
-  ja: NON_TONAL_TERMS,
-  sr: NON_TONAL_TERMS,
-  vi: TONAL_TERMS,
-};
+// Languages where pitch tells words apart, so a "pitch" note is filed as tone.
+// Every other language besides Mandarin uses the non-tonal terms.
+const TONAL_LANGUAGES: ReadonlySet<ProfileCode> = new Set<ProfileCode>([
+  "vi", "th", "ha", "rw", "ln", "luo", "sn", "nso", "xh", "zu",
+]);
+
+function issueTerms(language: ProfileCode): Partial<Record<PronunciationIssue, PronunciationIssue>> {
+  if (language === "zh") return MANDARIN_TERMS;
+  return TONAL_LANGUAGES.has(language) ? TONAL_TERMS : NON_TONAL_TERMS;
+}
 
 function normalizePronunciationIssue(raw: unknown, language: ProfileCode): PronunciationIssue {
   if (typeof raw !== "string") return "other";
@@ -288,7 +321,7 @@ function normalizePronunciationIssue(raw: unknown, language: ProfileCode): Pronu
     const w = Object.hasOwn(ISSUE_WORDS, word) ? word : word.replace(/s$/, "");
     if (Object.hasOwn(ISSUE_WORDS, w)) {
       const issue = ISSUE_WORDS[w];
-      return ISSUE_TERMS[language][issue] ?? issue;
+      return issueTerms(language)[issue] ?? issue;
     }
   }
   return "other";
