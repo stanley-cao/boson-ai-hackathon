@@ -61,4 +61,36 @@ export const TOOL_DEFINITIONS = [
       required: ["language", "said", "correct", "explanation", "kind"],
     },
   },
+  {
+    type: "function",
+    name: "set_practice_language",
+    description:
+      "Switch the language or level the learner is practising. Only when they " +
+      "ask to practise a different language or change their level, call this " +
+      "FIRST, before you say anything else; it updates the badge on their " +
+      "screen and then tells you what to say.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          // Deliberately no enum, unlike the other tools. Asked for Korean with
+          // only en/zh on offer, the model sent "en" and told the learner
+          // they'd switched to Korean. Free text lets the handler refuse it.
+          description:
+            "The language they asked for, as a code or a name, e.g. 'zh' or " +
+            "'Korean'. Pass what they asked for even if you can't teach it; " +
+            "the result says which languages are available.",
+        },
+        level: {
+          type: "string",
+          enum: ["beginner", "intermediate", "advanced"],
+          description:
+            "Their level in it. If they didn't say, keep the level they had, " +
+            "or use beginner.",
+        },
+      },
+      required: ["language", "level"],
+    },
+  },
 ] as const;

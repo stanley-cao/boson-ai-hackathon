@@ -1,5 +1,5 @@
 import { PROFILES } from "../lang/profiles";
-import type { Correction, ToolDetail } from "./types";
+import type { Correction, PracticeLanguage, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -126,6 +126,54 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
   };
 }
 
+// What a model may call each level besides the enum value itself.
+const LEVELS: Record<string, PracticeLanguage["level"]> = {
+  beginner: "beginner",
+  novice: "beginner",
+  basic: "beginner",
+  intermediate: "intermediate",
+  advanced: "advanced",
+  fluent: "advanced",
+};
+
+/**
+ * The level, or "beginner" when the model sent none we recognise. The summary
+ * says the level aloud, so a wrong default is heard and can be corrected.
+ */
+function normalizeLevel(raw: unknown): PracticeLanguage["level"] {
+  if (typeof raw !== "string") return "beginner";
+  const t = raw.trim().toLowerCase().replace(/s$/, ""); // "Beginners" -> "beginner"
+  return Object.hasOwn(LEVELS, t) ? LEVELS[t] : "beginner";
+}
+
+/**
+ * Switch the language or level being practised, for the "practising" badge.
+ *
+ * A language without a profile is an error rather than a silent switch: the
+ * tutor has no teaching notes for it yet, and the summary names the languages
+ * it does have, so the model can offer those instead.
+ */
+export function setPracticeLanguage(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
+    const names = Object.values(PROFILES)
+      .map((p) => p.name)
+      .join(" or ");
+    return {
+      summary: `That language isn't available yet. The learner can practise ${names}.`,
+      error: "unknown_language",
+    };
+  }
+
+  const level = normalizeLevel(args.level);
+  const detail: PracticeLanguage = { type: "practice_language", language, level };
+  return {
+    summary: `Now practising ${PROFILES[language].name} at ${level} level. Confirm that to the learner in a few words, then carry on the conversation.`,
+    detail,
+  };
+}
+
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
   note_correction: noteCorrection,
+  set_practice_language: setPracticeLanguage,
 };
