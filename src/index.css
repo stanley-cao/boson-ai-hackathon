@@ -423,10 +423,16 @@ code {
   color: var(--muted);
 }
 
-.study-head > span,
+.study-head-actions > span,
 .study-group h3 span {
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+.study-head-actions {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
 }
 
 .study-empty {

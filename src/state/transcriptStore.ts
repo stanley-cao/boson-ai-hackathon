@@ -72,6 +72,8 @@ export interface ToolItem {
   status: ToolStatus;
   ms: number | null;
   at: number;
+  /** Loaded study details stay in state without appearing as old conversation turns. */
+  restored?: true;
 }
 
 export type TranscriptItem = UserItem | AssistantItem | SystemItem | ToolItem;
@@ -86,6 +88,11 @@ export const emptyTranscript: TranscriptState = { order: [], items: {} };
 /** The items, in display order. */
 export function toList(state: TranscriptState): TranscriptItem[] {
   return state.order.map((id) => state.items[id]);
+}
+
+/** Items that belong in the visible/copyable conversation transcript. */
+export function toDisplayList(state: TranscriptState): TranscriptItem[] {
+  return toList(state).filter((item) => item.kind !== "tool" || !item.restored);
 }
 
 // --- immutable helpers -------------------------------------------------------
@@ -372,7 +379,7 @@ export function replay(
 
 /** The transcript as plain text, for a copy-to-clipboard button. */
 export function toPlainText(state: TranscriptState): string {
-  return toList(state)
+  return toDisplayList(state)
     .map((it) => {
       const t = new Date(it.at).toLocaleTimeString(undefined, { hour12: false });
       switch (it.kind) {
