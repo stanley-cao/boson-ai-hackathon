@@ -30,6 +30,7 @@ import { RingPlayer } from "../audio/playback";
 import { MicCapture } from "../audio/capture";
 import { runTool } from "../tools/registry";
 import { CLIENT_TOOL_RESULT } from "../state/transcriptStore";
+import { interruptedAssistantItem } from "./turnInterruption";
 
 // The model can also be set in session.update; passing it in the URL means the
 // server knows which model you want before the first byte of config arrives.
@@ -86,6 +87,9 @@ export class RealtimeClient {
    * barge-in, so we track it from whichever event mentions it first.
    */
   private currentAssistantItemId: string | null = null;
+
+  /** True only while assistant PCM is actually queued or playing locally. */
+  private assistantAudioPlaying = false;
 
   /**
    * Every call_id we have already started running.
@@ -157,6 +161,7 @@ export class RealtimeClient {
   constructor(callbacks: RealtimeCallbacks) {
     this.cb = callbacks;
     this.player = new RingPlayer((speaking) => {
+      this.assistantAudioPlaying = speaking;
       if (!speaking) this.setActivity(this.capture?.active ? "listening" : "idle");
     });
     this.capture = new MicCapture(
@@ -328,7 +333,10 @@ export class RealtimeClient {
         // learner can switch languages from one turn to the next and still
         // see what they actually said under "you".
         this.send(buildTranscriptionDetectionReset());
-        // The user started talking over the model. This is the barge-in path.
+        // This event also starts an ordinary turn after the tutor has finished.
+        // handleBargeIn distinguishes that from a real interruption; treating
+        // every turn as barge-in truncates the previous assistant item again
+        // and can make the model regenerate that stale answer.
         void this.handleBargeIn();
         break;
 
@@ -555,9 +563,22 @@ export class RealtimeClient {
   private async handleBargeIn(): Promise<void> {
     this.setActivity("listening");
     this.cb.slowRepeat?.stop();
+    const interruptedItemId = interruptedAssistantItem(
+      this.assistantAudioPlaying,
+      this.currentAssistantItemId,
+    );
+    if (!this.assistantAudioPlaying) {
+      // A normal turn after playback drained. Forget the old item so it cannot
+      // be truncated on this or any later speech_started event.
+      this.currentAssistantItemId = null;
+      return;
+    }
+
+    // flush() reports asynchronously and its callback changes playback state,
+    // so preserve the item that was genuinely playing before awaiting it.
     const playedMs = await this.player.flush();
-    if (this.currentAssistantItemId && playedMs > 0) {
-      this.send(truncateItem(this.currentAssistantItemId, playedMs));
+    if (interruptedItemId && playedMs > 0) {
+      this.send(truncateItem(interruptedItemId, playedMs));
     }
     this.currentAssistantItemId = null;
   }
