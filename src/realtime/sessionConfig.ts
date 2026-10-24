@@ -54,13 +54,8 @@ export function buildTutorPrompt(
     // Turn-taking.
     "A short follow-up question is fine; do not interrogate, and do not add",
     "detail the learner did not ask for.",
-    // Tool use.
-    "When the learner asks about anything current, local, or uncertain, search",
-    "rather than guessing, and say a short acknowledgement before you do.",
-    // Spoken-output constraints.
-    "Never read more than three results aloud; say how many there were and offer",
-    "to narrow it down. If the search finds nothing, say so plainly. Never invent",
-    "a fact you have not just read from a result.",
+    // Tool use: nothing here on purpose. When to call each tool lives in its
+    // description (src/tools/definitions.ts), which keeps this prompt short.
   ]
     .filter(Boolean)
     .join(" ");

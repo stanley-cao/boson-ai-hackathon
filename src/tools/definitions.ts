@@ -1,3 +1,5 @@
+import { PROFILES } from "../lang/profiles";
+
 // The tool definitions sent in session.update.
 //
 // The shape is the same JSON Schema you would use anywhere else:
@@ -8,35 +10,55 @@
 // server tells you a tool was called; running it is entirely your business.
 // That is the whole of "client-side tool execution" — the client is where the
 // code is because the client is where you put it.
+//
+// Every `language` enum is built from the profiles, so a language is offered
+// to the model as soon as it has one. Like any enum it is only a hint: the
+// handlers normalise whatever comes back.
 
 export const TOOL_DEFINITIONS = [
   {
     type: "function",
-    name: "web_search",
+    name: "note_correction",
     description:
-      "Search the web. Call this whenever the user asks about anything current " +
-      "or local — news, weather, sport results, opening hours — or anything you " +
-      "are not sure of, rather than guessing. Say a short acknowledgement before " +
-      "calling it, since it may take a moment.",
+      "Correct a mistake the learner just made. Whenever what they said has a " +
+      "mistake, call this FIRST, before you say anything else; it saves the " +
+      "correction to their study panel and then tells you what to say.",
     parameters: {
       type: "object",
       properties: {
-        query: {
+        language: {
+          type: "string",
+          enum: Object.keys(PROFILES),
+          description: "The language the mistake was in.",
+        },
+        said: {
           type: "string",
           description:
-            "What the user is looking for, in their own words — e.g. 'ferry " +
-            "schedule', 'weekend weather'. Pass what they actually said.",
+            "What the learner said, as you heard it, in its own script " +
+            "(Chinese characters for Mandarin, not pinyin).",
         },
-        topic: {
+        correct: {
           type: "string",
-          // An enum is worth more here than in a typed UI. Speech recognition
-          // mangles vocabulary, and a closed list pulls the model back onto a
-          // valid value instead of inventing one.
-          enum: ["news", "weather", "sports", "science", "travel"],
-          description: "Optional topic filter.",
+          description: "The corrected version, in the same script as `said`.",
+        },
+        explanation: {
+          type: "string",
+          description: "One short sentence on why, in the learner's native language.",
+        },
+        kind: {
+          type: "string",
+          enum: ["grammar", "vocabulary", "other"],
+          description: "What sort of mistake it was.",
+        },
+        romanization: {
+          type: "string",
+          description:
+            "The corrected version romanized, for a language not written in " +
+            "Latin letters. For Mandarin, pinyin with tone marks, e.g. " +
+            "'wǒ yǒu sān zhī gǒu'.",
         },
       },
-      required: ["query"],
+      required: ["language", "said", "correct", "explanation", "kind"],
     },
   },
 ] as const;

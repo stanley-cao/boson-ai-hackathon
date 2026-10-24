@@ -4,15 +4,13 @@
 // Track B's handlers return these shapes and Track C renders only from them.
 // Changing a field here needs a decision-log entry.
 
-/**
- * BCP-47 base codes for the languages we teach.
- *
- * Kept identical to `LanguageProfile.code` so `src/lang/profiles.ts` can import
- * it rather than declare a second union that drifts. Handlers normalise model
- * arguments ("Mandarin", "zh-CN", "ZH") down to one of these before building a
- * detail, so the UI never sees a raw model string.
- */
-export type LanguageCode = "en" | "zh" | "ko" | "fr" | "ja";
+// The language-code union belongs to the profiles (shared contract #1).
+// Re-exported rather than redeclared, so the two can't drift, and so code that
+// renders details needs only this module. Handlers normalise model arguments
+// ("Mandarin", "zh-CN", "ZH") down to one of these before building a detail, so
+// the UI never sees a raw model string.
+import type { LanguageCode } from "../lang/profiles";
+export type { LanguageCode };
 
 /**
  * A mistake the learner made and its fix. Produced by `note_correction`.

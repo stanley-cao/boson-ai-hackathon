@@ -1,11 +1,5 @@
-import index from "./searchIndex.json";
 import { PROFILES } from "../lang/profiles";
-
-export interface Page {
-  title: string;
-  topic: string;
-  snippet: string;
-}
+import type { Correction, ToolDetail } from "./types";
 
 /**
  * The result shape every tool returns.
@@ -13,56 +7,14 @@ export interface Page {
  * `summary` is written to be SPOKEN. `detail` is the structured data behind it.
  * Both go back to the model, and the split matters more than it looks — see the
  * "shaping results for a voice" section of docs/part-4.md.
+ *
+ * `detail` is one of the shapes in ./types.ts, which is what the study panel
+ * renders from, so a handler cannot hand the UI something it doesn't know.
  */
 export interface ToolResult {
   summary: string;
-  detail?: unknown;
+  detail?: ToolDetail;
   error?: string;
-}
-
-// The whole "web", loaded from the single JSON file.
-//
-// This tool is a dummy on purpose. The tutorial is about the tool-calling
-// PROTOCOL — registering a tool, running it, answering the model — and none of
-// that changes when the implementation behind it does. In a real app this file
-// is where you would call a real search API; everything around it stays the
-// same.
-const PAGES: Page[] = (index as { pages: Page[] }).pages;
-
-export function allPages(): Page[] {
-  return PAGES;
-}
-
-/** How many results the model may hear about at once. */
-const MAX_SPOKEN_RESULTS = 3;
-
-function describe(p: Page): string {
-  return `${p.title}: ${p.snippet}`;
-}
-
-/**
- * Normalise a topic the model sent us.
- *
- * ⚠ An `enum` in the schema is a strong hint, not a constraint. Live models
- * routinely send an enum value capitalised, pluralised, or both — we have
- * watched it happen with a schema exactly like this one.
- *
- * A strict `p.topic === args.topic` comparison would then match nothing and
- * report "no results" about an index full of them. That is the worst class of
- * bug in a voice app: a confident, wrong, spoken answer.
- *
- * So normalise on the way in, and treat anything unrecognised as "no filter"
- * rather than as "filter everything out".
- */
-function normalizeTopic(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const t = raw.trim().toLowerCase();
-  const known = new Set(PAGES.map((p) => p.topic));
-  if (known.has(t)) return t; // "News" -> "news"
-  const stripped = t.replace(/e?s$/, "");
-  if (known.has(stripped)) return stripped; // "sciences" -> "science"
-  if (known.has(`${stripped}s`)) return `${stripped}s`; // "sport" -> "sports"
-  return null; // unknown: don't filter
 }
 
 type ProfileCode = keyof typeof PROFILES;
@@ -80,8 +32,8 @@ const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
 
 /**
  * Normalise a language argument to a profile code, or `null` if we don't
- * recognise it. Same rule as `normalizeTopic`: an unknown value means "no
- * language given", never a thrown error or a guessed language.
+ * recognise it. An unknown value means "no language given", never a thrown
+ * error or a guessed language.
  *
  * Locale tags such as "zh-CN" or "en_US" fall back to their base subtag, so
  * "zh-Hant" also maps to `zh`. We only have Simplified-character teaching
@@ -96,56 +48,84 @@ export function normalizeLanguage(raw: unknown): ProfileCode | null {
   return null;
 }
 
-export function webSearch(args: Record<string, unknown>): ToolResult {
-  const query = String(args.query ?? "").trim().toLowerCase();
-  const topic = normalizeTopic(args.topic);
+/**
+ * A text argument, trimmed, or `null` if it is missing or blank. Blank counts
+ * as missing so that an optional field sent as "" never becomes an empty line
+ * on a study card.
+ */
+function normalizeText(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  return t ? t : null;
+}
 
-  if (!query && !topic) {
-    return { summary: "I need something to search for.", error: "empty_query" };
-  }
+// What a model may call each correction kind besides the enum value itself.
+// Anything else files as "other": a mislabelled kind should still save the
+// correction, not lose it.
+const CORRECTION_KINDS: Record<string, Correction["kind"]> = {
+  grammar: "grammar",
+  grammatical: "grammar",
+  "word order": "grammar",
+  "measure word": "grammar",
+  particle: "grammar",
+  vocabulary: "vocabulary",
+  vocab: "vocabulary",
+  word: "vocabulary",
+  "word choice": "vocabulary",
+};
 
-  // Deliberately forgiving matching. What arrives here has been through speech
-  // recognition, so "ferry schedule" may well turn up as "fairy schedule".
-  // Splitting the query into words and requiring any of them to hit is far
-  // more useful than an exact match.
-  const words = query.split(/\s+/).filter((w) => w.length > 1);
-  let hits = PAGES.filter((p) => {
-    if (topic && p.topic !== topic) return false;
-    if (words.length === 0) return true;
-    const haystack = `${p.title} ${p.topic} ${p.snippet}`.toLowerCase();
-    return words.some((w) => haystack.includes(w));
-  });
+function normalizeCorrectionKind(raw: unknown): Correction["kind"] {
+  if (typeof raw !== "string") return "other";
+  // "Word_Order" -> "word order", "measure words" -> "measure word".
+  const t = raw.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/s$/, "");
+  return Object.hasOwn(CORRECTION_KINDS, t) ? CORRECTION_KINDS[t] : "other";
+}
 
-  // Best matches first: more query words hit = better.
-  hits = hits.sort((a, b) => score(b, words) - score(a, words));
-
-  if (hits.length === 0) {
+/**
+ * Record a correction for the study panel.
+ *
+ * The schema tells the model to call this BEFORE it speaks, so the summary is
+ * its cue for what to say next rather than a line to read out. Verified
+ * 2026-10-23 with the probe: "call this in the same turn as you correct"
+ * descriptions were called in 9 of 37 runs, while "call this first" was
+ * called in 24 of 24.
+ */
+export function noteCorrection(args: Record<string, unknown>): ToolResult {
+  const language = normalizeLanguage(args.language);
+  if (!language) {
     return {
-      summary: `The search found nothing about "${args.query}".`,
-      detail: { results: [], total: 0 },
+      summary: `Correction not saved: language must be one of ${Object.keys(PROFILES).join(", ")}.`,
+      error: "unknown_language",
     };
   }
 
-  const shown = hits.slice(0, MAX_SPOKEN_RESULTS);
-  const more = hits.length - shown.length;
+  const said = normalizeText(args.said);
+  const correct = normalizeText(args.correct);
+  if (!said || !correct) {
+    return {
+      summary: "Correction not saved: it needs what the learner said and the corrected version.",
+      error: "missing_fields",
+    };
+  }
 
+  const romanization = normalizeText(args.romanization);
+  const detail: Correction = {
+    type: "correction",
+    language,
+    said,
+    correct,
+    // The tutor has already explained it aloud, so a card without the reason
+    // is still worth keeping.
+    explanation: normalizeText(args.explanation) ?? "",
+    kind: normalizeCorrectionKind(args.kind),
+    ...(romanization ? { romanization } : {}),
+  };
   return {
-    // The count goes in the summary so the model can say "six results, here
-    // are the closest three" instead of either reading six aloud or pretending
-    // there were only three.
-    summary:
-      `${hits.length} result${hits.length === 1 ? "" : "s"}. ` +
-      shown.map(describe).join("; ") +
-      (more > 0 ? `; and ${more} more.` : "."),
-    detail: { results: shown, total: hits.length, truncated: more > 0 },
+    summary: `Saved. Now briefly tell the learner the correct version, ${correct}, and why, then carry on the conversation.`,
+    detail,
   };
 }
 
-function score(p: Page, words: string[]): number {
-  const haystack = `${p.title} ${p.topic} ${p.snippet}`.toLowerCase();
-  return words.filter((w) => haystack.includes(w)).length;
-}
-
 export const handlers: Record<string, (args: Record<string, unknown>) => ToolResult> = {
-  web_search: webSearch,
+  note_correction: noteCorrection,
 };

@@ -1,6 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
-import { webSearch, allPages, normalizeLanguage } from "../src/tools/handlers";
+import { noteCorrection, normalizeLanguage } from "../src/tools/handlers";
+import { TOOL_DEFINITIONS } from "../src/tools/definitions";
+import { PROFILES } from "../src/lang/profiles";
 import {
   CLIENT_TOOL_RESULT,
   emptyTranscript,
@@ -16,71 +18,6 @@ import type {
   ToolDetail,
   ToolDetailByName,
 } from "../src/tools/types";
-
-describe("web_search", () => {
-  it("finds a page by a spoken description", () => {
-    const r = webSearch({ query: "ferry schedule" });
-    expect(r.summary).toContain("ferry");
-    expect(r.error).toBeUndefined();
-  });
-
-  it("never reads more than three results aloud, but says the real total", () => {
-    // Nearly every page mentions the town, so this matches well over three.
-    const r = webSearch({ query: "willow creek" });
-    const detail = r.detail as { results: unknown[]; total: number; truncated: boolean };
-    expect(detail.total).toBeGreaterThan(3);
-    expect(detail.results.length).toBeLessThanOrEqual(3);
-    // The count must be in the SUMMARY — that is the part the model speaks.
-    // Truncating silently would have it claim there were only three.
-    expect(r.summary).toMatch(new RegExp(`^${detail.total} result`));
-    expect(r.summary).toContain("more.");
-  });
-
-  it("accepts the topic shapes models actually send", () => {
-    // An enum in the schema is a hint, not a constraint: live models send
-    // enum values capitalised, pluralised, or both. A strict comparison would
-    // report no results while the index is full of them.
-    for (const sent of ["news", "News", "NEWS", " news ", "sport", "Sports", "sciences"]) {
-      const r = webSearch({ query: "willow", topic: sent });
-      const detail = r.detail as { total: number };
-      expect(detail.total, `topic ${JSON.stringify(sent)}`).toBeGreaterThan(0);
-    }
-  });
-
-  it("ignores an unrecognisable topic instead of filtering everything out", () => {
-    const r = webSearch({ query: "willow", topic: "gossip" });
-    expect((r.detail as { total: number }).total).toBeGreaterThan(0);
-  });
-
-  it("filters by topic", () => {
-    const r = webSearch({ query: "willow creek", topic: "sports" });
-    const detail = r.detail as { results: { topic: string }[]; total: number };
-    expect(detail.total).toBeGreaterThan(0);
-    expect(detail.results.every((p) => p.topic === "sports")).toBe(true);
-    // The filter must actually exclude something.
-    expect(allPages().some((p) => p.topic !== "sports")).toBe(true);
-  });
-
-  it("says so plainly when nothing matches", () => {
-    const r = webSearch({ query: "cryptocurrency" });
-    expect(r.summary).toMatch(/nothing/i);
-    expect((r.detail as { total: number }).total).toBe(0);
-  });
-
-  it("matches on any word, which is what makes it usable over speech", () => {
-    // "flux funicular" is nonsense, but "funicular" is in the index, and
-    // returning that page is far more useful than returning nothing. This
-    // forgiveness is deliberate: what reaches this function has been through
-    // speech recognition, so requiring an exact phrase match would fail
-    // constantly on perfectly clear requests.
-    const r = webSearch({ query: "flux funicular" });
-    expect((r.detail as { total: number }).total).toBeGreaterThan(0);
-  });
-
-  it("returns an error result rather than throwing on an empty query", () => {
-    expect(webSearch({}).error).toBe("empty_query");
-  });
-});
 
 describe("dispatch", () => {
   it("answers for a tool that does not exist instead of throwing", async () => {
@@ -117,6 +54,89 @@ describe("normalizeLanguage", () => {
   });
 });
 
+describe("note_correction", () => {
+  const args = {
+    language: "Mandarin",
+    said: " 我有三本狗。 ",
+    correct: "我有三只狗。",
+    explanation: "狗 takes the measure word 只, not 本.",
+    kind: "Measure words",
+    romanization: "wǒ yǒu sān zhī gǒu",
+  };
+
+  it("saves a correction with the language normalised and the text trimmed", () => {
+    const r = noteCorrection(args);
+    expect(r.error).toBeUndefined();
+    expect(r.summary).toContain("我有三只狗。");
+    expect(r.detail).toEqual({
+      type: "correction",
+      language: "zh",
+      said: "我有三本狗。",
+      correct: "我有三只狗。",
+      explanation: "狗 takes the measure word 只, not 本.",
+      kind: "grammar",
+      romanization: "wǒ yǒu sān zhī gǒu",
+    });
+  });
+
+  it("files a kind it does not recognise as other, rather than losing the correction", () => {
+    const cases: [unknown, Correction["kind"]][] = [
+      ["Grammar", "grammar"],
+      ["word_order", "grammar"],
+      ["VOCAB", "vocabulary"],
+      ["tones", "other"],
+      ["constructor", "other"],
+      [42, "other"],
+      [undefined, "other"],
+    ];
+    for (const [sent, kind] of cases) {
+      const d = noteCorrection({ ...args, kind: sent }).detail as Correction;
+      expect(d.kind, String(sent)).toBe(kind);
+    }
+  });
+
+  it("leaves out a blank romanization and keeps a missing explanation empty", () => {
+    const d = noteCorrection({ ...args, romanization: "  ", explanation: undefined }).detail as Correction;
+    expect(d).not.toHaveProperty("romanization");
+    expect(d.explanation).toBe("");
+  });
+
+  it("answers with an error, never a throw, when the language is unknown", () => {
+    for (const language of ["Klingon", undefined, 7]) {
+      const r = noteCorrection({ ...args, language });
+      expect(r.error, String(language)).toBe("unknown_language");
+      expect(r.summary).toContain(Object.keys(PROFILES).join(", "));
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("answers with an error when what was said or the fix is missing", () => {
+    for (const missing of ["said", "correct"]) {
+      const r = noteCorrection({ ...args, [missing]: "" });
+      expect(r.error, missing).toBe("missing_fields");
+      expect(r.detail).toBeUndefined();
+    }
+  });
+
+  it("is registered, so dispatch reaches it", async () => {
+    const r = await dispatch("note_correction", args);
+    expect(r.detail?.type).toBe("correction");
+  });
+
+  it("is offered with every profile language and the fields a card needs", () => {
+    expect(TOOL_DEFINITIONS.find((d) => d.name === "note_correction")).toMatchObject({
+      parameters: {
+        properties: { language: { enum: Object.keys(PROFILES) } },
+        required: ["language", "said", "correct", "explanation", "kind"],
+      },
+    });
+  });
+
+  it("replaces the tutorial's dummy web_search", () => {
+    expect(TOOL_DEFINITIONS.map((d) => d.name)).not.toContain("web_search");
+  });
+});
+
 describe("tool calls in the transcript", () => {
   const evt = (e: Record<string, unknown>) => e as ServerEvent;
 
@@ -126,7 +146,7 @@ describe("tool calls in the transcript", () => {
       s,
       evt({
         type: "response.output_item.added",
-        item: { id: "i1", type: "function_call", name: "web_search", call_id: "c1" },
+        item: { id: "i1", type: "function_call", name: "note_correction", call_id: "c1" },
       }),
       1,
     );
@@ -137,21 +157,21 @@ describe("tool calls in the transcript", () => {
       evt({
         type: "response.function_call_arguments.done",
         call_id: "c1",
-        name: "web_search",
-        arguments: '{"query":"ferry schedule"}',
+        name: "note_correction",
+        arguments: '{"language":"zh","said":"三本狗","correct":"三只狗"}',
       }),
       2,
     );
     s = transcriptReducer(
       s,
-      evt({ type: CLIENT_TOOL_RESULT, call_id: "c1", result: { summary: "1 result." }, ms: 4 }),
+      evt({ type: CLIENT_TOOL_RESULT, call_id: "c1", result: { summary: "Correction saved." }, ms: 4 }),
       3,
     );
 
     const item = toList(s)[0];
     expect(item.kind === "tool" && item.status).toBe("ok");
     expect(item.kind === "tool" && item.ms).toBe(4);
-    expect(item.kind === "tool" && (item.args as { query: string }).query).toBe("ferry schedule");
+    expect(item.kind === "tool" && (item.args as { correct: string }).correct).toBe("三只狗");
   });
 
   it("marks a failed tool as an error", () => {
@@ -161,7 +181,7 @@ describe("tool calls in the transcript", () => {
       evt({
         type: "response.function_call_arguments.done",
         call_id: "c1",
-        name: "web_search",
+        name: "note_correction",
         arguments: "{}",
       }),
       1,
@@ -183,7 +203,7 @@ describe("tool calls in the transcript", () => {
       evt({
         type: "response.function_call_arguments.done",
         call_id: "c1",
-        name: "web_search",
+        name: "note_correction",
         arguments: "{not json",
       }),
       1,
