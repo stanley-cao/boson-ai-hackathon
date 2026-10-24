@@ -10,6 +10,11 @@ left to copy.
 """
 
 import re
+from collections import Counter
+
+# A tutor line said this many times before is a loop; once before is a
+# restatement, as when a correction repeats the phrase just taught.
+LOOP_AFTER = 2
 
 # Short sentences recur naturally ("A ti?", "Dobro!", "Hvala.") and are never
 # what a loop is made of; only longer ones count as repeats.
@@ -39,32 +44,30 @@ def _key(sentence: str) -> str:
 def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | None) -> str | None:
     """The reply without sentences it repeats, or None when nothing repeats.
 
-    A sentence repeats when it already appeared in an earlier tutor reply, or
-    is the learner's latest turn said back to them. Returns "" when every
-    sentence was a repeat, and None whenever the learner asked for a repeat.
+    Two kinds of repeat count. The learner's latest turn said back to them is
+    stripped at once. A tutor line counts only from its third time: teaching
+    "Zovem se Sam." and restating it as a correction is tutoring, and stripping
+    the second left "say that again slowly" with only the learner's mistake to
+    repeat. Returns "" when every sentence was a repeat, and None whenever the
+    learner asked for a repeat.
     """
     if learner_turn and _REPEAT_REQUEST.search(learner_turn):
         return None
-    # A whole reply said again counts even when each of its sentences is short:
-    # "Hai, wakarimashita! (Yes, I understand!)" looped turn after turn.
+    # A whole reply counts even when each of its sentences is short: "How are
+    # you?" and "Hai, wakarimashita! (Yes, I understand!)" looped live.
     whole = _key(reply)
-    if len(whole.split()) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
-        return ""
-    # The same reply twice in a row is a loop at any length: "How are you?"
-    # and "Comment, ça, va?" each came back turn after turn, live.
-    if whole and earlier_replies and whole == _key(earlier_replies[-1]):
+    if whole and Counter(_key(text) for text in earlier_replies)[whole] >= LOOP_AFTER:
         return ""
 
-    seen = {_key(s) for text in earlier_replies for s in _sentences(text)}
-    if learner_turn:
-        seen.update(_key(s) for s in _sentences(learner_turn))
-
+    said = Counter(_key(s) for text in earlier_replies for s in _sentences(text))
+    echoed = {_key(s) for s in _sentences(learner_turn or "")}
     kept: list[str] = []
     for sentence in _sentences(reply):
         key = _key(sentence)
-        if len(key.split()) >= MIN_WORDS and key in seen:
+        if len(key.split()) >= MIN_WORDS and (key in echoed or said[key] >= LOOP_AFTER):
             continue
         kept.append(sentence)
     if len(kept) == len(_sentences(reply)):
         return None
     return " ".join(kept)
+

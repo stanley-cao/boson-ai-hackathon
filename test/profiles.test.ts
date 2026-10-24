@@ -85,6 +85,7 @@ describe("language profiles", () => {
     expect(ACTIVE_LEVEL).toBe("beginner");
     expect(LEARNER_LEVELS.beginner.promptNotes).toContain("Speak slowly");
     expect(LEARNER_LEVELS.beginner.promptNotes).toContain("what it means in English");
+    expect(LEARNER_LEVELS.beginner.promptNotes).toContain("two to four everyday words");
     expect(LEARNER_LEVELS.intermediate.promptNotes).toContain("natural but clear pace");
     expect(LEARNER_LEVELS.intermediate.promptNotes).toContain("mostly the target language");
   });

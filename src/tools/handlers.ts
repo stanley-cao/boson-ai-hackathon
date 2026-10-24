@@ -445,8 +445,13 @@ export function savePhrase(args: Record<string, unknown>): ToolResult {
     ...(romanization ? { romanization } : {}),
     ...(note ? { note } : {}),
   };
+  // Say the phrase before its meaning: told only to "tell the learner what it
+  // means", the tutor answered "how do I say hello?" with "It means hello."
+  // and never said Bonjour.
   return {
-    summary: `Saved ${phrase} to the phrase list. Now briefly tell the learner what it means, then carry on the conversation.`,
+    // The English as a quoted line: given only "what it means in English",
+    // the Japanese tutor said こんにちは and stopped.
+    summary: `Saved to the phrase list. Now say ${phrase} clearly once, then say "That means ${meaning}." Then carry on the conversation.`,
     detail,
   };
 }

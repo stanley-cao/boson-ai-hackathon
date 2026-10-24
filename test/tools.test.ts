@@ -474,6 +474,8 @@ describe("save_phrase", () => {
     const r = savePhrase(args);
     expect(r.error).toBeUndefined();
     expect(r.summary).toContain("加油");
+    // The phrase is said before its meaning, so "how do I say…?" hears it.
+    expect(r.summary.indexOf("加油")).toBeLessThan(r.summary.indexOf("Keep going"));
     expect(r.detail).toEqual({
       type: "phrase",
       language: "zh",

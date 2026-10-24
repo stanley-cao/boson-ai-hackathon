@@ -17,10 +17,10 @@ Speak in short, plain sentences. One request per turn works better than two.
 | "Speak Serbian." / "Teach me Mandarin." | Same |
 
 Use a verb aimed at the language: *switch to*, *change to*, *go back to*,
-*let's do*, *let's learn*, *practise*, *speak*, *teach me*. In avatar mode the
-agent spots these itself (`livekit/language_switch.py`), even when the model
-doesn't call `set_practice_language`. You may hear one short line in the old
-language first.
+*let's do*, *let's learn*, *practise*, *speak*, *teach me*. The app spots these
+itself, in both modes, even when the model doesn't call `set_practice_language`
+(`livekit/language_switch.py` for the avatar, `src/realtime/languageSwitch.ts`
+for voice only). You may hear one short line in the old language first.
 
 Languages: Mandarin (or Chinese), Korean, French, Japanese, Serbian, Vietnamese.
 
@@ -28,7 +28,6 @@ These don't switch:
 
 - "How do you say hello in Japanese?" is a question about a word.
 - "Japanese please" has no verb.
-- In voice-only mode a switch only happens if the model calls the tool.
 
 ## Change level
 
