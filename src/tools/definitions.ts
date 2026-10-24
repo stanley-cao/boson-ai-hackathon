@@ -134,9 +134,15 @@ export const TOOL_DEFINITIONS = [
         },
         tip: {
           type: "string",
-          // No example here: the model copied one verbatim into its tips for
-          // other tones in live probes.
-          description: "One short, practical tip for making this sound correctly.",
+          // No single example tip here: the model copied one verbatim into its
+          // tips for other tones in live probes. A list of every contour is a
+          // reference to pick from, and the handler checks the tip against the
+          // tone marks anyway (#55).
+          description:
+            "One short, practical tip for making this sound correctly. For a " +
+            "Mandarin tone, describe the tone written in `romanization`: first " +
+            "(ā) high and level, second (á) rising, third (ǎ) low and dipping, " +
+            "fourth (à) sharply falling, neutral short and light.",
         },
       },
       required: ["language", "target", "issue", "tip"],
