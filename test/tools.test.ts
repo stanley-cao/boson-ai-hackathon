@@ -79,6 +79,15 @@ describe("note_correction", () => {
     });
   });
 
+  it("instructs the tutor to say the corrected version clearly exactly once", () => {
+    const result = noteCorrection(args);
+    const definition = TOOL_DEFINITIONS.find((tool) => tool.name === "note_correction");
+
+    expect(result.summary).toContain("clearly exactly once");
+    expect(result.summary.match(/\u6211\u6709\u4e09\u53ea\u72d7\u3002/g)).toHaveLength(1);
+    expect(definition?.description).toContain("say the `correct` text clearly exactly once");
+  });
+
   it("files a kind it does not recognise as other, rather than losing the correction", () => {
     const cases: [unknown, Correction["kind"]][] = [
       ["Grammar", "grammar"],

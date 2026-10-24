@@ -121,7 +121,7 @@ export function noteCorrection(args: Record<string, unknown>): ToolResult {
     ...(romanization ? { romanization } : {}),
   };
   return {
-    summary: `Saved. Now briefly tell the learner the correct version, ${correct}, and why, then carry on the conversation.`,
+    summary: `Saved. Say the corrected version clearly exactly once: ${correct} Then briefly explain why and carry on the conversation.`,
     detail,
   };
 }

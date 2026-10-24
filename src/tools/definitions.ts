@@ -22,7 +22,8 @@ export const TOOL_DEFINITIONS = [
     description:
       "Correct a mistake the learner just made. Whenever what they said has a " +
       "mistake, call this FIRST, before you say anything else; it saves the " +
-      "correction to their study panel and then tells you what to say.",
+      "correction to their study panel and then tells you what to say. After it " +
+      "returns, say the `correct` text clearly exactly once.",
     parameters: {
       type: "object",
       properties: {

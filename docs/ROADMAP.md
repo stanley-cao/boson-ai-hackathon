@@ -10,7 +10,7 @@ Update this table in the same PR that finishes a task or a phase.
 | --- | --- | --- | --- | --- |
 | 0 | Ground truth: does Higgs handle Mandarin and code-switching? | ⬜ not started | | |
 | 1 | English + Mandarin MVP for live testing | 🟨 in progress | | |
-| 2 | Depth and polish (levels, TTS replay, recap) | ⬜ not started | | |
+| 2 | Depth and polish (levels, TTS replay, recap) | 🟨 in progress | | |
 | 3 | More languages; LiveKit spike to de-risk the avatar | ⬜ not started | | |
 | 4 | Higgs Avatar (realtime, via LiveKit) | ⬜ not started | | |
 | 5 | Demo video and submission | ⬜ not started | | |
@@ -109,7 +109,7 @@ Agree on these first. Changing them requires a decision-log entry.
 ## Phase 2: Depth and polish
 
 - [ ] **A:** a learner level (beginner or intermediate) that adapts speed and scaffolding, and support for "say that again slowly". (#21)
-- [ ] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22)
+- [x] **A:** after a correction, the tutor repeats the target word clearly so the learner hears it. (#22) (@lanazgonjanin)
 - [ ] **B:** explain-phrase flow: the learner asks "what does 加油 mean?", and the tutor explains and saves it. (#23)
 - [ ] **B:** session summary data (counts and phrases to review), saved to `localStorage` with try/catch so it survives a reload. (#24)
 - [ ] **D + C:** a `POST /api/tts` server route that calls Higgs TTS (`/v1/audio/speech`, `higgs-tts-3`) with the key kept server-side, and a replay button on study cards. (#25, #26)

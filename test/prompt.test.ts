@@ -18,6 +18,14 @@ describe("tutor prompt", () => {
     expect(prompt).not.toContain("tone marks");
   });
 
+  it("speaks each correction target clearly exactly once after its tool returns", () => {
+    const prompt = buildTutorPrompt();
+    expect(prompt).toContain("After note_correction returns, say its correct text clearly exactly once.");
+    expect(prompt).toContain(
+      "After pronunciation_feedback returns, say its target clearly exactly once.",
+    );
+  });
+
   it("stays short, because extra rules stop the model calling tools", () => {
     // A tripwire rather than a target: a prompt that grows past this is a sign
     // the model may stop calling tools.

@@ -44,6 +44,7 @@ export function buildTutorPrompt(
     "Never ask which language they want.",
     // Teaching.
     "Give at most one correction per turn, after answering what they said.",
+    "After note_correction returns, say its correct text clearly exactly once. After pronunciation_feedback returns, say its target clearly exactly once.",
     target.promptNotes,
     target.romanization
       ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
