@@ -7,6 +7,8 @@ import {
 } from "../src/lang/profiles";
 
 const HAN = /\p{Script=Han}/u;
+const HANGUL = /\p{Script=Hangul}/u;
+const JAPANESE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 describe("language profiles", () => {
   it("files every profile under its own code", () => {
@@ -33,6 +35,15 @@ describe("language profiles", () => {
     for (const opener of PROFILES.en.sampleOpeners) {
       expect(opener, opener).not.toMatch(HAN);
     }
+  });
+
+  it("defines Korean, French, and Japanese as data-only teaching profiles", () => {
+    expect(PROFILES.ko).toMatchObject({ script: "Hang", romanization: "revised" });
+    expect(PROFILES.fr).toMatchObject({ script: "Latn" });
+    expect(PROFILES.fr).not.toHaveProperty("romanization");
+    expect(PROFILES.ja).toMatchObject({ script: "Jpan", romanization: "hepburn" });
+    expect(PROFILES.ko.sampleOpeners.every((opener) => HANGUL.test(opener))).toBe(true);
+    expect(PROFILES.ja.sampleOpeners.every((opener) => JAPANESE.test(opener))).toBe(true);
   });
 
   it("keeps promptNotes short and gives every language openers", () => {

@@ -8,6 +8,7 @@ import {
   PROFILES,
   learnerLevelFor,
   type LanguageProfile,
+  type TargetLanguageCode,
   type LearnerLevel,
   type LearnerLevelProfile,
 } from "../lang/profiles";
@@ -33,8 +34,9 @@ import {
 // description, not here.
 /**
  * Built from the language profiles, so changing the pair is a data change.
- * The learner's native language and the target language both come from
- * `ACTIVE_PAIR`; the target's `promptNotes` carry the teaching specifics.
+ * The learner's native language comes from `ACTIVE_PAIR`; the target defaults
+ * there too, but the picker may provide another profile. Its `promptNotes`
+ * carry the teaching specifics.
  *
  * Code-switching: an explicit "target → target, native → native" mirror,
  * with corrections explained in the native language. Probed 2026-10-24 (see
@@ -65,7 +67,7 @@ export function buildTutorPrompt(
     // tool's description and result summary, not here (#80).
     target.promptNotes,
     target.romanization
-      ? `In tool arguments, write ${target.name} with ${target.romanization} and tone marks.`
+      ? `In tool arguments, use ${target.romanization} romanization${target.romanization === "pinyin" ? " with tone marks" : ""}.`
       : "",
     // Speaking style. Slow requests go through set_speaking_pace, not a rule
     // here: a rule to repeat slowly didn't change the pace (#76), and
@@ -110,13 +112,14 @@ export const OUTPUT_VOICE = "eleanor";
 
 export function buildSessionConfig(
   level: LearnerLevelProfile = LEARNER_LEVELS[ACTIVE_LEVEL],
+  target: LanguageProfile = PROFILES[ACTIVE_PAIR.target],
 ): ClientEvent {
   return {
     type: "session.update",
     session: {
       model: "higgs-realtime",
       instructions: buildTutorPrompt(
-        PROFILES[ACTIVE_PAIR.target],
+        target,
         PROFILES[ACTIVE_PAIR.native],
         level,
       ),
@@ -174,12 +177,16 @@ export function buildSessionConfig(
  * sent this way slowed some replies; the same sentence as
  * `response.instructions` lost the conversation ("你好. Hello.").
  */
-export function buildInstructionsUpdate(level: LearnerLevel, pace: SpeakingPace): ClientEvent {
+export function buildInstructionsUpdate(
+  level: LearnerLevel,
+  pace: SpeakingPace,
+  target: TargetLanguageCode = ACTIVE_PAIR.target,
+): ClientEvent {
   return {
     type: "session.update",
     session: {
       instructions: buildTutorPrompt(
-        PROFILES[ACTIVE_PAIR.target],
+        PROFILES[target],
         PROFILES[ACTIVE_PAIR.native],
         LEARNER_LEVELS[level],
         pace,

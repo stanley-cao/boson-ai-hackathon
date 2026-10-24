@@ -1,4 +1,4 @@
-import { ACTIVE_PAIR } from "../lang/profiles";
+import { ACTIVE_PAIR, type TargetLanguageCode } from "../lang/profiles";
 import type { LanguageCode, PracticeLanguage } from "../tools/types";
 
 export interface PracticeLabel {
@@ -21,13 +21,22 @@ function nativeName(code: LanguageCode): string {
 }
 
 /** What the badge shows: the latest set_practice_language, else the active target. */
-export function practiceLabel(practice: PracticeLanguage | null): PracticeLabel {
-  const language = practice?.language ?? ACTIVE_PAIR.target;
+export function practiceLabel(
+  practice: PracticeLanguage | null,
+  fallbackLanguage: TargetLanguageCode = ACTIVE_PAIR.target,
+): PracticeLabel {
+  const language = practice?.language ?? fallbackLanguage;
   return { language, name: nativeName(language), level: practice?.level ?? null };
 }
 
-export function PracticeBadge({ practice }: { practice: PracticeLanguage | null }) {
-  const { language, name, level } = practiceLabel(practice);
+export function PracticeBadge({
+  practice,
+  fallbackLanguage = ACTIVE_PAIR.target,
+}: {
+  practice: PracticeLanguage | null;
+  fallbackLanguage?: TargetLanguageCode;
+}) {
+  const { language, name, level } = practiceLabel(practice, fallbackLanguage);
   return (
     <div className="practice">
       <span className="practice-label">practising</span>

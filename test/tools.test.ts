@@ -47,8 +47,20 @@ describe("normalizeLanguage", () => {
     }
   });
 
+  it("maps the Phase 3 target names and locale tags to their profiles", () => {
+    const cases = [
+      ["Korean", "ko"],
+      ["ko-KR", "ko"],
+      ["French", "fr"],
+      ["fr-FR", "fr"],
+      ["Japanese", "ja"],
+      ["ja-JP", "ja"],
+    ] as const;
+    for (const [sent, expected] of cases) expect(normalizeLanguage(sent)).toBe(expected);
+  });
+
   it("returns null for values it does not know, rather than guessing", () => {
-    for (const sent of ["Klingon", "", "  ", "ko", "fr-FR", "Chinese (Simplified)"]) {
+    for (const sent of ["Klingon", "", "  ", "de-DE", "Chinese (Simplified)"]) {
       expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();
     }
   });
@@ -182,6 +194,18 @@ describe("note_correction", () => {
 });
 
 describe("set_practice_language", () => {
+  it("accepts the new target profiles", () => {
+    expect(setPracticeLanguage({ language: "Korean", level: "beginner" }).detail).toMatchObject({
+      language: "ko",
+    });
+    expect(setPracticeLanguage({ language: "fr-FR", level: "intermediate" }).detail).toMatchObject({
+      language: "fr",
+    });
+    expect(setPracticeLanguage({ language: "Japanese", level: "advanced" }).detail).toMatchObject({
+      language: "ja",
+    });
+  });
+
   it("switches language and level, normalising both", () => {
     const r = setPracticeLanguage({ language: "Chinese", level: "Intermediate" });
     expect(r.error).toBeUndefined();
@@ -208,7 +232,7 @@ describe("set_practice_language", () => {
   });
 
   it("answers with an error, never a throw, for a language without a profile", () => {
-    for (const language of ["Korean", "ko", "fr-FR", "", undefined, { code: "zh" }]) {
+    for (const language of ["Klingon", "de-DE", "", undefined, { code: "zh" }]) {
       const r = setPracticeLanguage({ language, level: "beginner" });
       expect(r.error, String(language)).toBe("unknown_language");
       for (const p of Object.values(PROFILES)) expect(r.summary).toContain(p.name);
@@ -229,7 +253,7 @@ describe("set_practice_language", () => {
         required: ["language", "level"],
       },
     });
-    // An enum here pulled a request for Korean onto "en"; see definitions.ts.
+    // Free text still lets the handler refuse languages that have no profile.
     expect(def?.parameters.properties.language).not.toHaveProperty("enum");
   });
 

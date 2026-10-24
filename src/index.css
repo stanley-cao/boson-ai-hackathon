@@ -65,7 +65,8 @@ h1 {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   padding: 0.55rem 1rem;
   border-radius: 0.5rem;
@@ -83,7 +84,8 @@ button:hover:not(:disabled) {
 }
 
 button:disabled,
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -102,6 +104,19 @@ code {
   display: flex;
   gap: 0.6rem;
   margin-bottom: 0.9rem;
+}
+
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.language-picker select {
+  min-width: 10rem;
 }
 
 /* --- status bar --- */
@@ -723,6 +738,14 @@ code {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.4rem;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .language-picker {
+    flex-basis: 100%;
   }
 
   .recap-screen {

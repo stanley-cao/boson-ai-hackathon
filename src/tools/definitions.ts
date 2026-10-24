@@ -84,9 +84,9 @@ export const TOOL_DEFINITIONS = [
       properties: {
         language: {
           type: "string",
-          // Deliberately no enum, unlike the other tools. Asked for Korean with
-          // only en/zh on offer, the model sent "en" and told the learner
-          // they'd switched to Korean. Free text lets the handler refuse it.
+          // Deliberately no enum, unlike the other tools. Free text lets the
+          // handler refuse a requested language that has no profile rather
+          // than coercing it to one of the offered codes.
           description:
             "The language they asked for, as a code or a name, e.g. 'zh' or " +
             "'Korean'. Pass what they asked for even if you can't teach it; " +

@@ -19,10 +19,17 @@ import {
   loadStoredStudy,
   saveStoredStudy,
 } from "./state/studyStorage";
-import { learnerLevelFor } from "./lang/profiles";
+import {
+  ACTIVE_PAIR,
+  TARGET_LANGUAGE_CODES,
+  learnerLevelFor,
+  type LanguageCode,
+  type TargetLanguageCode,
+} from "./lang/profiles";
 import { slowSpeechInput } from "./realtime/pace";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
+import { LanguagePicker } from "./ui/LanguagePicker";
 import { PracticeBadge } from "./ui/PracticeBadge";
 import {
   INITIAL_RECAP_VISIBILITY,
@@ -109,13 +116,17 @@ export default function App() {
   }, []);
 
   const study = useMemo(() => studyFromTranscript(transcript), [transcript]);
+  const [targetLanguage, setTargetLanguage] = useState<TargetLanguageCode>(() => {
+    const stored = study.practiceLanguage?.language;
+    return stored && isTargetLanguage(stored) ? stored : ACTIVE_PAIR.target;
+  });
   // The stored level, restored from localStorage or set earlier this session.
   const storedLevel = study.practiceLanguage?.level;
 
   const connect = useCallback(async () => {
     setCloseMessage(null);
-    await clientRef.current!.connect(learnerLevelFor(storedLevel));
-  }, [storedLevel]);
+    await clientRef.current!.connect(learnerLevelFor(storedLevel), targetLanguage);
+  }, [storedLevel, targetLanguage]);
 
   const send = useCallback(() => {
     if (!text.trim()) return;
@@ -175,9 +186,21 @@ export default function App() {
         />
       ) : (
         <>
-          <PracticeBadge practice={study.practiceLanguage} />
+          <PracticeBadge
+            practice={
+              study.practiceLanguage?.language === targetLanguage
+                ? study.practiceLanguage
+                : null
+            }
+            fallbackLanguage={targetLanguage}
+          />
 
           <div className="row">
+            <LanguagePicker
+              value={targetLanguage}
+              disabled={connection === "connecting" || isOpen}
+              onChange={setTargetLanguage}
+            />
             <button onClick={connect} disabled={connection === "connecting" || isOpen}>
               {connection === "connecting" ? "Connecting…" : "Connect"}
             </button>
@@ -220,4 +243,8 @@ export default function App() {
       <DebugDrawer entries={log} />
     </main>
   );
+}
+
+function isTargetLanguage(language: LanguageCode): language is TargetLanguageCode {
+  return TARGET_LANGUAGE_CODES.some((code) => code === language);
 }
