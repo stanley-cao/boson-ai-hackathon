@@ -39,9 +39,12 @@ from session_config import (
     instructions_for,
     load_prompts,
     load_session,
+    load_slow_note,
     model_kwargs,
+    pace_request,
     practice_change,
     turn_transcription,
+    with_pace,
 )
 from tools import build_tools
 
@@ -51,6 +54,7 @@ load_dotenv(override=True)
 
 SESSION = load_session()
 PROMPTS = load_prompts()
+SLOW_NOTE = load_slow_note()
 
 # The identity this agent joins every room as. server/avatar.ts names it as the
 # avatar session's publisher_identity, and the avatar only plays audio from
@@ -61,18 +65,49 @@ AGENT_IDENTITY = "polyglot-tutor"
 class Tutor(Agent):
     def __init__(self, instructions: str) -> None:
         super().__init__(instructions=instructions, tools=build_tools(SESSION, self.after_tool))
+        # The prompt for the language and level, before any pace note.
+        self.base_instructions = instructions
+        # The lasting pace ("speak more slowly") and whether a one-off slow
+        # repeat is due to end, as RealtimeClient.ts tracks them.
+        self.session_pace = "normal"
+        self.revert_pace_on_next_turn = False
 
-    async def after_tool(self, name: str, result: dict[str, Any], context: RunContext) -> None:
-        # The browser's study panel follows set_practice_language on its own,
-        # but the prompt carries the language's teaching notes, so a switch
-        # needs new instructions here too, as RealtimeClient.ts sends in
-        # direct mode. Awaited before the result goes back, so the reply
-        # already uses them.
+    async def after_tool(
+        self, name: str, arguments: dict[str, Any], result: dict[str, Any], context: RunContext
+    ) -> None:
+        # The browser runs the tools in avatar mode, but the side effects that
+        # RealtimeClient.ts applies in direct mode live in the prompt, so they
+        # happen here. Awaited before the result goes back, so the reply that
+        # follows already uses the new instructions.
         instructions = practice_change(name, result, PROMPTS)
-        if instructions is not None and instructions != self.instructions:
+        if instructions is not None and instructions != self.base_instructions:
+            # The prompt carries the language's teaching notes and the level's
+            # scaffolding, so a switch needs new instructions.
             detail = result.get("detail", {})
             logger.info("now practising %s at %s level", detail.get("language"), detail.get("level"))
-            await self.update_instructions(instructions)
+            self.base_instructions = instructions
+            await self.set_pace(self.session_pace)
+        elif name == "set_speaking_pace" and not result.get("error"):
+            pace, scope = pace_request(arguments)
+            if scope == "session":
+                self.session_pace = pace
+                self.revert_pace_on_next_turn = False
+            elif self.session_pace != "slow":
+                # Avatar mode has no TTS replay: the avatar has to say the
+                # slow repeat itself, so slow down for one reply and go back
+                # once the learner speaks again.
+                self.revert_pace_on_next_turn = True
+            logger.info("speaking pace %s (%s)", pace, scope)
+            await self.set_pace(pace)
+
+    async def set_pace(self, pace: str) -> None:
+        await self.update_instructions(with_pace(self.base_instructions, pace, SLOW_NOTE))
+
+    async def end_one_off_pace(self) -> None:
+        """Back to the lasting pace once a one-off slow repeat has been said."""
+        if self.revert_pace_on_next_turn:
+            self.revert_pace_on_next_turn = False
+            await self.set_pace(self.session_pace)
 
     async def on_enter(self) -> None:
         # The model answers when the learner stops speaking. Speak first instead,
@@ -215,7 +250,16 @@ async def entrypoint(ctx: JobContext) -> None:
         # avatar, whose synchronized audio/video tracks are what the learner
         # subscribes to. AgentSession clears this sink automatically on barge-in.
         route_audio_to_avatar(session, ctx.room)
-    await session.start(agent=Tutor(instructions), room=ctx.room)
+    tutor = Tutor(instructions)
+
+    def on_user_state(event: UserStateChangedEvent) -> None:
+        # The learner's next turn starts after the slow repeat was said, and
+        # before the reply to it is generated.
+        if event.new_state == "speaking":
+            asyncio.create_task(tutor.end_one_off_pace())
+
+    session.on("user_state_changed", on_user_state)
+    await session.start(agent=tutor, room=ctx.room)
 
 
 if __name__ == "__main__":

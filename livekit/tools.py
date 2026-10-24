@@ -36,7 +36,7 @@ UNAVAILABLE_SUMMARY = "The study panel did not answer, so nothing was saved. Car
 ToolHandler = Callable[[dict[str, Any], RunContext], Awaitable[dict[str, Any]]]
 # Runs after the browser answers and before the model gets the result, so a
 # session change it makes (new instructions) is in place for the reply.
-AfterTool = Callable[[str, dict[str, Any], RunContext], Awaitable[None]]
+AfterTool = Callable[[str, dict[str, Any], dict[str, Any], RunContext], Awaitable[None]]
 
 
 def _as_tool_result(response: str) -> dict[str, Any] | None:
@@ -112,7 +112,7 @@ def forwarding_handler(name: str, after: AfterTool | None = None) -> ToolHandler
         logger.info("%s -> %s", name, result.get("summary"))
         if after is not None:
             try:
-                await after(name, result, context)
+                await after(name, raw_arguments, result, context)
             except Exception:
                 # The model still needs its answer, whatever went wrong here.
                 logger.exception("%s: after-tool hook failed", name)

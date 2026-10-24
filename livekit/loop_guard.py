@@ -15,6 +15,14 @@ import re
 # what a loop is made of; only longer ones count as repeats.
 MIN_WORDS = 4
 
+# "Say that again", "slower", and the same in each language taught: a repeat
+# the learner asked for is no loop, and stripping it would leave the model
+# unsure what it just offered. Serbian ponovi, French encore/répète, Japanese
+# もう一度, Korean 다시, Mandarin 再说/再一次.
+_REPEAT_REQUEST = re.compile(
+    r"\b(again|repeat|slower|slowly|one more time|ponovi\w*|encore|r[ée]p[èe]te\w*)\b|もう一度|다시|再说|再一次",
+    re.IGNORECASE,
+)
 _SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 _NON_WORD = re.compile(r"[^\w\s]")
 
@@ -33,8 +41,16 @@ def strip_repeats(reply: str, earlier_replies: list[str], learner_turn: str | No
 
     A sentence repeats when it already appeared in an earlier tutor reply, or
     is the learner's latest turn said back to them. Returns "" when every
-    sentence was a repeat.
+    sentence was a repeat, and None whenever the learner asked for a repeat.
     """
+    if learner_turn and _REPEAT_REQUEST.search(learner_turn):
+        return None
+    # A whole reply said again counts even when each of its sentences is short:
+    # "Hai, wakarimashita! (Yes, I understand!)" looped turn after turn.
+    whole = _key(reply)
+    if len(whole.split()) >= MIN_WORDS and whole in {_key(text) for text in earlier_replies}:
+        return ""
+
     seen = {_key(s) for text in earlier_replies for s in _sentences(text)}
     if learner_turn:
         seen.update(_key(s) for s in _sentences(learner_turn))

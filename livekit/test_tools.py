@@ -103,13 +103,13 @@ def _no_room_context() -> Any:
 
 
 def test_after_hook_sees_the_result_before_the_model_does() -> None:
-    seen: list[tuple[str, dict[str, Any]]] = []
+    seen: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
 
-    async def after(name: str, result: dict[str, Any], _context: Any) -> None:
-        seen.append((name, result))
+    async def after(name: str, arguments: dict[str, Any], result: dict[str, Any], _context: Any) -> None:
+        seen.append((name, arguments, result))
 
     result = asyncio.run(forwarding_handler("save_phrase", after)(ARGS, _no_room_context()))
-    assert seen == [("save_phrase", result)]
+    assert seen == [("save_phrase", ARGS, result)]
 
 
 def test_a_failing_after_hook_still_answers() -> None:
