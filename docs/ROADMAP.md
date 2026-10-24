@@ -124,7 +124,7 @@ Agree on these first. Changing them requires a decision-log entry.
 ## Phase 3: More languages, and de-risking the avatar
 
 - [x] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI). (#29) — @dorsa-molaverdikhani
-- [ ] **A:** add an `sr` (Serbian) profile, written in Latin script like French. (#86)
+- [x] **A:** add an `sr` (Serbian) profile, written in Latin script like French. (#86) — @dorsa-molaverdikhani
 - [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
 - [x] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
 - [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
