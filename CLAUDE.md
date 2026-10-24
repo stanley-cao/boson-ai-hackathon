@@ -30,7 +30,7 @@ Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `
 Test a reasonable amount, not exhaustively. These checks are enough for an issue and its PR:
 
 - Always run `npm test && npm run typecheck && npm run build`.
-- If you touched the prompt, session config, tools or protocol, run `bash scripts/smoke.sh` once when a key is available. It drives `npm run probe` against the live API, so it's also the live check; unit tests don't cover server behaviour. It must exit 0. If it fails, rerun it once before digging in; the `mixed` case is flaky until #57 is fixed. A `PENDING` line means an expected tool isn't registered yet; when you add that tool, check that its case now passes.
+- If you touched the prompt, session config, tools or protocol, run `bash scripts/smoke.sh` once when a key is available. It drives `npm run probe` against the live API, so it's also the live check; unit tests don't cover server behaviour. It must exit 0. If it fails, rerun it once before digging in. A `PENDING` line means an expected tool isn't registered yet; when you add that tool, check that its case now passes.
 - A pure rebase or conflict resolution with no behaviour change needs only the first check.
 - If you touched audio (`src/audio/`), it needs a listening test in the browser. Say so if you couldn't do one.
 - Unit tests cover the new behaviour: the normal case, an edge case or two, and the error path. They don't need to be exhaustive.

@@ -17,12 +17,14 @@ CAPTURES=captures
 FIXTURES=test/fixtures
 mkdir -p "$CAPTURES" "$FIXTURES"
 
-# name | spoken utterance | tools that must fire (comma-separated, may be empty)
+# name | spoken utterance | required tools | argument field | required substring | forbidden tools
+# Use "-" for none. "*" in the forbidden column means no tool may fire.
 CASES=(
-  "english|Hi! Can you check my sentence? I went to the shop yesterday.|"
-  "mandarin|我想练习中文。你觉得我的发音怎么样？|"
-  "mixed|我想说 hello, how do you say 谢谢 in English?|save_phrase"
-  "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback"
+  "english|Hi! Can you check my sentence? I went to the shop yesterday.|-|-|-|*"
+  "mandarin|我想练习中文。你觉得我的发音怎么样？|-|-|-|set_practice_language"
+  "mixed|What does 加油 mean?|save_phrase|phrase|加油|set_practice_language"
+  "correction|我有三本狗。|note_correction|-|-|set_practice_language"
+  "tone|我的声调对吗？mā 和 mǎ，我说得对吗？|pronunciation_feedback|-|-|set_practice_language"
 )
 
 # Probe output for these cases is kept as fixtures for offline tests.
@@ -51,10 +53,30 @@ tool_calls() {
   ' "$1"
 }
 
+# Succeeds when at least one call to `tool` has a string argument `field`
+# containing `wanted`. Parsing the model's JSON here prevents a malformed call
+# from passing merely because it used the expected tool name.
+call_argument_contains() {
+  node -e '
+    const [file, tool, field, wanted] = process.argv.slice(1);
+    const events = JSON.parse(require("fs").readFileSync(file, "utf8"));
+    const matches = events.some((event) => {
+      if (event.type !== "response.function_call_arguments.done" || event.name !== tool) return false;
+      try {
+        const args = JSON.parse(event.arguments);
+        return typeof args[field] === "string" && args[field].includes(wanted);
+      } catch {
+        return false;
+      }
+    });
+    process.exit(matches ? 0 : 1);
+  ' "$1" "$2" "$3" "$4"
+}
+
 failures=0
 
 for case in "${CASES[@]}"; do
-  IFS='|' read -r name utterance expected <<< "$case"
+  IFS='|' read -r name utterance expected arg_field arg_contains forbidden <<< "$case"
   out="$CAPTURES/smoke-$name.json"
   log="$CAPTURES/smoke-$name.log"
   echo "== $name: $utterance"
@@ -67,13 +89,19 @@ for case in "${CASES[@]}"; do
 
   calls="$(tool_calls "$out")"
   case_ok=1
-  if [ -n "$expected" ]; then
+  if [ "$expected" != "-" ]; then
     IFS=',' read -ra wanted <<< "$expected"
     for tool in "${wanted[@]}"; do
       if ! is_registered "$tool"; then
         echo "   PENDING: $tool is not registered yet"
       elif grep -qx "$tool" <<< "$calls"; then
         echo "   ok: $tool fired"
+        if [ "$arg_field" != "-" ] && ! call_argument_contains "$out" "$tool" "$arg_field" "$arg_contains"; then
+          echo "   FAIL: $tool did not send $arg_field containing '$arg_contains'"
+          case_ok=0
+        elif [ "$arg_field" != "-" ]; then
+          echo "   ok: $tool.$arg_field contains '$arg_contains'"
+        fi
       else
         echo "   FAIL: $tool did not fire (calls: ${calls:-none})"
         case_ok=0
@@ -81,6 +109,21 @@ for case in "${CASES[@]}"; do
     done
   else
     echo "   ok: probe completed (no tool expected)"
+  fi
+
+  if [ "$forbidden" = "*" ] && [ -n "$calls" ]; then
+    echo "   FAIL: unexpected tool call(s): $calls"
+    case_ok=0
+  elif [ "$forbidden" != "-" ]; then
+    IFS=',' read -ra blocked <<< "$forbidden"
+    for tool in "${blocked[@]}"; do
+      if grep -qx "$tool" <<< "$calls"; then
+        echo "   FAIL: forbidden tool $tool fired"
+        case_ok=0
+      else
+        echo "   ok: $tool did not fire"
+      fi
+    done
   fi
 
   if [ "$case_ok" = 0 ]; then
