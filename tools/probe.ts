@@ -28,6 +28,8 @@
  *                                                  a spoken turn with a silent gap
  *   npm run probe -- --turn-detection '{"type":"server_vad","silence_duration_ms":1000}' --say "hi"
  *                                                  override the session's turn detection
+ *   npm run probe -- --language sr --temperature 0.8 --say "Zdravo"
+ *                                                  practise another language, at a set sampling temperature
  *
  * `--say` uses the text-to-speech API to synthesise the utterance, then feeds it
  * to the Realtime session the same way the browser feeds microphone audio:
@@ -45,7 +47,15 @@ import {
   planPaceChange,
   practiceChangeFromTool,
 } from "../src/realtime/sessionConfig";
-import { ACTIVE_LEVEL, ACTIVE_PAIR, type LearnerLevel, type TargetLanguageCode } from "../src/lang/profiles";
+import {
+  ACTIVE_LEVEL,
+  ACTIVE_PAIR,
+  LEARNER_LEVELS,
+  PROFILES,
+  TARGET_LANGUAGE_CODES,
+  type LearnerLevel,
+  type TargetLanguageCode,
+} from "../src/lang/profiles";
 import { paceRequestFrom, SLOW_REPEAT_PLAYING, type SpeakingPace } from "../src/tools/handlers";
 import {
   describeClose,
@@ -95,12 +105,18 @@ interface ProbeArgs {
   out: string | null;
   /** Replaces session.audio.input.turn_detection, for comparing VAD settings. */
   turnDetection: Record<string, unknown> | null;
+  /** The language being practised, as the app's picker sets it. */
+  target: TargetLanguageCode;
+  /** Session sampling temperature; the server's default when unset. */
+  temperature: number | null;
 }
 
 function parseArgs(argv: string[]): ProbeArgs {
   const turns: Turn[] = [];
   let out: string | null = null;
   let turnDetection: Record<string, unknown> | null = null;
+  let target: TargetLanguageCode = ACTIVE_PAIR.target;
+  let temperature: number | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--text") turns.push({ kind: "text", value: argv[++i] });
@@ -109,12 +125,21 @@ function parseArgs(argv: string[]): ProbeArgs {
     else if (a === "--audio") turns.push({ kind: "audio", value: argv[++i] });
     else if (a === "--out") out = argv[++i];
     else if (a === "--turn-detection") turnDetection = JSON.parse(argv[++i]);
+    else if (a === "--language") {
+      const code = argv[++i];
+      target = TARGET_LANGUAGE_CODES.find((c) => c === code) ?? fail(`--language must be one of ${TARGET_LANGUAGE_CODES.join(", ")}`);
+    } else if (a === "--temperature") temperature = Number(argv[++i]);
     else if (!a.startsWith("--")) turns.push({ kind: "text", value: a });
   }
   if (turns.length === 0) {
     turns.push({ kind: "text", value: "In one short sentence, what is a sample rate?" });
   }
-  return { turns, out, turnDetection };
+  return { turns, out, turnDetection, target, temperature };
+}
+
+function fail(message: string): never {
+  console.error(message);
+  process.exit(2);
 }
 
 function loadApiKey(): string {
@@ -272,7 +297,7 @@ function summarize(evt: Record<string, unknown>): string {
 }
 
 async function main() {
-  const { turns, out, turnDetection } = parseArgs(process.argv.slice(2));
+  const { turns, out, turnDetection, target: startTarget, temperature } = parseArgs(process.argv.slice(2));
   const apiKey = loadApiKey();
   const key = await mintEphemeralKey(apiKey);
   console.log(`minted ${key.slice(0, 12)}…\nconnecting to ${WS_URL}\n`);
@@ -312,7 +337,7 @@ async function main() {
   // Tracked like the browser does, so a "I'm intermediate" or "let's do
   // French" turn re-instructs the session here too.
   let level: LearnerLevel = ACTIVE_LEVEL;
-  let target: TargetLanguageCode = ACTIVE_PAIR.target;
+  let target: TargetLanguageCode = startTarget;
   // Pace changes, as RealtimeClient makes them, so a slow repeat is measured.
   let sessionPace: SpeakingPace = "normal";
   let revertPace: "armed" | string | null = null;
@@ -326,10 +351,11 @@ async function main() {
 
   ws.addEventListener("open", () => {
     console.log("open — sending session.update\n");
-    const config = buildSessionConfig() as unknown as {
-      session: { audio: { input: { turn_detection: unknown } } };
+    const config = buildSessionConfig(LEARNER_LEVELS[level], PROFILES[target]) as unknown as {
+      session: { audio: { input: { turn_detection: unknown } }; temperature?: number };
     };
     if (turnDetection) config.session.audio.input.turn_detection = turnDetection;
+    if (temperature !== null) config.session.temperature = temperature;
     send(config);
   });
 
