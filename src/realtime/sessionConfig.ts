@@ -71,8 +71,10 @@ export function buildTutorPrompt(
       : "",
     // Speaking style. Slow requests go through set_speaking_pace, not a rule
     // here: a rule to repeat slowly didn't change the pace (#76), and
-    // "matching the learner's energy" worked against slowing down.
-    "Keep every reply to one or two short sentences.",
+    // "matching the learner's energy" worked against slowing down. Short and
+    // expressive suits the on-screen avatar (#35); one sentence reworded
+    // rather than a rule added, since extra rules stopped tool calls.
+    "Keep every reply to one or two short sentences, said warmly and expressively, as if face to face.",
     "You are speaking aloud, not writing — no lists, no markdown, no emoji, no URLs.",
     // Turn-taking.
     "A short follow-up is fine; do not interrogate or add unasked detail.",
