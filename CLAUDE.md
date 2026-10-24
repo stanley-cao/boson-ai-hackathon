@@ -30,12 +30,13 @@ Node 20+. A Boson API key is needed for `dev` and `probe`. It isn't needed for `
 Test a reasonable amount, not exhaustively. These checks are enough for an issue and its PR:
 
 - Always run `npm test && npm run typecheck && npm run build`.
-- If you touched the prompt, session config, tools or protocol, run `bash scripts/smoke.sh` once when a key is available. It drives `npm run probe` against the live API, so it's also the live check; unit tests don't cover server behaviour. It must exit 0. If it fails, rerun it once before digging in. A `PENDING` line means an expected tool isn't registered yet; when you add that tool, check that its case now passes.
+- Don't run `bash scripts/smoke.sh` for issues or PRs; it makes minutes of live API calls. Run it only when someone asks for it.
+- If you changed a tool, the prompt, session config or the protocol, do one `npm run probe -- --say "…"` run that exercises the change, when a key is available. Unit tests don't cover server behaviour.
 - A pure rebase or conflict resolution with no behaviour change needs only the first check.
 - If you touched audio (`src/audio/`), it needs a listening test in the browser. Say so if you couldn't do one.
 - Unit tests cover the new behaviour: the normal case, an edge case or two, and the error path. They don't need to be exhaustive.
-- Don't repeat live runs to measure a rate, run smoke in parallel, or rehearse multi-branch merges unless someone asks.
-- In the PR description, give one line per check you ran. In an issue, write acceptance criteria as behaviour plus "unit tests"; the live check is "one smoke run" or "a few probe runs", not a rate such as "8 of 10".
+- Don't repeat live runs to measure a rate, or rehearse multi-branch merges, unless someone asks.
+- In the PR description, give one line per check you ran. In an issue, write acceptance criteria as behaviour plus "unit tests"; the live check is "one probe run", not a rate such as "8 of 10".
 
 ## Map
 

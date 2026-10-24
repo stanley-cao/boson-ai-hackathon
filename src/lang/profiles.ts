@@ -22,6 +22,14 @@ export interface LanguageProfile {
   sampleOpeners: string[];
 }
 
+export type LearnerLevel = "beginner" | "intermediate";
+
+export interface LearnerLevelProfile {
+  code: LearnerLevel;
+  /** Short because this is inserted into every realtime system prompt. */
+  promptNotes: string;
+}
+
 const en: LanguageProfile = {
   code: "en",
   name: "English",
@@ -54,3 +62,21 @@ export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
   native: keyof typeof PROFILES;
   target: keyof typeof PROFILES;
 };
+
+export const LEARNER_LEVELS = {
+  beginner: {
+    code: "beginner",
+    promptNotes:
+      "Learner level: beginner. Speak slowly, use short simple target-language phrases, " +
+      "and add brief English scaffolding after them.",
+  },
+  intermediate: {
+    code: "intermediate",
+    promptNotes:
+      "Learner level: intermediate. Speak at a natural but clear pace, use mostly the " +
+      "target language, and use English only for brief clarification.",
+  },
+} as const satisfies Record<LearnerLevel, LearnerLevelProfile>;
+
+/** Default for a new session; callers may select another profile explicitly. */
+export const ACTIVE_LEVEL: LearnerLevel = "beginner";

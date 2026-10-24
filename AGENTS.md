@@ -30,12 +30,13 @@ Use Node 20 or newer. A Boson API key is required for `dev` and `probe`, but not
 Test a reasonable amount rather than exhaustively. These checks are sufficient for an issue and its PR:
 
 - Always run `npm test && npm run typecheck && npm run build`.
-- If you touched the prompt, session configuration, tools, or protocol, run `bash scripts/smoke.sh` once when a key is available. It drives `npm run probe` against the live API, so it also serves as the live check; unit tests do not cover server behavior. It must exit 0. If it fails, rerun it once before investigating. A `PENDING` line means an expected tool is not registered yet; when you add that tool, confirm that its case now passes.
+- Do not run `bash scripts/smoke.sh` for issues or PRs; it makes several minutes of live API calls. Run it only when someone asks for it.
+- If you changed a tool, the prompt, the session configuration, or the protocol, perform one `npm run probe -- --say "…"` run that exercises the change when a key is available. Unit tests do not cover server behavior.
 - A pure rebase or conflict resolution with no behavior change needs only the first check.
 - If you touched audio code under `src/audio/`, perform a listening test in the browser. Explicitly report when you could not do one.
 - Unit tests should cover the new behavior: the normal case, one or two edge cases, and the error path. They do not need to be exhaustive.
-- Do not repeat live runs to measure a rate, run smoke tests in parallel, or rehearse multi-branch merges unless someone asks.
-- In the PR description, list each check you ran on one line. In an issue, write acceptance criteria as behavior plus "unit tests"; the live check is "one smoke run" or "a few probe runs", not a rate such as "8 of 10".
+- Do not repeat live runs to measure a rate, or rehearse multi-branch merges, unless someone asks.
+- In the PR description, list each check you ran on one line. In an issue, write acceptance criteria as behavior plus "unit tests"; the live check is "one probe run", not a rate such as "8 of 10".
 
 ## Repository map
 

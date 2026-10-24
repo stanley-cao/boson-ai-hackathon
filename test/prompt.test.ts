@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSessionConfig, buildTutorPrompt, SYSTEM_PROMPT } from "../src/realtime/sessionConfig";
-import { PROFILES } from "../src/lang/profiles";
+import { LEARNER_LEVELS, PROFILES } from "../src/lang/profiles";
 
 describe("tutor prompt", () => {
   it("names the learner's language and the target language from the active pair", () => {
@@ -39,6 +39,37 @@ describe("tutor prompt", () => {
     expect(prompt).toContain(
       "After pronunciation_feedback returns, say its target clearly exactly once.",
     );
+  });
+
+  it("gives beginners slower speech and more English support than intermediates", () => {
+    const beginner = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.beginner);
+    const intermediate = buildTutorPrompt(PROFILES.zh, PROFILES.en, LEARNER_LEVELS.intermediate);
+
+    expect(beginner).toContain("Speak slowly");
+    expect(beginner).toContain("brief English scaffolding");
+    expect(intermediate).toContain("natural but clear pace");
+    expect(intermediate).toContain("mostly the target language");
+    expect(intermediate).not.toContain("English scaffolding");
+  });
+
+  it("honours requests to repeat the same content slowly", () => {
+    for (const level of Object.values(LEARNER_LEVELS)) {
+      const prompt = buildTutorPrompt(PROFILES.zh, PROFILES.en, level);
+      expect(prompt).toContain('says "say that again slowly"');
+      expect(prompt).toContain("repeat the same content at a noticeably slower pace");
+      expect(prompt).toContain("do not add new material");
+    }
+  });
+
+  it("can build a session for either learner level", () => {
+    const beginner = buildSessionConfig(LEARNER_LEVELS.beginner).session as {
+      instructions: string;
+    };
+    const intermediate = buildSessionConfig(LEARNER_LEVELS.intermediate).session as {
+      instructions: string;
+    };
+    expect(beginner.instructions).toContain("Learner level: beginner");
+    expect(intermediate.instructions).toContain("Learner level: intermediate");
   });
 
   it("stays short, because extra rules stop the model calling tools", () => {

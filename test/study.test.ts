@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "../src/realtime/events";
-import { studyFromTranscript } from "../src/state/study";
+import {
+  emptyStudyState,
+  studyFromTranscript,
+  transcriptFromStudy,
+  withoutStudyItems,
+} from "../src/state/study";
 import {
   CLIENT_TOOL_RESULT,
   emptyTranscript,
+  toDisplayList,
+  toPlainText,
   transcriptReducer,
   type TranscriptState,
 } from "../src/state/transcriptStore";
@@ -171,5 +178,60 @@ describe("studyFromTranscript", () => {
     studyFromTranscript(state);
 
     expect(state).toEqual(before);
+  });
+
+  it("rehydrates stored data as transcript items while preserving repeated events", () => {
+    const stored = emptyStudyState();
+    stored.phrases.push({
+      type: "phrase",
+      language: "zh",
+      phrase: "加油",
+      meaning: "keep going",
+    });
+    const current = emptyStudyState();
+    current.phrases.push(
+      stored.phrases[0],
+      { type: "phrase", language: "zh", phrase: "谢谢", meaning: "thank you" },
+    );
+    current.practiceLanguage = {
+      type: "practice_language",
+      language: "zh",
+      level: "intermediate",
+    };
+
+    const hydrated = transcriptFromStudy({
+      corrections: [],
+      phrases: [...stored.phrases, ...current.phrases],
+      pronunciationNotes: [],
+      practiceLanguage: current.practiceLanguage,
+    });
+    const restored = studyFromTranscript(hydrated);
+
+    expect(restored.phrases.map((item) => item.phrase)).toEqual(["加油", "加油", "谢谢"]);
+    expect(restored.practiceLanguage?.level).toBe("intermediate");
+    expect(hydrated.order.every((id) => hydrated.items[id].kind === "tool")).toBe(true);
+    expect(toDisplayList(hydrated)).toEqual([]);
+    expect(toPlainText(hydrated)).toBe("");
+  });
+
+  it("clears study tool items without removing conversation turns", () => {
+    let state = transcriptReducer(
+      emptyTranscript,
+      evt({ type: "input_audio_buffer.speech_started", item_id: "user-1" }),
+      1,
+    );
+    state = addTool(state, "tool-1", "c1", "save_phrase", {
+      summary: "Phrase saved.",
+      detail: { type: "phrase", language: "zh", phrase: "加油", meaning: "keep going" },
+    });
+    state = addTool(state, "tool-2", "c2", "web_search", {
+      summary: "Search complete.",
+    });
+
+    const cleared = withoutStudyItems(state);
+    expect(cleared.order).toEqual(["user-1", "tool-2"]);
+    expect(cleared.items["user-1"].kind).toBe("user");
+    expect(cleared.items["tool-2"].kind).toBe("tool");
+    expect(studyFromTranscript(cleared)).toEqual(emptyStudyState());
   });
 });

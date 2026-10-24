@@ -5,20 +5,32 @@ import type { Correction, Phrase, PronunciationNote } from "../tools/types";
 
 export interface StudyPanelProps {
   state: TranscriptState;
+  onClear?: () => void;
 }
 
-export function StudyPanel({ state }: StudyPanelProps) {
+export function StudyPanel({ state, onClear }: StudyPanelProps) {
   const study = studyFromTranscript(state);
   const corrections = [...study.corrections].reverse();
   const phrases = [...study.phrases].reverse();
   const pronunciationNotes = [...study.pronunciationNotes].reverse();
-  const hasItems = corrections.length + phrases.length + pronunciationNotes.length > 0;
+  const itemCount = corrections.length + phrases.length + pronunciationNotes.length;
+  const hasItems = itemCount > 0;
+  const canClear = hasItems || study.practiceLanguage !== null;
 
   return (
     <aside className="study-panel" aria-labelledby="study-heading">
       <div className="study-head">
         <h2 id="study-heading">Study notes</h2>
-        {hasItems && <span>{corrections.length + phrases.length + pronunciationNotes.length}</span>}
+        {canClear && (
+          <div className="study-head-actions">
+            {hasItems && <span>{itemCount}</span>}
+            {onClear && (
+              <button className="link" type="button" onClick={onClear}>
+                clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {!hasItems && (
