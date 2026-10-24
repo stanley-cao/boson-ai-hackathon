@@ -25,9 +25,8 @@ def test_model_kwargs_match_the_exported_session(session: dict[str, Any]) -> Non
     assert kwargs["input_audio_transcription_model"] == "higgs-stt-3.1"
 
 
-def test_transcription_language_stays_unset(session: dict[str, Any]) -> None:
-    # None is the plugin's representation of Boson's explicit JSON null: auto-detect.
-    assert model_kwargs(session)["input_audio_transcription_language"] is None
+def test_transcription_uses_native_language_hint(session: dict[str, Any]) -> None:
+    assert model_kwargs(session)["input_audio_transcription_language"] == "en"
 
 
 def test_missing_export_raises(tmp_path: Path) -> None:
@@ -63,7 +62,7 @@ def test_plugin_sends_the_browsers_audio_config(session: dict[str, Any]) -> None
     opts = boson.realtime.RealtimeModel(api_key="bai-test", **model_kwargs(session))._boson_opts
     assert opts.turn_detection == session["audio"]["input"]["turn_detection"]
     assert opts.input_audio_transcription == session["audio"]["input"]["transcription"]
-    assert "language" not in opts.input_audio_transcription
+    assert opts.input_audio_transcription["language"] == "en"
 
 
 def test_instructions_follow_the_learners_choice(session: dict[str, Any]) -> None:

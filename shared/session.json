@@ -16,7 +16,7 @@
       },
       "transcription": {
         "model": "higgs-stt-3.1",
-        "language": null
+        "language": "en"
       }
     },
     "output": {
