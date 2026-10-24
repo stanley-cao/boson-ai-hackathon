@@ -65,10 +65,13 @@ export const TOOL_DEFINITIONS = [
     type: "function",
     name: "set_practice_language",
     description:
-      "Switch the language or level the learner is practising. Only when they " +
-      "ask to practise a different language or change their level, call this " +
-      "FIRST, before you say anything else; it updates the badge on their " +
-      "screen and then tells you what to say.",
+      "Switch the language or level only when the learner explicitly asks for " +
+      "a different language than the one they are already practising, or " +
+      "explicitly states a new level. Do NOT call this merely because they name " +
+      "or ask to practise their current language, or ask for pronunciation " +
+      "feedback. Never infer a new level. For a real switch, call this FIRST, " +
+      "before you say anything else; it updates their badge and then tells you " +
+      "what to say.",
     parameters: {
       type: "object",
       properties: {
