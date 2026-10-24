@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { dispatch } from "../src/tools/registry";
-import { webSearch, allPages } from "../src/tools/handlers";
+import { webSearch, allPages, normalizeLanguage } from "../src/tools/handlers";
 import {
   CLIENT_TOOL_RESULT,
   emptyTranscript,
@@ -88,6 +88,32 @@ describe("dispatch", () => {
     const r = await dispatch("order_a_pizza", {});
     expect(r.error).toBe("unknown_tool");
     expect(r.summary).toContain("order_a_pizza");
+  });
+});
+
+describe("normalizeLanguage", () => {
+  it("maps Mandarin, in any spelling the model uses, to zh", () => {
+    for (const sent of ["Mandarin", "Chinese", "zh-CN", "ZH", "zh", " Mandarin Chinese ", "zh_cn"]) {
+      expect(normalizeLanguage(sent), JSON.stringify(sent)).toBe("zh");
+    }
+  });
+
+  it("maps English, in any spelling the model uses, to en", () => {
+    for (const sent of ["English", "en", "EN", "en-US", "en_GB"]) {
+      expect(normalizeLanguage(sent), JSON.stringify(sent)).toBe("en");
+    }
+  });
+
+  it("returns null for values it does not know, rather than guessing", () => {
+    for (const sent of ["Klingon", "", "  ", "ko", "fr-FR", "Chinese (Simplified)"]) {
+      expect(normalizeLanguage(sent), JSON.stringify(sent)).toBeNull();
+    }
+  });
+
+  it("never throws on non-string arguments", () => {
+    for (const sent of [undefined, null, 42, { code: "zh" }, ["zh"]]) {
+      expect(normalizeLanguage(sent), String(sent)).toBeNull();
+    }
   });
 });
 

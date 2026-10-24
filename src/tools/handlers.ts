@@ -1,4 +1,5 @@
 import index from "./searchIndex.json";
+import { PROFILES } from "../lang/profiles";
 
 export interface Page {
   title: string;
@@ -62,6 +63,37 @@ function normalizeTopic(raw: unknown): string | null {
   if (known.has(stripped)) return stripped; // "sciences" -> "science"
   if (known.has(`${stripped}s`)) return `${stripped}s`; // "sport" -> "sports"
   return null; // unknown: don't filter
+}
+
+type ProfileCode = keyof typeof PROFILES;
+
+// Names a model is likely to send for each profile. The schema enum says "zh",
+// but models also say the language's name or a locale tag, so both map here.
+const LANGUAGE_ALIASES: Record<string, ProfileCode> = {
+  en: "en",
+  english: "en",
+  zh: "zh",
+  mandarin: "zh",
+  chinese: "zh",
+  "mandarin chinese": "zh",
+};
+
+/**
+ * Normalise a language argument to a profile code, or `null` if we don't
+ * recognise it. Same rule as `normalizeTopic`: an unknown value means "no
+ * language given", never a thrown error or a guessed language.
+ *
+ * Locale tags such as "zh-CN" or "en_US" fall back to their base subtag, so
+ * "zh-Hant" also maps to `zh`. We only have Simplified-character teaching
+ * notes today, so that is a deliberate simplification.
+ */
+export function normalizeLanguage(raw: unknown): ProfileCode | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim().toLowerCase().replace(/_/g, "-");
+  if (Object.hasOwn(LANGUAGE_ALIASES, t)) return LANGUAGE_ALIASES[t];
+  const base = t.split("-")[0];
+  if (Object.hasOwn(LANGUAGE_ALIASES, base)) return LANGUAGE_ALIASES[base];
+  return null;
 }
 
 export function webSearch(args: Record<string, unknown>): ToolResult {
