@@ -220,14 +220,17 @@ export default function App() {
 
   return (
     <main className="app">
-      <h1>Higgs Realtime Tutorial</h1>
-      <p className="lede">
-        The finished app. Ask about something it could not know — the weekend
-        weather in Willow Creek, say — and it will search for it and speak what
-        it found.
-      </p>
+      <header className="app-header">
+        <a className="brand" href="#top" aria-label="Polyglot home">
+          <span className="brand-mark" aria-hidden="true">P</span>
+          <span>
+            <strong>Polyglot</strong>
+            <small>Language studio</small>
+          </span>
+        </a>
+        <StatusBar connection={connection} activity={activity} closeMessage={closeMessage} />
+      </header>
 
-      <StatusBar connection={connection} activity={activity} closeMessage={closeMessage} />
       {recapVisibility.visible ? (
         <SessionRecap
           state={transcript}
@@ -238,58 +241,85 @@ export default function App() {
         />
       ) : (
         <>
-          <PracticeBadge
-            practice={
-              study.practiceLanguage?.language === sessionLanguage
-                ? study.practiceLanguage
-                : null
-            }
-            fallbackLanguage={sessionLanguage}
-          />
-
-          <div className="row">
-            <LanguagePicker
-              value={sessionLanguage}
-              disabled={busy}
-              onChange={setTargetLanguage}
-            />
-            <ModeToggle value={mode} disabled={busy} onChange={changeMode} />
-            <button onClick={connect} disabled={busy}>
-              {connection === "connecting" ? "Connecting…" : "Connect"}
-            </button>
-            {/* Avatar mode can be left while it connects; RealtimeClient
-                can't yet cancel before its socket exists. */}
-            <button
-              onClick={() => session().disconnect()}
-              disabled={!(isOpen || (mode === "avatar" && connection === "connecting"))}
-            >
-              Disconnect
-            </button>
-          </div>
-
-          <MicButton
-            active={micActive}
-            level={micLevel}
-            disabled={!isOpen}
-            onToggle={toggleMic}
-          />
-          {micError && <p className="error">{micError}</p>}
-
-          <details className="typed">
-            <summary>…or type instead (Part 1's path, still here)</summary>
-            <div className="row">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && isOpen && send()}
-                placeholder="Type something for the model to say back…"
-                disabled={!isOpen}
+          <section className="hero" id="top">
+            <div className="hero-copy">
+              <span className="eyebrow">Speak naturally · learn continuously</span>
+              <h1>Your conversation partner,<br /><em>in every language.</em></h1>
+              <p className="lede">
+                Practise real conversations, switch languages mid-sentence, and turn every
+                correction into something worth remembering.
+              </p>
+              <PracticeBadge
+                practice={
+                  study.practiceLanguage?.language === sessionLanguage
+                    ? study.practiceLanguage
+                    : null
+                }
+                fallbackLanguage={sessionLanguage}
               />
-              <button onClick={send} disabled={!isOpen}>
-                Send
-              </button>
             </div>
-          </details>
+
+            <div className="session-card">
+              <div className="session-card-head">
+                <div>
+                  <span className="section-kicker">New conversation</span>
+                  <h2>Ready when you are</h2>
+                </div>
+                <span className={`session-orb session-orb--${connection}`} aria-hidden="true" />
+              </div>
+
+              <div className="session-options">
+                <LanguagePicker
+                  value={sessionLanguage}
+                  disabled={busy}
+                  onChange={setTargetLanguage}
+                />
+                <div className="mode-field">
+                  <span>Experience</span>
+                  <ModeToggle value={mode} disabled={busy} onChange={changeMode} />
+                </div>
+              </div>
+
+              <div className="connection-actions">
+                <button className="primary-action" onClick={connect} disabled={busy}>
+                  {connection === "connecting" ? "Joining your tutor…" : "Start a session"}
+                </button>
+                {/* Avatar mode can be left while it connects; RealtimeClient
+                    can't yet cancel before its socket exists. */}
+                <button
+                  className="secondary-action"
+                  onClick={() => session().disconnect()}
+                  disabled={!(isOpen || (mode === "avatar" && connection === "connecting"))}
+                >
+                  End
+                </button>
+              </div>
+
+              <MicButton
+                active={micActive}
+                level={micLevel}
+                disabled={!isOpen}
+                onToggle={toggleMic}
+              />
+              {micError && <p className="error">{micError}</p>}
+
+              <details className="typed">
+                <summary>Prefer typing?</summary>
+                <div className="row typed-row">
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && isOpen && send()}
+                    placeholder="Write a message to your tutor…"
+                    disabled={!isOpen}
+                  />
+                  <button className="send-button" onClick={send} disabled={!isOpen}>
+                    Send
+                  </button>
+                </div>
+              </details>
+            </div>
+          </section>
 
           <div className={mode === "avatar" ? "workspace workspace--avatar" : "workspace"}>
             {mode === "avatar" && <AvatarStage track={avatarVideo} connection={connection} />}
