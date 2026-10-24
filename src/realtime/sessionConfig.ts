@@ -1,6 +1,6 @@
 import type { ClientEvent } from "./events";
 import { TOOL_DEFINITIONS } from "../tools/definitions";
-import type { PaceRequest, SpeakingPace } from "../tools/handlers";
+import { oneOffPace, type PaceRequest, type SpeakingPace } from "../tools/handlers";
 import {
   ACTIVE_LEVEL,
   ACTIVE_PAIR,
@@ -82,7 +82,7 @@ export function buildTutorPrompt(
     // Tool use: nothing here on purpose. When to call each tool lives in its
     // description (src/tools/definitions.ts), which keeps this prompt short.
     // Last, where it was probed: it doubled ms per syllable (#76).
-    pace === "slow" ? SLOW_PACE_NOTE : "",
+    PACE_NOTES[pace],
   ]
     .filter(Boolean)
     .join(" ");
@@ -90,6 +90,17 @@ export function buildTutorPrompt(
 
 export const SLOW_PACE_NOTE =
   "Speak very slowly now, at about half your normal speed, with a short pause between words.";
+
+// Unprobed: written to the pattern of SLOW_PACE_NOTE, one step further.
+export const SLOWER_PACE_NOTE =
+  "Speak extremely slowly now, at about a third of your normal speed, pausing after every syllable.";
+
+/** The sentence each pace adds to the end of the prompt. */
+export const PACE_NOTES: Record<SpeakingPace, string> = {
+  normal: "",
+  slow: SLOW_PACE_NOTE,
+  slower: SLOWER_PACE_NOTE,
+};
 
 export const SYSTEM_PROMPT = buildTutorPrompt();
 
@@ -293,15 +304,21 @@ export interface PacePlan {
  * Plan a pace change against the session's lasting pace. A one-off slow
  * repeat is sent and then reverted; a session change is kept. Nothing is sent
  * when the pace is already right.
+ *
+ * A slow request while already slow steps down to slower, so "slow down" said
+ * twice is heard twice; `justHeard` is a one-off repeat's pace when one was
+ * the last thing played.
  */
-export function planPaceChange(request: PaceRequest, sessionPace: SpeakingPace): PacePlan {
+export function planPaceChange(
+  request: PaceRequest,
+  sessionPace: SpeakingPace,
+  justHeard: SpeakingPace = sessionPace,
+): PacePlan {
   if (request.scope === "session") {
-    return {
-      send: request.pace === sessionPace ? null : request.pace,
-      revertAfterReply: false,
-      sessionPace: request.pace,
-    };
+    const pace = request.pace === "slow" && sessionPace !== "normal" ? "slower" : request.pace;
+    return { send: pace === sessionPace ? null : pace, revertAfterReply: false, sessionPace: pace };
   }
-  const already = request.pace === sessionPace;
-  return { send: already ? null : request.pace, revertAfterReply: !already, sessionPace };
+  const pace = oneOffPace(request.pace, justHeard);
+  const already = pace === sessionPace;
+  return { send: already ? null : pace, revertAfterReply: !already, sessionPace };
 }

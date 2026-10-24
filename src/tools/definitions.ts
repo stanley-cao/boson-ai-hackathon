@@ -1,4 +1,5 @@
 import { PROFILES } from "../lang/profiles";
+import { PRONUNCIATION_ISSUES } from "./types";
 
 // The tool definitions sent in session.update.
 //
@@ -114,12 +115,15 @@ export const TOOL_DEFINITIONS = [
       "Call this FIRST, before you say anything else, whenever the learner asks " +
       "you to slow down or speed up: 'say that again slowly', 'repeat that " +
       "slower' or 'say it syllable by syllable' is scope once; 'please speak " +
-      "more slowly' or 'slow down' is scope session. It sets your speaking " +
-      "pace and then tells you what to say.",
+      "more slowly' or 'slow down' is scope session. 'Even slower' or 'very " +
+      "slowly' is pace slower. It sets your speaking pace and then tells you " +
+      "what to say.",
     parameters: {
       type: "object",
       properties: {
-        pace: { type: "string", enum: ["slow", "normal"] },
+        // Asking for slow again while already slow steps down to slower
+        // client-side too, so the model needn't track the current pace.
+        pace: { type: "string", enum: ["slow", "slower", "normal"] },
         scope: {
           type: "string",
           enum: ["once", "session"],
@@ -161,10 +165,15 @@ export const TOOL_DEFINITIONS = [
         },
         issue: {
           type: "string",
-          enum: ["tone", "initial", "final", "other"],
+          // The handler files it in the language's own terms (initial and
+          // final for Mandarin, consonant and vowel elsewhere), so a wrong
+          // pick here still lands on the right card label.
+          enum: [...PRONUNCIATION_ISSUES],
           description:
-            "What was wrong: the tone, the initial (the consonant it starts " +
-            "with), the final (the vowel part after it), or something else.",
+            "What was wrong. Mandarin: tone, initial (the starting consonant) " +
+            "or final (the vowel part). Other languages: consonant, vowel, " +
+            "stress, tone (Vietnamese) or pitch (pitch accent or intonation). " +
+            "Otherwise other.",
         },
         tip: {
           type: "string",
@@ -176,7 +185,10 @@ export const TOOL_DEFINITIONS = [
             "One short, practical tip for making this sound correctly. For a " +
             "Mandarin tone, describe the tone written in `romanization`: first " +
             "(ā) high and level, second (á) rising, third (ǎ) low and dipping, " +
-            "fourth (à) sharply falling, neutral short and light.",
+            "fourth (à) sharply falling, neutral short and light. For a " +
+            "Vietnamese tone, the one its mark shows: ngang (a) level, huyền " +
+            "(à) low falling, sắc (á) rising, hỏi (ả) dipping, ngã (ã) rising " +
+            "with a break, nặng (ạ) low and cut short.",
         },
       },
       required: ["language", "target", "issue", "tip"],

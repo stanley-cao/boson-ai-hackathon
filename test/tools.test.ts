@@ -414,6 +414,57 @@ describe("pronunciation_feedback", () => {
     }
   });
 
+  it("files issues in each language's own terms", () => {
+    const cases: [string, unknown, PronunciationNote["issue"]][] = [
+      ["zh", "consonant", "initial"],
+      ["zh", "vowel", "final"],
+      ["zh", "pitch", "tone"],
+      ["fr", "final", "vowel"],
+      ["fr", "initial consonant", "consonant"],
+      ["fr", "tone", "pitch"],
+      ["fr", "liaison", "other"],
+      ["ko", "Stress", "stress"],
+      ["ja", "pitch accent", "pitch"],
+      ["ja", "tones", "pitch"],
+      ["sr", "accent", "pitch"],
+      ["vi", "tone", "tone"],
+      ["vi", "pitch", "tone"],
+      ["vi", "final", "vowel"],
+    ];
+    for (const [language, sent, issue] of cases) {
+      const d = pronunciationFeedback({ ...args, language, issue: sent }).detail as PronunciationNote;
+      expect(d.issue, `${language} ${String(sent)}`).toBe(issue);
+    }
+  });
+
+  it("states the Vietnamese tone from the mark, and replaces a tip that contradicts it", () => {
+    const vi = { ...args, language: "vi", romanization: undefined, issue: "tone" };
+    const r = pronunciationFeedback({ ...vi, target: "mà", tip: "Rise sharply, like a question." });
+    expect(r.summary).toContain("mà, falling tone (huyền): low and gently falling");
+    expect((r.detail as PronunciationNote).tip).toBe("Start low and let it fall gently.");
+    const ok = pronunciationFeedback({ ...vi, target: "má", tip: "Let it rise sharply." });
+    expect(ok.summary).toContain("má, rising tone (sắc)");
+    expect((ok.detail as PronunciationNote).tip).toBe("Let it rise sharply.");
+  });
+
+  it("reads one Vietnamese tone per word, with vowel marks that aren't tones", () => {
+    // ơ and ư carry a horn, ê a circumflex: vowel marks, so these are level.
+    const r = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target: "cơm", tip: "Listen." });
+    expect(r.summary).toContain("cơm, level tone (ngang)");
+    const two = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target: "Việt Nam", tip: "Listen." });
+    expect(two.summary).toContain("việt, heavy tone (nặng)");
+    expect(two.summary).toContain("nam, level tone (ngang)");
+  });
+
+  it("states no Vietnamese contour when there are no marks to read it from", () => {
+    // "ma" may be level, or a model that dropped every diacritic.
+    for (const target of ["ma", "xin chao", "ma 2"]) {
+      const r = pronunciationFeedback({ ...args, language: "vi", issue: "tone", target, tip: "Rise." });
+      expect(r.summary, target).not.toContain("tone:");
+      expect((r.detail as PronunciationNote).tip).toBe("Rise.");
+    }
+  });
+
   it("leaves notes about initials and finals alone", () => {
     const tip = "Curl your tongue back, and let it rise.";
     const r = pronunciationFeedback({ ...args, issue: "initial", romanization: "zhī", tip });
@@ -453,7 +504,7 @@ describe("pronunciation_feedback", () => {
       parameters: {
         properties: {
           language: { enum: Object.keys(PROFILES) },
-          issue: { enum: ["tone", "initial", "final", "other"] },
+          issue: { enum: ["tone", "initial", "final", "consonant", "vowel", "stress", "pitch", "other"] },
         },
         required: ["language", "target", "issue", "tip"],
       },

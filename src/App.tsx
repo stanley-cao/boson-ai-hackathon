@@ -30,7 +30,7 @@ import {
   type LanguageCode,
   type TargetLanguageCode,
 } from "./lang/profiles";
-import { slowSpeechInput } from "./realtime/pace";
+import { slowSpeechInput, type SlowSpeechOptions } from "./realtime/pace";
 import { AvatarStage } from "./ui/AvatarStage";
 import { DebugDrawer } from "./ui/DebugDrawer";
 import { MicButton } from "./ui/MicButton";
@@ -52,8 +52,8 @@ import { playReplay, stopReplay } from "./ui/ttsReplay";
  * prosody tags. True once it is audible; false if it can't be built or
  * played, and the client then asks the model for the repeat instead.
  */
-function playSlowRepeat(text: string): Promise<boolean> {
-  const input = slowSpeechInput(text);
+function playSlowRepeat(text: string, options: SlowSpeechOptions): Promise<boolean> {
+  const input = slowSpeechInput(text, options);
   if (!input) return Promise.resolve(false);
   return new Promise((resolve) => {
     // The first call wins: onStart means it played, settling first means not.

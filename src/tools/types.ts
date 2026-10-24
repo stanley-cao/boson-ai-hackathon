@@ -44,16 +44,33 @@ export interface Phrase {
 /**
  * Feedback on how something was pronounced. Produced by `pronunciation_feedback`.
  *
- * `issue` uses Mandarin syllable terms (initial / final / tone) because tone
- * feedback is the Phase 1 showcase; other languages fall back to "other".
+ * `issue` is in each language's own terms: Mandarin uses its syllable terms
+ * (initial / final / tone), the other languages consonant / vowel / stress,
+ * with tone for Vietnamese and pitch for pitch accent and intonation.
+ * `pronunciationFeedback` maps one set onto the other, so a Mandarin note is
+ * never filed as "vowel" or a French one as "final".
  */
+// One list for the schema enum, the handler and the transcript reader.
+export const PRONUNCIATION_ISSUES = [
+  "tone",
+  "initial",
+  "final",
+  "consonant",
+  "vowel",
+  "stress",
+  "pitch",
+  "other",
+] as const;
+
+export type PronunciationIssue = (typeof PRONUNCIATION_ISSUES)[number];
+
 export interface PronunciationNote {
   type: "pronunciation";
   language: LanguageCode;
   /** The word or syllable being practised. */
   target: string;
   romanization?: string;
-  issue: "tone" | "initial" | "final" | "other";
+  issue: PronunciationIssue;
   tip: string;
 }
 
