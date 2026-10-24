@@ -94,12 +94,14 @@ export function buildSessionConfig(): ClientEvent {
       audio: {
         input: {
           format: { type: "audio/pcm", rate: AUDIO_RATE },
-          // Language learners pause while searching for words. Semantic VAD
-          // combines speech detection with an end-of-turn judgement, making it
-          // less likely to cut those pauses into separate turns than a fixed
-          // silence window. Keep the documented defaults until issue #7's live
-          // English, Mandarin and code-switching comparison is complete.
-          turn_detection: { type: "semantic_vad" },
+          // Language learners pause while searching for words, so the turn
+          // only ends after 1.5 s of silence (the default is 500 ms). Probed
+          // 2026-10-24 (#7, ROADMAP decision log): semantic_vad committed
+          // "I went to the…" at its default window, and at equal windows it
+          // held no more pauses than server_vad; its only accepted eagerness
+          // is "auto". server_vad holds any pause shorter than this window
+          // and splits longer ones; the cost is a ~1.3 s wait after every turn.
+          turn_detection: { type: "server_vad", silence_duration_ms: 1500 },
           // PART 3: transcribe the user's speech.
           //
           // Off by default — the ack shows `model: ""` if you omit this — and
