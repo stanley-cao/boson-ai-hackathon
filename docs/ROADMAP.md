@@ -49,7 +49,7 @@ Agree on these first. Changing them requires a decision-log entry.
 1. **Language profiles.** `src/lang/profiles.ts` (Track A):
    ```ts
    interface LanguageProfile {
-     code: "en" | "zh" | "ko" | "fr" | "ja";  // BCP-47 base
+     code: "en" | "zh" | "ko" | "fr" | "ja" | "sr";  // BCP-47 base
      name: string;                            // "Mandarin Chinese"
      script: "Latn" | "Hans" | "Hang" | "Jpan";
      romanization?: "pinyin" | "revised" | "hepburn";
@@ -124,6 +124,7 @@ Agree on these first. Changing them requires a decision-log entry.
 ## Phase 3: More languages, and de-risking the avatar
 
 - [ ] **A:** add `ko`, `fr` and `ja` profiles as config only, and a language picker (Track C wires up the UI). (#29)
+- [ ] **A:** add an `sr` (Serbian) profile, written in Latin script like French. (#86)
 - [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
 - [ ] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
 - [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
@@ -202,4 +203,5 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-24 | Use the `eleanor` preset for Realtime output, provisionally pending a live Mandarin listening check. | Boson's voice library describes Eleanor as calm, articulate and designed for educational explanations, which fits a language tutor; named TTS presets are supported by `audio.output.voice`. |
 | 2026-10-24 | The practice level `advanced` uses the intermediate learner-level profile (`learnerLevelFor` in `src/lang/profiles.ts`); `LearnerLevel` stays beginner / intermediate. A level change from `set_practice_language` sends a `session.update` carrying only `instructions`, before the tool output, and a connect starts at the stored level (#77). | Intermediate already asks for mostly the target language, and a third level profile would push the prompt past its length tripwire (#80). Probed 2026-10-24: Higgs acknowledges an instructions-only update with `session.updated` and keeps the VAD, tools and voice from the first update, and the replies after "my level is intermediate now" were all Mandarin. |
 | 2026-10-24 | Slow speech goes through a `set_speaking_pace {pace, scope}` tool, which returns no `detail`. A one-off repeat ("say that again slowly") is re-spoken by the client through `/api/tts` with `<\|prosody:speed_slow\|>` and a pause tag between words, and no `response.create` follows. A lasting "speak more slowly" re-sends the session instructions with a slow-pace sentence. `/api/tts` uses the tutor voice (`OUTPUT_VOICE`). The prompt loses its slow-repeat rule and "matching the learner's energy" (#76). | Probed 2026-10-24: the prompt rule left a repeat at the same pace (~170–190 ms per syllable). Slow instructions sent by `session.update` ranged from 150 to 390 ms per syllable depending on whether the model added commas, `response.instructions` lost the conversation, and a TTS speed tag alone added under 20%. Speed plus pause tags made TTS about 3× longer on every run. So the lasting slow mode is best-effort, and only the repeat is reliably slower. |
+| 2026-10-24 | Serbian (`sr`) joins Phase 3 as a target language, written in Latin script (`Latn`) with no romanization, like French (#86). | Requested for Phase 3. One probe run: Higgs transcribed spoken Serbian accurately but in Latin script, even though the synthesised input was Cyrillic, so teaching in Latin keeps the tutor's text consistent with the learner's own transcript. Boson lists Serbian in Higgs TTS 3's top tier (WER/CER under 5). |
 | 2026-10-24 | The slow repeat is said syllable by syllable: `slowSpeechInput` sends `<\|prosody:speed_slow\|>` with a full stop after every Han character and pinyin word, and leaves English whole. This replaces the pause tags between words from #76. `set_speaking_pace` also covers "say it syllable by syllable". | Probed 2026-10-24: with pause tags, 我今天想去图书馆学习 came back as five even 0.9 s chunks that transcribed as an unrelated repeated phrase, which suggests TTS babble. A stop per syllable ran 3–5× longer than plain, came out as about one speech burst per syllable, and in one run transcribed back exactly. Transcribing isolated syllables is unreliable, so a listening test is still owed. |
