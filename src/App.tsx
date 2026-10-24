@@ -57,7 +57,9 @@ export default function App() {
   // actually opened before treating a later close as the end of one.
   const handleConnectionState = useCallback((next: ConnectionState) => {
     setConnection(next);
-    setRecapVisibility((current) => recapVisibilityAfterConnection(current, next));
+    // Read the clock outside the updater, which StrictMode runs twice.
+    const now = Date.now();
+    setRecapVisibility((current) => recapVisibilityAfterConnection(current, next, now));
   }, []);
 
   // The client outlives re-renders, so it lives in a ref rather than state.
@@ -142,6 +144,7 @@ export default function App() {
       {recapVisibility.visible ? (
         <SessionRecap
           state={transcript}
+          openedAt={recapVisibility.openedAt}
           onContinue={() =>
             setRecapVisibility((current) => ({ ...current, visible: false }))
           }
