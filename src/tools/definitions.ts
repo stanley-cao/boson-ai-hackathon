@@ -112,9 +112,10 @@ export const TOOL_DEFINITIONS = [
     // when to do that.
     description:
       "Call this FIRST, before you say anything else, whenever the learner asks " +
-      "you to slow down or speed up: 'say that again slowly' or 'repeat that " +
-      "slower' is scope once; 'please speak more slowly' or 'slow down' is " +
-      "scope session. It sets your speaking pace and then tells you what to say.",
+      "you to slow down or speed up: 'say that again slowly', 'repeat that " +
+      "slower' or 'say it syllable by syllable' is scope once; 'please speak " +
+      "more slowly' or 'slow down' is scope session. It sets your speaking " +
+      "pace and then tells you what to say.",
     parameters: {
       type: "object",
       properties: {
