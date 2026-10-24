@@ -164,9 +164,30 @@ function detailFrom(item: ToolItem): ToolDetail | null {
   return DETAIL_TYPE_BY_TOOL[item.name] === detail.type ? detail : null;
 }
 
+/**
+ * What makes two study entries the same, or null for one that is never
+ * repeated (the practice language just takes the latest).
+ *
+ * The model sometimes calls a tool twice for one turn: live, a Japanese
+ * correction was saved twice a second apart, and the panel showed both.
+ */
+function sameEntryKey(detail: ToolDetail): string | null {
+  switch (detail.type) {
+    case "correction":
+      return JSON.stringify([detail.type, detail.language, detail.said.trim(), detail.correct.trim()]);
+    case "phrase":
+      return JSON.stringify([detail.type, detail.language, detail.phrase.trim().toLowerCase()]);
+    case "pronunciation":
+      return JSON.stringify([detail.type, detail.language, detail.target.trim(), detail.issue, detail.tip.trim()]);
+    default:
+      return null;
+  }
+}
+
 /** Derive every study view from the transcript, without mutating its items. */
 export function studyFromTranscript(state: TranscriptState): StudyState {
   const study = emptyStudyState();
+  const seen = new Set<string>();
 
   for (const itemId of state.order) {
     const item = state.items[itemId];
@@ -174,6 +195,12 @@ export function studyFromTranscript(state: TranscriptState): StudyState {
 
     const detail = detailFrom(item);
     if (!detail) continue;
+    // The first of identical entries stays, so the panel's order holds.
+    const key = sameEntryKey(detail);
+    if (key !== null) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
 
     switch (detail.type) {
       case "correction":

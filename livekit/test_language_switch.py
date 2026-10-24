@@ -43,3 +43,12 @@ def test_every_target_language_can_be_asked_for() -> None:
     assert requested_language("practice Serbian", "fr") == "sr"
     assert requested_language("let's do Vietnamese", "fr") == "vi"
     assert requested_language("go back to French", "ja") == "fr"
+
+
+def test_every_exported_prompt_language_has_a_name() -> None:
+    # A language added to src/lang/profiles.ts must be sayable here too.
+    from session_config import load_prompts
+
+    from language_switch import LANGUAGE_NAMES
+
+    assert set(load_prompts()) == set(LANGUAGE_NAMES)

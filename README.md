@@ -14,7 +14,7 @@ cp .env.example .env    # set BOSON_API_KEY=bai-...
 npm run dev
 ```
 
-Open http://localhost:5173, click **Connect**, then **Start microphone**.
+Open http://localhost:5173, click **Connect**, then **Start microphone**. For what to say to switch language, slow the tutor down, or get corrections, see [docs/TALKING-TO-THE-TUTOR.md](docs/TALKING-TO-THE-TUTOR.md).
 
 `npm run dev` runs a small token server on :3000, which mints short-lived ephemeral keys so your real key never reaches the browser, and the Vite dev server on :5173.
 

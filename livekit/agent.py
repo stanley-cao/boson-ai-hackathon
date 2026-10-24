@@ -37,6 +37,7 @@ from livekit.agents.worker import ServerEnvOption
 from livekit.plugins import boson
 
 from avatar_output import is_avatar_room, route_audio_to_avatar
+from dispatch import agent_name
 from language_switch import requested_language
 from loop_guard import strip_repeats
 from practised import PractisedPhrases, practised_phrase
@@ -354,7 +355,8 @@ async def accept_as_tutor(request: JobRequest) -> None:
     await request.accept(identity=AGENT_IDENTITY)
 
 
-@server.rtc_session(on_request=accept_as_tutor)
+# Named, so only rooms that ask for this machine's agent come here (dispatch.py).
+@server.rtc_session(on_request=accept_as_tutor, agent_name=agent_name())
 async def entrypoint(ctx: JobContext) -> None:
     # The learner's token carries the language and level picked in the
     # browser (server/avatar.ts), so wait for them before choosing a prompt.

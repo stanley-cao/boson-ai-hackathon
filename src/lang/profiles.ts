@@ -118,9 +118,14 @@ export const ACTIVE_PAIR = { native: "en", target: "zh" } as const satisfies {
 export const LEARNER_LEVELS = {
   beginner: {
     code: "beginner",
+    // Concrete, because "add brief English scaffolding" was ignored: probed
+    // beginners asking in English got target-only replies, promises like "I'll
+    // show you how to say hello" with nothing after, and their own question
+    // said back to them.
     promptNotes:
-      "Learner level: beginner. Speak slowly, use short simple target-language phrases, " +
-      "and add brief English scaffolding after them.",
+      "Learner level: beginner. Speak slowly. Each reply says one short target-language " +
+      "phrase and then what it means in English. When they ask how to say something, say " +
+      "it straight away; when they ask you something, answer it instead of repeating it.",
   },
   intermediate: {
     code: "intermediate",
