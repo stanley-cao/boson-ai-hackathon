@@ -14,8 +14,8 @@ import {
   buildInstructionsUpdate,
   buildSessionConfig,
   buildTranscriptionDetectionReset,
-  levelChangeFromTool,
   planPaceChange,
+  practiceChangeFromTool,
 } from "./sessionConfig";
 import {
   ACTIVE_LEVEL,
@@ -414,13 +414,17 @@ export class RealtimeClient {
       let result: unknown = await runTool(name, args, (e) =>
         this.info(`tool ${name} threw: ${e instanceof Error ? e.message : String(e)}`),
       );
-      // The badge alone isn't enough: the prompt carries the level's pace and
-      // how much English to use, so a new level needs new instructions.
-      const level = levelChangeFromTool(name, result, this.level);
-      if (level) {
-        this.level = level;
-        batch.sessionUpdate = buildInstructionsUpdate(level, this.sessionPace, this.target);
-        this.info(`Learner level is now ${level} — updating the session instructions.`);
+      // The badge alone isn't enough: the prompt carries the language's
+      // teaching notes, the level's pace and how much English to use, so a new
+      // language or level needs new instructions.
+      const change = practiceChangeFromTool(name, result, { target: this.target, level: this.level });
+      if (change) {
+        this.target = change.target;
+        this.level = change.level;
+        batch.sessionUpdate = buildInstructionsUpdate(change.level, this.sessionPace, change.target);
+        this.info(
+          `Now practising ${PROFILES[change.target].name} at ${change.level} level — updating the session instructions.`,
+        );
       }
       if (name === "set_speaking_pace") {
         const request = paceRequestFrom(args);

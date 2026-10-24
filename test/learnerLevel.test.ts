@@ -3,7 +3,7 @@ import { learnerLevelFor } from "../src/lang/profiles";
 import {
   buildInstructionsUpdate,
   buildSessionConfig,
-  levelChangeFromTool,
+  practiceChangeFromTool,
 } from "../src/realtime/sessionConfig";
 import { setPracticeLanguage } from "../src/tools/handlers";
 
@@ -42,30 +42,42 @@ describe("buildInstructionsUpdate for a level", () => {
   });
 });
 
-describe("levelChangeFromTool", () => {
-  const practise = (level: string) => setPracticeLanguage({ language: "zh", level });
+describe("practiceChangeFromTool", () => {
+  const practise = (level: string, language = "zh") => setPracticeLanguage({ language, level });
+  const zhBeginner = { target: "zh", level: "beginner" } as const;
 
   it("reports a new level from set_practice_language", () => {
-    expect(levelChangeFromTool("set_practice_language", practise("intermediate"), "beginner")).toBe(
-      "intermediate",
+    expect(practiceChangeFromTool("set_practice_language", practise("intermediate"), zhBeginner)).toEqual(
+      { target: "zh", level: "intermediate" },
     );
-    expect(levelChangeFromTool("set_practice_language", practise("advanced"), "beginner")).toBe(
-      "intermediate",
-    );
+    expect(practiceChangeFromTool("set_practice_language", practise("advanced"), zhBeginner)).toEqual({
+      target: "zh",
+      level: "intermediate",
+    });
   });
 
-  it("ignores a level whose profile is already active", () => {
-    expect(levelChangeFromTool("set_practice_language", practise("beginner"), "beginner")).toBeNull();
+  it("reports a new language mid-session, keeping the level it was given", () => {
+    const fromSerbian = { target: "sr", level: "beginner" } as const;
     expect(
-      levelChangeFromTool("set_practice_language", practise("advanced"), "intermediate"),
+      practiceChangeFromTool("set_practice_language", practise("beginner", "French"), fromSerbian),
+    ).toEqual({ target: "fr", level: "beginner" });
+  });
+
+  it("ignores a language and level whose prompt is already active", () => {
+    expect(practiceChangeFromTool("set_practice_language", practise("beginner"), zhBeginner)).toBeNull();
+    expect(
+      practiceChangeFromTool("set_practice_language", practise("advanced"), {
+        target: "zh",
+        level: "intermediate",
+      }),
     ).toBeNull();
   });
 
   it("ignores other tools, errors and malformed results", () => {
     const failed = setPracticeLanguage({ language: "klingon", level: "intermediate" });
-    expect(levelChangeFromTool("set_practice_language", failed, "beginner")).toBeNull();
-    expect(levelChangeFromTool("save_phrase", practise("intermediate"), "beginner")).toBeNull();
-    expect(levelChangeFromTool("set_practice_language", null, "beginner")).toBeNull();
-    expect(levelChangeFromTool("set_practice_language", { detail: "x" }, "beginner")).toBeNull();
+    expect(practiceChangeFromTool("set_practice_language", failed, zhBeginner)).toBeNull();
+    expect(practiceChangeFromTool("save_phrase", practise("intermediate"), zhBeginner)).toBeNull();
+    expect(practiceChangeFromTool("set_practice_language", null, zhBeginner)).toBeNull();
+    expect(practiceChangeFromTool("set_practice_language", { detail: "x" }, zhBeginner)).toBeNull();
   });
 });

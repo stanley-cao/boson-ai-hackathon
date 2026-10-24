@@ -93,3 +93,29 @@ def test_handler_without_a_linked_participant_gets_the_stand_in() -> None:
         function_call=SimpleNamespace(call_id="c"),
     )
     assert asyncio.run(forwarding_handler("save_phrase")(ARGS, context)) == {"summary": STAND_IN_SUMMARY}  # type: ignore[arg-type]
+
+
+def _no_room_context() -> Any:
+    return SimpleNamespace(
+        session=SimpleNamespace(room_io=SimpleNamespace(linked_participant=None, room=None)),
+        function_call=SimpleNamespace(call_id="c"),
+    )
+
+
+def test_after_hook_sees_the_result_before_the_model_does() -> None:
+    seen: list[tuple[str, dict[str, Any]]] = []
+
+    async def after(name: str, result: dict[str, Any], _context: Any) -> None:
+        seen.append((name, result))
+
+    result = asyncio.run(forwarding_handler("save_phrase", after)(ARGS, _no_room_context()))
+    assert seen == [("save_phrase", result)]
+
+
+def test_a_failing_after_hook_still_answers() -> None:
+    # The model hangs on an unanswered call_id, so the hook can't take the result with it.
+    async def after(*_: Any) -> None:
+        raise RuntimeError("boom")
+
+    result = asyncio.run(forwarding_handler("save_phrase", after)(ARGS, _no_room_context()))
+    assert result == {"summary": STAND_IN_SUMMARY}

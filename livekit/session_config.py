@@ -26,6 +26,20 @@ def load_prompts(path: Path = PROMPTS_JSON) -> dict[str, dict[str, str]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def learner_level_for(level: object) -> str:
+    """The prompt level for a stated level, as learnerLevelFor in src/lang/profiles.ts.
+
+    prompts.json has beginner and intermediate prompts; advanced shares the
+    intermediate one, and anything else falls back to beginner.
+    """
+    return "intermediate" if level in ("intermediate", "advanced") else "beginner"
+
+
+def prompt_for(language: object, level: object, prompts: dict[str, dict[str, str]]) -> str | None:
+    """The prompt for a language and stated level, or None for an unknown language."""
+    return prompts.get(str(language), {}).get(learner_level_for(level))
+
+
 def instructions_for(metadata: str, prompts: dict[str, dict[str, str]], default: str) -> str:
     """The prompt for the language and level in the learner's token metadata.
 
@@ -39,8 +53,21 @@ def instructions_for(metadata: str, prompts: dict[str, dict[str, str]], default:
         return default
     if not isinstance(choice, dict):
         return default
-    by_level = prompts.get(str(choice.get("language")), {})
-    return by_level.get(str(choice.get("level")), default)
+    return prompt_for(choice.get("language"), choice.get("level"), prompts) or default
+
+
+def practice_change(name: str, result: dict[str, Any], prompts: dict[str, dict[str, str]]) -> str | None:
+    """The new prompt a tool result calls for, as practiceChangeFromTool in sessionConfig.ts.
+
+    Only a successful ``set_practice_language`` does. Its result is the browser's
+    ToolResult, so the detail's shape is checked rather than trusted.
+    """
+    if name != "set_practice_language":
+        return None
+    detail = result.get("detail")
+    if not isinstance(detail, dict) or detail.get("type") != "practice_language":
+        return None
+    return prompt_for(detail.get("language"), detail.get("level"), prompts)
 
 
 def model_kwargs(session: dict[str, Any]) -> dict[str, Any]:
@@ -57,9 +84,19 @@ def model_kwargs(session: dict[str, Any]) -> dict[str, Any]:
         # Passed through whole: the 1.5 s silence window lets learners pause
         # mid-sentence (#7), and the plugin's own default is 500 ms.
         "turn_detection": audio_in["turn_detection"],
-        # The plugin only emits user transcripts when a model is named. The
-        # native-language hint stabilizes short ambiguous English turns while
-        # still allowing the realtime model to detect clear language switches.
-        "input_audio_transcription_model": audio_in["transcription"]["model"],
-        "input_audio_transcription_language": audio_in["transcription"].get("language"),
+        # The raw dict, passed through whole, so the exported language hint
+        # (#107: the native language) reaches the server exactly as the
+        # browser sends it, including an explicit null if it is ever unset.
+        "input_audio_transcription": turn_transcription(session),
     }
+
+
+def turn_transcription(session: dict[str, Any]) -> dict[str, Any]:
+    """The transcription config to resend as each turn starts.
+
+    Boson lets STT follow the conversation language after the first reply, so a
+    Serbian tutor turned the learner's English captions into Serbian. The agent
+    resends the exported config (model and language hint) every turn, as
+    buildTranscriptionDetectionReset does in RealtimeClient.ts.
+    """
+    return dict(session["audio"]["input"]["transcription"])

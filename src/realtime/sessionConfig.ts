@@ -247,24 +247,36 @@ export function buildInstructionsUpdate(
   };
 }
 
+/** The language and level the session's instructions are built for. */
+export interface PracticeTarget {
+  target: TargetLanguageCode;
+  level: LearnerLevel;
+}
+
 /**
- * The level a tool result moves the session to, or null when it doesn't.
+ * The language and level a tool result moves the session to, or null when it
+ * doesn't.
  *
- * Only `set_practice_language` changes level, and only when its detail maps
- * to a different prompt profile: "intermediate" → "advanced" keeps the same
- * instructions, so it isn't worth a session.update. Results arrive as
- * `unknown` from the registry, so the shape is checked rather than trusted.
+ * Only `set_practice_language` does, and only when its detail maps to a
+ * different prompt: "intermediate" → "advanced" in the same language keeps the
+ * same instructions, so it isn't worth a session.update. A new language needs
+ * new instructions too, or a Serbian tutor asked for French keeps teaching
+ * from its Serbian notes.
+ * Results arrive as `unknown` from the registry, so the shape is checked
+ * rather than trusted.
  */
-export function levelChangeFromTool(
+export function practiceChangeFromTool(
   name: string,
   result: unknown,
-  current: LearnerLevel,
-): LearnerLevel | null {
+  current: PracticeTarget,
+): PracticeTarget | null {
   if (name !== "set_practice_language") return null;
-  const detail = (result as { detail?: { type?: unknown; level?: unknown } } | null)?.detail;
+  const detail = (result as { detail?: { type?: unknown; language?: unknown; level?: unknown } } | null)
+    ?.detail;
   if (detail?.type !== "practice_language" || typeof detail.level !== "string") return null;
-  const next = learnerLevelFor(detail.level);
-  return next === current ? null : next;
+  const target = TARGET_LANGUAGE_CODES.find((code) => code === detail.language) ?? current.target;
+  const level = learnerLevelFor(detail.level);
+  return target === current.target && level === current.level ? null : { target, level };
 }
 
 /** What the client does about a `set_speaking_pace` call. */
