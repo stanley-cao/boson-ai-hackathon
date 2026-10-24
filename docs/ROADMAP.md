@@ -127,11 +127,11 @@ Agree on these first. Changing them requires a decision-log entry.
 - [x] **A:** add an `sr` (Serbian) profile, written in Latin script like French. (#86) — @dorsa-molaverdikhani
 - [ ] **A:** test switching across three languages in one session (English, then 中文, then 한국어). (#29)
 - [x] **A:** `npm run export-config` writes the prompt and tool schemas to `shared/session.json` for the LiveKit agent (#30)
-- [ ] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
+- [x] **D (parallel, start during Phase 1–2):** a LiveKit spike (#31):
   - [x] Copy `livekit/` from [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0) and extend `NOTICE` to cover it.
-  - [ ] Create a LiveKit Cloud project. Self-hosted LiveKit is refused by the avatar API.
+  - [x] Create a LiveKit Cloud project. Self-hosted LiveKit is refused by the avatar API.
   - [x] Load `shared/session.json` in the agent. Tool calls get a stand-in result until #32.
-  - [ ] Get a voice-only conversation working through LiveKit.
+  - [x] Get a voice-only conversation working through LiveKit.
 - [ ] **B:** make tool execution transport-agnostic. In LiveKit mode the agent receives the tool calls and forwards them to the browser over a LiveKit data channel or RPC. The browser runs `registry.dispatch` and returns the result, so the study panel works unchanged. (#32)
 
 **Exit criteria:** the same conversation, with working tools and study panel, runs both in direct-WebSocket mode and through LiveKit.
@@ -207,3 +207,4 @@ Map the demo to the judging weights: **use of Higgs 30%** (realtime code-switchi
 | 2026-10-24 | Serbian (`sr`) joins Phase 3 as a target language, written in Latin script (`Latn`) with no romanization, like French (#86). | Requested for Phase 3. One probe run: Higgs transcribed spoken Serbian accurately but in Latin script, even though the synthesised input was Cyrillic, so teaching in Latin keeps the tutor's text consistent with the learner's own transcript. Boson lists Serbian in Higgs TTS 3's top tier (WER/CER under 5). |
 | 2026-10-24 | The slow repeat is said syllable by syllable: `slowSpeechInput` sends `<\|prosody:speed_slow\|>` with a full stop after every Han character and pinyin word, and leaves English whole. This replaces the pause tags between words from #76. `set_speaking_pace` also covers "say it syllable by syllable". | Probed 2026-10-24: with pause tags, 我今天想去图书馆学习 came back as five even 0.9 s chunks that transcribed as an unrelated repeated phrase, which suggests TTS babble. A stop per syllable ran 3–5× longer than plain, came out as about one speech burst per syllable, and in one run transcribed back exactly. Transcribing isolated syllables is unreliable, so a listening test is still owed. |
 | 2026-10-24 | `shared/session.json` holds the `session` object of `buildSessionConfig()` at the default pair, level and pace, written by `npm run export-config` and committed. Re-run it after changing the prompt, voice, VAD, transcription or tools; `test/exportConfig.test.ts` fails while it is stale (#30). | The LiveKit agent is Python and can't import the TypeScript, so contract 4 needs a checked-in copy, and a test is what keeps the copy from drifting. Level and pace changes stay runtime `session.update`s for now. |
+| 2026-10-24 | The LiveKit spike runs on LiveKit Cloud: `livekit/agent.py` loads `shared/session.json`, and tool calls get a stand-in result until #32 forwards them to the browser. Closes #31. | Checked live: `probe.py` got a greeting and a reply to "What does 加油 mean?", and "Can you check my sentence? 我有三本狗。" called `note_correction` with the corrected sentence and pinyin, which the tutor then said. A spoken conversation in the Agents Playground was heard and answered. Raw tool schemas reach the model unchanged, so #32 only has to replace the stand-in handler. |
