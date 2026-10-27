@@ -62,9 +62,3 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 ## Credits
 
 The realtime client, audio pipeline, token server, probe and LiveKit agent are adapted from Boson AI's [higgs-realtime-tutorial](https://github.com/boson-ai/higgs-realtime-tutorial) (Apache-2.0, commit `87f1ae8`). See `NOTICE` and `LICENSES/`.
-
-## Submission checklist
-
-- [ ] 2–3 min public demo video
-- [ ] Public repo, pin the commit SHA / tag for judging, no keys committed
-- [ ] Write-ups: project (≤200 words), how it was built (≤200 words), team and known limitations. Drafts of the first two are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
